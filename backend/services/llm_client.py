@@ -1,16 +1,20 @@
 """
 Unified LLM client with retry.
-Supports OpenAI, Groq, and Gemini (all via OpenAI-compatible endpoints).
+Providers:
+  - openai   → OpenAI API           (gpt-4o, gpt-4o-mini …)
+  - groq     → Groq API             (llama3-70b-8192 …)      [OpenAI-compatible]
+  - gemini   → Google Gemini API    (gemini-2.0-flash …)     [OpenAI-compatible]
+  - anthropic → Anthropic API       (claude-opus-4-5 …)      [native SDK]
 """
 import asyncio
 from backend.config import get_settings
 
 settings = get_settings()
 
-# Provider routing table
-_PROVIDERS: dict[str, dict] = {
+# Providers that use the OpenAI-compatible interface
+_OPENAI_COMPAT: dict[str, dict] = {
     "openai": {
-        "base_url": None,  # default OpenAI endpoint
+        "base_url": None,
         "key_attr": "openai_api_key",
     },
     "groq": {
@@ -22,6 +26,8 @@ _PROVIDERS: dict[str, dict] = {
         "key_attr": "gemini_api_key",
     },
 }
+
+_VALID_PROVIDERS = list(_OPENAI_COMPAT.keys()) + ["anthropic"]
 
 
 async def call_llm(
@@ -44,12 +50,17 @@ async def call_llm(
 
 
 async def _call_once(provider, model, system, user, json_mode, temperature) -> str:
+    if provider not in _VALID_PROVIDERS:
+        raise ValueError(f"Unknown provider '{provider}'. Valid: {_VALID_PROVIDERS}")
+
+    # ── Anthropic (native SDK — different API format) ──────────────────────────
+    if provider == "anthropic":
+        return await _call_anthropic(model, system, user, json_mode, temperature)
+
+    # ── OpenAI-compatible providers ───────────────────────────────────────────
     from openai import AsyncOpenAI
 
-    cfg = _PROVIDERS.get(provider)
-    if cfg is None:
-        raise ValueError(f"Unknown provider '{provider}'. Valid: {list(_PROVIDERS)}")
-
+    cfg = _OPENAI_COMPAT[provider]
     api_key = getattr(settings, cfg["key_attr"], "") or ""
     if not api_key:
         raise ValueError(f"API key for provider '{provider}' is not configured.")
@@ -65,3 +76,26 @@ async def _call_once(provider, model, system, user, json_mode, temperature) -> s
 
     response = await client.chat.completions.create(**kwargs)
     return response.choices[0].message.content or ""
+
+
+async def _call_anthropic(model: str, system: str, user: str, json_mode: bool, temperature: float) -> str:
+    import anthropic
+
+    api_key = settings.anthropic_api_key or ""
+    if not api_key:
+        raise ValueError("ANTHROPIC_API_KEY is not configured.")
+
+    # When JSON mode is requested, append a hint (Anthropic has no native json_object mode)
+    user_msg = user
+    if json_mode:
+        user_msg += "\n\nRespond with valid JSON only, no markdown fences."
+
+    client = anthropic.AsyncAnthropic(api_key=api_key)
+    response = await client.messages.create(
+        model=model,
+        max_tokens=4096,
+        temperature=temperature,
+        system=system,
+        messages=[{"role": "user", "content": user_msg}],
+    )
+    return response.content[0].text or ""
