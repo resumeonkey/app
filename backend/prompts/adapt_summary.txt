@@ -1,0 +1,41 @@
+Reescribe el summary/profile del resume canadiense para esta oferta específica.
+
+REGLA MAESTRA: Adapta SOLO el contenido. Mantén:
+- El mismo tono profesional canadiense
+- La misma extensión aproximada (±10%)
+- La misma estructura de oraciones
+- El mismo nivel de formalidad
+- Solo información que ya existe en el resume original
+
+## Summary/Profile original
+---
+{original_text}
+---
+
+## Contexto del resume maestro (solo como referencia)
+{master_context}
+
+## Análisis de la oferta
+```json
+{job_analysis}
+```
+
+## Razón para adaptar esta sección
+{reason}
+
+## Instrucciones adicionales del usuario
+{user_instructions}
+
+## Tu tarea
+
+Reescribe el summary para que:
+1. Aparezcan los keywords ATS más importantes de la oferta (de forma natural)
+2. El título profesional y el énfasis del rol coincidan con lo que busca la empresa
+3. Los 2-3 logros o fortalezas mencionados sean los más relevantes para esta oferta
+4. Suene auténtico, no como un copia-pega de la descripción del trabajo
+
+## Reglas estrictas
+- NO inventes experiencia, roles, empresas, ni logros que no existan en el original
+- NO cambies el estilo de escritura (ej: si el original usa primera persona implícita, mantenerlo)
+- NO alargues ni acortes dramáticamente (±10% máximo)
+- El output es SOLO el texto del summary. Sin títulos, sin etiquetas, sin explicaciones.

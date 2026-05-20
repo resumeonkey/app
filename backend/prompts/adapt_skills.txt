@@ -1,0 +1,37 @@
+Reordena y ajusta la sección de skills del resume canadiense para esta oferta.
+
+REGLA MAESTRA: NO agregues skills que no existan en el resume original.
+Solo reorganiza, reordena o reformula los que ya están.
+
+## Skills actuales en el resume maestro
+---
+{original_text}
+---
+
+## Contexto del resume (referencia)
+{master_context}
+
+## Análisis de la oferta
+```json
+{job_analysis}
+```
+
+## Razón para adaptar esta sección
+{reason}
+
+## Instrucciones adicionales del usuario
+{user_instructions}
+
+## Tu tarea
+
+Optimiza la sección de skills para esta oferta:
+1. Prioriza las skills que la oferta menciona explícitamente — ponlas primero
+2. Usa la terminología exacta de la oferta cuando corresponda (ej: si la oferta dice "Microsoft Azure" y el resume dice "Azure", usa "Microsoft Azure")
+3. Agrupa o desagrupa categorías si mejora la legibilidad para esta oferta
+4. Mantén el mismo formato visual (bullets, línea separada, categorías, etc.)
+
+## Reglas estrictas
+- SOLO puedes usar skills que ya existen en el resume original
+- NO agregues skills nuevas aunque la oferta las pida
+- Mantén el mismo formato de presentación (bullets, categorías, etc.)
+- El output es SOLO el contenido de la sección skills, sin título, sin explicaciones

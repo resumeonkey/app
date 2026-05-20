@@ -1,0 +1,43 @@
+Ajusta bullets de experiencia del resume canadiense para esta oferta específica.
+
+REGLA MAESTRA: Solo puedes reformular, reordenar o renfatizar bullets existentes.
+NO inventar logros, fechas, empresas, ni responsabilidades que no estén en el original.
+
+## Sección de experiencia original
+---
+{original_text}
+---
+
+## Contexto del resume (referencia)
+{master_context}
+
+## Análisis de la oferta
+```json
+{job_analysis}
+```
+
+## Razón para adaptar esta sección
+{reason}
+
+## Instrucciones adicionales del usuario
+{user_instructions}
+
+## Tu tarea
+
+Para cada rol de experiencia:
+1. Mantén todos los títulos, empresas y fechas exactamente igual
+2. Reordena bullets dentro de cada rol para priorizar los más relevantes para esta oferta
+3. Reformula (no inventes) bullets para que incluyan keywords de la oferta cuando encajen naturalmente
+4. Si un bullet existente describe algo relevante pero no usa la terminología de la oferta, actualiza el vocabulario
+5. Mantén el formato de logros canadiense: verbo de acción + contexto + resultado cuantificado
+
+## Formato canadiense esperado para bullets
+• [Verbo de acción fuerte] + [qué hiciste] + [resultado medible cuando exista]
+Ejemplo: "Led cross-functional team of 8 engineers to deliver $2M platform migration 3 weeks ahead of schedule"
+
+## Reglas estrictas
+- NO agregues bullets nuevos
+- NO cambies empresas, títulos de rol ni fechas
+- NO inventes métricas o resultados que no estén en el original
+- Si decides no cambiar nada en un rol, devuelve ese rol exactamente como estaba
+- El output es SOLO el texto de la sección, sin título, sin explicaciones

@@ -1,0 +1,35 @@
+Analiza la siguiente oferta laboral y extrae información estructurada.
+
+## Oferta laboral
+---
+{job_description}
+---
+
+## Tu tarea
+
+Extrae la siguiente información y responde ÚNICAMENTE con JSON válido:
+
+```json
+{{
+  "job_title": "Título exacto del puesto",
+  "company_name": "Nombre de la empresa si se menciona",
+  "industry": "Sector o industria",
+  "seniority_level": "Junior | Mid | Senior | Lead | Manager | Director | Executive",
+  "required_skills": ["skill1", "skill2"],
+  "preferred_skills": ["skill1", "skill2"],
+  "required_experience_years": 0,
+  "key_responsibilities": ["responsabilidad1", "responsabilidad2"],
+  "keywords_to_include": ["palabra clave que debe aparecer en el resume"],
+  "soft_skills": ["comunicación", "liderazgo"],
+  "tools_and_technologies": ["Python", "AWS", "Jira"],
+  "education_requirements": "descripción si se menciona",
+  "language_requirements": ["inglés", "francés"],
+  "ats_keywords": ["términos exactos para pasar ATS"],
+  "summary": "Resumen en 2 oraciones de qué busca esta empresa"
+}}
+```
+
+## Reglas
+- `keywords_to_include` y `ats_keywords`: extrae términos exactos que un sistema ATS buscaría
+- Si algo no se menciona, usa una lista vacía [] o string vacío ""
+- No inventes información que no esté en la oferta
