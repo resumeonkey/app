@@ -80,7 +80,11 @@ async def run_adaptation(
         if section_name not in master_sections:
             continue
 
-        original_text = master_sections[section_name]["raw_text"]
+        original_text = master_sections[section_name].get("raw_text", "").strip()
+        if not original_text:
+            # Parser didn't extract this section — skip silently
+            continue
+
         adapted_text  = await _adapt_section(
             section_name=section_name,
             original_text=original_text,
@@ -167,6 +171,9 @@ def _trim_job_analysis(job_analysis: dict) -> dict:
     Drops metadata fields (company_name, industry, education_requirements, etc.)
     that are only useful for the selection decision, not for rewriting.
     Saves ~35% of job_analysis token cost per adaptation call.
+
+    Falls back to the original dict if nothing matched (e.g. JSON parse
+    failed upstream and we only have {"raw": "..."}).
     """
     KEEP = {
         "job_title", "seniority_level",
@@ -174,7 +181,8 @@ def _trim_job_analysis(job_analysis: dict) -> dict:
         "key_responsibilities", "keywords_to_include",
         "ats_keywords", "tools_and_technologies", "soft_skills",
     }
-    return {k: v for k, v in job_analysis.items() if k in KEEP}
+    trimmed = {k: v for k, v in job_analysis.items() if k in KEEP}
+    return trimmed if trimmed else job_analysis
 
 
 async def _adapt_section(

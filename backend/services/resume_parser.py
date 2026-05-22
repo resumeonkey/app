@@ -113,6 +113,26 @@ def _build_section_map(paragraphs: list[dict]) -> dict[str, Any]:
             "heading_index": start_idx,
         }
 
+    # ── Fallback: capture pre-section text as "summary" ──────────────────────
+    # Many Canadian resumes have an unlabelled profile blurb at the top
+    # (after name/contact) before the first explicit section heading.
+    # Also handles the case where the heading was detected but content is empty.
+    summary_empty = "summary" not in sections or not sections["summary"]["raw_text"].strip()
+    if summary_empty and section_starts:
+        first_section_idx = section_starts[0][1]
+        pre_paras = [
+            p for p in paragraphs
+            if p["index"] < first_section_idx and p["text"] and not _looks_like_heading(p["text"])
+        ]
+        # Skip the first 3 lines (typically: name, phone/email, location)
+        pre_content = pre_paras[3:]
+        if pre_content:
+            sections["summary"] = {
+                "raw_text":     "\n".join(p["text"] for p in pre_content),
+                "para_indices": [p["index"] for p in pre_content],
+                "heading_index": -1,
+            }
+
     return {
         "full_text":      full_text,
         "candidate_name": candidate_name,
