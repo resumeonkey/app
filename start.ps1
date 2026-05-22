@@ -78,7 +78,7 @@ $ready = $false
 for ($i = 0; $i -lt 15; $i++) {
     Start-Sleep -Seconds 1
     try {
-        $r = Invoke-WebRequest -Uri "http://localhost:8000/api/health" -UseBasicParsing -TimeoutSec 2
+        $r = Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/health" -UseBasicParsing -TimeoutSec 2
         if ($r.StatusCode -eq 200) { $ready = $true; break }
     } catch { }
 }
@@ -98,7 +98,7 @@ if (-not $ready) {
 }
 
 # ── Abrir navegador ───────────────────────────────────────────────────────────
-Start-Process "http://localhost:8000"
+Start-Process "http://127.0.0.1:8000"
 
 # ── Panel minimalista ─────────────────────────────────────────────────────────
 Clear-Host
@@ -107,7 +107,7 @@ Write-Host "  ================================================" -ForegroundColor
 Write-Host "   Resume Adapter esta corriendo" -ForegroundColor Green
 Write-Host "  ================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "   http://localhost:8000" -ForegroundColor White
+Write-Host "   http://127.0.0.1:8000" -ForegroundColor White
 Write-Host ""
 Write-Host "   Presiona Enter para cerrar la app." -ForegroundColor DarkGray
 Write-Host ""
