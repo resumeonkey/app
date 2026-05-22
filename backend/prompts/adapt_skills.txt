@@ -34,4 +34,13 @@ Optimiza la sección de skills para esta oferta:
 - SOLO puedes usar skills que ya existen en el resume original
 - NO agregues skills nuevas aunque la oferta las pida
 - Mantén el mismo formato de presentación (bullets, categorías, etc.)
-- El output es SOLO el contenido de la sección skills, sin título, sin explicaciones
+
+## FORMATO DE RESPUESTA — CRÍTICO
+Devuelve ÚNICAMENTE el texto adaptado de la sección, listo para insertar en el documento Word.
+PROHIBIDO incluir:
+- Asteriscos (**texto**) ni almohadillas (#, ##, ###) — cero markdown
+- Secciones de "Notas de adaptación", "Cambios realizados", "Explicaciones" o similares
+- Títulos de sección, etiquetas, comentarios de ningún tipo
+- Cualquier texto que no forme parte del contenido real del resume
+
+Si no hay cambios necesarios, devuelve la sección exactamente como está en el original.

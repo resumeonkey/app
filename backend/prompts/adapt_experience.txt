@@ -40,4 +40,13 @@ Ejemplo: "Led cross-functional team of 8 engineers to deliver $2M platform migra
 - NO cambies empresas, títulos de rol ni fechas
 - NO inventes métricas o resultados que no estén en el original
 - Si decides no cambiar nada en un rol, devuelve ese rol exactamente como estaba
-- El output es SOLO el texto de la sección, sin título, sin explicaciones
+
+## FORMATO DE RESPUESTA — CRÍTICO
+Devuelve ÚNICAMENTE el texto de la sección experience adaptado, listo para insertar en Word.
+PROHIBIDO incluir:
+- Asteriscos (**texto**) ni almohadillas (#, ##, ###) — cero markdown
+- Secciones de "Notas de adaptación", "Cambios realizados", "Explicaciones" o similares
+- Títulos, etiquetas, comentarios de ningún tipo
+- Cualquier texto que no sea parte real del contenido de experience
+
+Si no hay cambios necesarios, devuelve la sección exactamente como estaba.

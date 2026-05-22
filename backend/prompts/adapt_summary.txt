@@ -38,4 +38,13 @@ Reescribe el summary para que:
 - NO inventes experiencia, roles, empresas, ni logros que no existan en el original
 - NO cambies el estilo de escritura (ej: si el original usa primera persona implícita, mantenerlo)
 - NO alargues ni acortes dramáticamente (±10% máximo)
-- El output es SOLO el texto del summary. Sin títulos, sin etiquetas, sin explicaciones.
+
+## FORMATO DE RESPUESTA — CRÍTICO
+Devuelve ÚNICAMENTE el texto del summary adaptado, listo para insertar en el documento Word.
+PROHIBIDO incluir:
+- Asteriscos (**texto**) ni almohadillas (#, ##, ###) — cero markdown
+- Secciones de "Notas de adaptación", "Cambios realizados", "Explicaciones" o similares
+- Títulos, etiquetas, comentarios de ningún tipo
+- Cualquier texto que no sea el contenido real del summary
+
+Si no hay cambios necesarios, devuelve el summary exactamente como está en el original.

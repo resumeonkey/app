@@ -11,6 +11,7 @@ Rule enforced in every prompt:
  Adapt content only. Never alter structure, format, or Canadian style."
 """
 import json
+import re
 from backend.services.llm_client import call_llm
 from backend.services.prompt_loader import load_prompt
 
@@ -165,6 +166,32 @@ async def _select_blocks(
         ]
 
 
+def _clean_llm_section_output(text: str) -> str:
+    """
+    Strip markdown and LLM meta-commentary from section output.
+    The prompts already prohibit these, but this is a second line of defense.
+    """
+    # Cut off everything after common "notes" patterns the LLM loves to add
+    notes_pattern = re.compile(
+        r'\n+(?:#{1,3}\s*)?(?:notas?\s+de\s+adaptaci[oó]n|adaptation\s+notes?|'
+        r'cambios?\s+realizados?|key\s+changes?|changes?\s+made|'
+        r'\*\*mantenidas?\*\*|\*\*reordenado\*\*|explanation).*',
+        re.IGNORECASE | re.DOTALL,
+    )
+    text = notes_pattern.sub("", text)
+
+    # Remove markdown heading markers (### Title → Title)
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+
+    # Remove bold/italic markers (**text** → text, *text* → text)
+    text = re.sub(r'\*{1,3}(.+?)\*{1,3}', r'\1', text)
+
+    # Remove inline code backticks
+    text = re.sub(r'`(.+?)`', r'\1', text)
+
+    return text.strip()
+
+
 def _trim_job_analysis(job_analysis: dict) -> dict:
     """
     Keep only the fields that are actionable when rewriting a section.
@@ -215,4 +242,4 @@ async def _adapt_section(
         user=prompt,
         temperature=0.3,
     )
-    return adapted.strip()
+    return _clean_llm_section_output(adapted)
