@@ -2,6 +2,7 @@
 Adaptations: create, list, get, trigger processing.
 """
 import os
+import re
 import tempfile
 from datetime import datetime, timezone
 from typing import Optional
@@ -308,10 +309,14 @@ def _build_docx_from_text(master_full_text: str, blocks_changed: list, output_pa
         sec.left_margin   = Inches(1.0)
         sec.right_margin  = Inches(1.0)
 
+    # Bullet-only lines (just "•", "-", "*", "–") with no text are artifacts
+    # of broken PDF extraction — skip them entirely
+    _BULLET_ONLY = re.compile(r'^[•\-\*–·]+\s*$')
+
     for line in adapted_text.split("\n"):
         stripped = line.strip()
-        if not stripped:
-            doc.add_paragraph()  # preserve blank lines as spacing
+        if not stripped or _BULLET_ONLY.match(stripped):
+            doc.add_paragraph()  # spacing only, no visible content
             continue
 
         para = doc.add_paragraph()
