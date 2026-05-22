@@ -245,15 +245,48 @@ def _to_detail(a: Adaptation) -> dict:
     }
 
 
+def _repair_pdf_text(text: str) -> str:
+    """
+    PDFs with complex layouts (individually positioned characters, fancy headers)
+    produce text where each letter lands on its own line when extracted.
+    This function detects runs of single-character lines and joins them back
+    into words, making the output at least readable.
+    """
+    lines = text.split("\n")
+    output: list[str] = []
+    char_buffer: list[str] = []
+
+    def flush_buffer():
+        if char_buffer:
+            output.append("".join(char_buffer))
+            char_buffer.clear()
+
+    for line in lines:
+        s = line.strip()
+        # A "broken" line is 1-2 chars (letter, digit, punctuation fragment)
+        if len(s) <= 2 and s and not s.isspace():
+            char_buffer.append(s)
+        else:
+            flush_buffer()
+            output.append(s)
+
+    flush_buffer()
+    return "\n".join(output)
+
+
 def _build_docx_from_text(master_full_text: str, blocks_changed: list, output_path: str) -> None:
     """
-    Build a simple DOCX from the master full text (used when master is PDF).
-    Replaces each original section text with the adapted version, then writes
-    every line as a paragraph preserving the resume's logical structure.
+    Build a plain DOCX from master full text (used when master is PDF).
+    Replaces each original section text with the adapted version, repairs
+    broken single-character lines from complex PDF layouts, then writes
+    line-by-line with basic heading detection.
+
+    NOTE: for best formatting results the user should upload a DOCX master.
     """
     from docx import Document
     from docx.shared import Pt
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.ns import qn
+    from docx.shared import Inches
 
     # Replace original text with adapted text in-order
     adapted_text = master_full_text
@@ -263,23 +296,46 @@ def _build_docx_from_text(master_full_text: str, blocks_changed: list, output_pa
         if orig and adpt:
             adapted_text = adapted_text.replace(orig, adpt, 1)
 
+    # Repair broken single-char lines from complex PDF extraction
+    adapted_text = _repair_pdf_text(adapted_text)
+
     doc = Document()
 
-    # Remove default margins to give more room
-    for section in doc.sections:
-        section.top_margin    = section.top_margin.__class__(914400 // 2)   # 0.5 in
-        section.bottom_margin = section.bottom_margin.__class__(914400 // 2)
-        section.left_margin   = section.left_margin.__class__(914400)       # 1 in
-        section.right_margin  = section.right_margin.__class__(914400)
+    # Tighter margins (1 in left/right, 0.75 in top/bottom)
+    for sec in doc.sections:
+        sec.top_margin    = Inches(0.75)
+        sec.bottom_margin = Inches(0.75)
+        sec.left_margin   = Inches(1.0)
+        sec.right_margin  = Inches(1.0)
 
     for line in adapted_text.split("\n"):
         stripped = line.strip()
+        if not stripped:
+            doc.add_paragraph()  # preserve blank lines as spacing
+            continue
+
         para = doc.add_paragraph()
         run  = para.add_run(stripped)
+        run.font.name = "Calibri"
         run.font.size = Pt(11)
-        # Heuristic: short ALL-CAPS lines are likely section headers
+
+        # Heuristic: ALL-CAPS short line → section header
         if stripped.isupper() and 2 < len(stripped) < 60:
             run.bold = True
             run.font.size = Pt(12)
+            # Add a thin bottom border to mimic section divider
+            try:
+                from docx.oxml import OxmlElement
+                pPr = para._p.get_or_add_pPr()
+                pBdr = OxmlElement("w:pBdr")
+                bottom = OxmlElement("w:bottom")
+                bottom.set(qn("w:val"), "single")
+                bottom.set(qn("w:sz"), "4")
+                bottom.set(qn("w:space"), "1")
+                bottom.set(qn("w:color"), "auto")
+                pBdr.append(bottom)
+                pPr.append(pBdr)
+            except Exception:
+                pass  # non-critical styling
 
     doc.save(output_path)

@@ -60,6 +60,10 @@ def parse_pdf(file_path: str) -> dict[str, Any]:
         for page in reader.pages:
             lines.extend((page.extract_text() or "").split("\n"))
 
+    # Repair broken single-char lines produced by complex PDF layouts
+    # (e.g. fancy headers where each letter is individually positioned)
+    lines = _repair_single_char_lines(lines)
+
     # Convert to paragraph-like objects
     paragraphs = []
     for i, line in enumerate(lines):
@@ -69,6 +73,32 @@ def parse_pdf(file_path: str) -> dict[str, Any]:
         paragraphs.append({"index": i, "text": text, "style": style, "empty": not text})
 
     return _build_section_map(paragraphs)
+
+
+def _repair_single_char_lines(lines: list[str]) -> list[str]:
+    """
+    Join consecutive single/double-character lines back into words.
+    Handles PDFs where complex layouts cause each letter to be
+    extracted on its own line (e.g. vertically stacked name headers).
+    """
+    output: list[str] = []
+    char_buffer: list[str] = []
+
+    def flush():
+        if char_buffer:
+            output.append("".join(char_buffer))
+            char_buffer.clear()
+
+    for line in lines:
+        s = line.strip()
+        if len(s) <= 2 and s and not s.isspace():
+            char_buffer.append(s)
+        else:
+            flush()
+            output.append(s)
+
+    flush()
+    return output
 
 
 def _looks_like_heading(text: str) -> bool:
