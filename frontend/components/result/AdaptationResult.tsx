@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { getAdaptation, getDownloadUrl, type Adaptation, type BlockChanged } from "@/lib/api";
+import { getAdaptation, getDownloadUrl, type Adaptation, type BlockChanged, type JobAnalysis } from "@/lib/api";
 
 const SECTION_NAMES: Record<string, string> = {
   summary: "Summary / Profile",
@@ -44,7 +44,7 @@ export function AdaptationResult({ adaptationId, onReset }: Props) {
 
   const ui = STATUS_UI[adaptation.status];
   const blocks = adaptation.blocks_changed || [];
-  const analysis = (adaptation.job_analysis || {}) as Record<string, unknown>;
+  const analysis: JobAnalysis = adaptation.job_analysis || {};
 
   return (
     <div className="space-y-6">
@@ -99,23 +99,23 @@ export function AdaptationResult({ adaptationId, onReset }: Props) {
           <h3 className="font-semibold text-gray-700 mb-3">🔍 Análisis de la oferta</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: "Seniority", value: analysis.seniority_level as string },
-              { label: "Industria", value: analysis.industry as string },
-              { label: "Años requeridos", value: analysis.required_experience_years ? `${analysis.required_experience_years}+` : "—" },
-              { label: "Idiomas", value: (analysis.language_requirements as string[] | undefined)?.join(", ") || "—" },
+              { label: "Seniority",       value: analysis.seniority_level ?? "—" },
+              { label: "Industria",       value: analysis.industry ?? "—" },
+              { label: "Años requeridos", value: analysis.required_experience_years != null ? `${analysis.required_experience_years}+` : "—" },
+              { label: "Idiomas",         value: analysis.language_requirements?.join(", ") || "—" },
             ].map((item) => (
               <div key={item.label} className="bg-gray-50 rounded-lg p-3">
                 <p className="text-xs text-gray-400 font-medium">{item.label}</p>
-                <p className="text-sm font-semibold text-gray-700 mt-0.5">{item.value || "—"}</p>
+                <p className="text-sm font-semibold text-gray-700 mt-0.5">{item.value}</p>
               </div>
             ))}
           </div>
 
-          {Array.isArray(analysis.ats_keywords) && (analysis.ats_keywords as string[]).length > 0 && (
+          {(analysis.ats_keywords?.length ?? 0) > 0 && (
             <div className="mt-4">
               <p className="text-xs text-gray-400 mb-2 font-medium">KEYWORDS ATS INCORPORADOS</p>
               <div className="flex flex-wrap gap-1.5">
-                {(analysis.ats_keywords as string[]).map((kw) => (
+                {analysis.ats_keywords!.map((kw) => (
                   <span key={kw} className="badge bg-indigo-50 text-indigo-600">{kw}</span>
                 ))}
               </div>

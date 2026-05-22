@@ -28,6 +28,15 @@ export interface BlockChanged {
   adapted: string;
 }
 
+export interface JobAnalysis {
+  job_title?: string;
+  seniority_level?: string;
+  industry?: string;
+  required_experience_years?: number;
+  language_requirements?: string[];
+  ats_keywords?: string[];
+}
+
 export interface Adaptation {
   id: string;
   master_id: string;
@@ -38,7 +47,7 @@ export interface Adaptation {
   sections_changed: string[];
   job_description?: string;
   user_instructions?: string | null;
-  job_analysis?: Record<string, unknown> | null;
+  job_analysis?: JobAnalysis | null;
   blocks_changed?: BlockChanged[] | null;
   llm_provider: string;
   llm_model: string;
