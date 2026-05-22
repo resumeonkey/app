@@ -88,6 +88,39 @@ export const getAdaptation = (id: string) =>
 export const deleteAdaptation = (id: string) =>
   api.delete(`/api/adaptations/${id}`);
 
+// ── Context ────────────────────────────────────────────────────────────────────
+
+export interface UserContext {
+  id: string;
+  title: string;
+  content: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export const listContexts = () =>
+  api.get<UserContext[]>("/api/context/").then((r) => r.data);
+
+export const addTextContext = (title: string, content: string) => {
+  const fd = new FormData();
+  fd.append("title", title);
+  fd.append("content", content);
+  return api.post<UserContext>("/api/context/text", fd).then((r) => r.data);
+};
+
+export const addFileContext = (title: string, file: File) => {
+  const fd = new FormData();
+  fd.append("title", title);
+  fd.append("file", file);
+  return api.post<UserContext>("/api/context/file", fd).then((r) => r.data);
+};
+
+export const toggleContext = (id: string) =>
+  api.patch<UserContext>(`/api/context/${id}/toggle`).then((r) => r.data);
+
+export const deleteContext = (id: string) =>
+  api.delete(`/api/context/${id}`);
+
 // ── Export ─────────────────────────────────────────────────────────────────────
 
 export const getDownloadUrl = (adaptationId: string) =>

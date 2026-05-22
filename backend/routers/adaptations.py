@@ -14,6 +14,7 @@ from backend.config import get_settings
 from backend.database import get_db
 from backend.models.master import MasterResume
 from backend.models.adaptation import Adaptation
+from backend.models.context import UserContext
 from backend.services.adapter import run_adaptation
 from backend.services.docx_builder import build_adapted_docx
 from backend.services import storage
@@ -73,6 +74,17 @@ async def _run_adaptation_task(adaptation_id: str):
         adaptation.status = "processing"
         db.commit()
 
+        # Load active context items
+        active_contexts = (
+            db.query(UserContext)
+            .filter(UserContext.is_active == True)
+            .order_by(UserContext.created_at.asc())
+            .all()
+        )
+        user_context = "\n\n".join(
+            f"[{c.title}]\n{c.content}" for c in active_contexts
+        )
+
         result = await run_adaptation(
             master_sections=master.sections or {},
             master_full_text=master.full_text or "",
@@ -80,6 +92,7 @@ async def _run_adaptation_task(adaptation_id: str):
             user_instructions=adaptation.user_instructions or "",
             llm_provider=adaptation.llm_provider,
             llm_model=adaptation.llm_model,
+            user_context=user_context,
         )
 
         adaptation.job_analysis   = result["job_analysis"]

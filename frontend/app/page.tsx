@@ -5,6 +5,7 @@ import { MasterUpload } from "@/components/master/MasterUpload";
 import { MasterStatus } from "@/components/master/MasterStatus";
 import { JobForm } from "@/components/job/JobForm";
 import { AdaptationResult } from "@/components/result/AdaptationResult";
+import { ContextPanel } from "@/components/context/ContextPanel";
 
 type AppView = "upload_master" | "adapt" | "result";
 
@@ -68,6 +69,9 @@ export default function HomePage() {
           )}
         </>
       )}
+
+      {/* Personal context repository */}
+      {view !== "result" && <ContextPanel />}
 
       {/* Job input / Result */}
       {view === "adapt" && master && (

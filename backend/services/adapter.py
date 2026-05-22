@@ -30,6 +30,7 @@ async def run_adaptation(
     user_instructions: str,
     llm_provider: str,
     llm_model: str,
+    user_context: str = "",
 ) -> dict:
     """
     Returns:
@@ -47,8 +48,16 @@ async def run_adaptation(
     }
     """
 
+    # Build the system rule enriched with candidate context
+    context_block = (
+        f"\n\n--- CONTEXTO ADICIONAL DEL CANDIDATO ---\n{user_context.strip()}\n---"
+        if user_context and user_context.strip()
+        else ""
+    )
+    system_with_context = SYSTEM_RULE + context_block
+
     # ── Stage 1: Analyze the job ──────────────────────────────────────────────
-    job_analysis = await _analyze_job(job_description, llm_provider, llm_model)
+    job_analysis = await _analyze_job(job_description, llm_provider, llm_model, system_with_context)
 
     # ── Stage 2: Decide which sections to adapt ───────────────────────────────
     blocks_to_adapt = await _select_blocks(
@@ -58,6 +67,7 @@ async def run_adaptation(
         user_instructions=user_instructions,
         llm_provider=llm_provider,
         llm_model=llm_model,
+        system=system_with_context,
     )
 
     # ── Stage 3: Rewrite each selected section ─────────────────────────────────
@@ -77,6 +87,7 @@ async def run_adaptation(
             reason=block["reason"],
             llm_provider=llm_provider,
             llm_model=llm_model,
+            system=system_with_context,
         )
 
         blocks_changed.append({
@@ -94,11 +105,11 @@ async def run_adaptation(
 
 # ── Internal pipeline stages ──────────────────────────────────────────────────
 
-async def _analyze_job(job_description: str, provider: str, model: str) -> dict:
+async def _analyze_job(job_description: str, provider: str, model: str, system: str = SYSTEM_RULE) -> dict:
     prompt = load_prompt("analyze_job").format(job_description=job_description)
     raw = await call_llm(
         provider=provider, model=model,
-        system=SYSTEM_RULE + "\n\nEres un especialista en reclutamiento canadiense.",
+        system=system + "\n\nEres un especialista en reclutamiento canadiense.",
         user=prompt,
         json_mode=True,
     )
@@ -115,6 +126,7 @@ async def _select_blocks(
     user_instructions: str,
     provider: str,
     model: str,
+    system: str = SYSTEM_RULE,
 ) -> list[dict]:
     available_sections = [s for s in master_sections.keys() if s in ADAPTABLE_SECTIONS]
     sections_summary   = "\n".join(
@@ -130,7 +142,7 @@ async def _select_blocks(
 
     raw = await call_llm(
         provider=provider, model=model,
-        system=SYSTEM_RULE + "\n\nDecides qué bloques del resume canadiense adaptar para esta oferta específica.",
+        system=system + "\n\nDecides qué bloques del resume canadiense adaptar para esta oferta específica.",
         user=prompt,
         json_mode=True,
     )
@@ -155,6 +167,7 @@ async def _adapt_section(
     reason: str,
     provider: str,
     model: str,
+    system: str = SYSTEM_RULE,
 ) -> str:
     prompt_name = f"adapt_{section_name}" if section_name in ("summary", "skills") else "adapt_experience"
     prompt_template = load_prompt(prompt_name)
@@ -169,7 +182,7 @@ async def _adapt_section(
 
     adapted = await call_llm(
         provider=provider, model=model,
-        system=SYSTEM_RULE + f"\n\nEstás reescribiendo la sección '{section_name}' del resume canadiense.",
+        system=system + f"\n\nEstás reescribiendo la sección '{section_name}' del resume canadiense.",
         user=prompt,
         temperature=0.3,
     )

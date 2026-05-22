@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.config import get_settings
 from backend.database import init_db
-from backend.routers import master, adaptations, export
+from backend.routers import master, adaptations, export, context
 
 settings = get_settings()
 
@@ -41,6 +41,7 @@ app.add_middleware(
 app.include_router(master.router,       prefix="/api/master",       tags=["master"])
 app.include_router(adaptations.router,  prefix="/api/adaptations",  tags=["adaptations"])
 app.include_router(export.router,       prefix="/api/export",       tags=["export"])
+app.include_router(context.router,      prefix="/api/context",      tags=["context"])
 
 
 @app.get("/api/health")
