@@ -31,10 +31,10 @@ SECTION_PATTERNS = {
         r"competencias|habilidades)"
     ),
     "experience": (
-        r"(experience|work\s+experience|professional\s+experience|"
-        r"work\s+history|job\s+history|employment\s+history|employment|"
+        r"(\bexperience\b|work\s+experience|professional\s+experience|"
+        r"work\s+history|job\s+history|employment\s+history|\bemployment\b|"
         r"career\s+history|professional\s+background|"
-        r"experiencia|historial\s+laboral|trayectoria)"
+        r"\bexperiencia\b|historial\s+laboral|trayectoria)"
     ),
     "education": (
         r"(education|academic|academic\s+background|"
@@ -205,7 +205,22 @@ def _build_section_map(paragraphs: list[dict]) -> dict[str, Any]:
 
 
 def _match_section(text: str) -> str | None:
-    clean = text.strip().lower()
+    """
+    Return the canonical section name if `text` looks like a section heading,
+    or None if it doesn't.
+
+    Two safeguards against false positives:
+    1. Length cap — real headings are short (≤ 60 chars).
+       A paragraph like "Experienced IT systems and technology professional..."
+       is content, not a heading, even though it contains the word "experience".
+    2. Word boundaries (\b) in the patterns so "experience" doesn't match
+       the adjective "Experienced", "skills" doesn't match "skillset", etc.
+    """
+    stripped = text.strip()
+    # Content paragraphs are long; section headings are short
+    if len(stripped) > 60:
+        return None
+    clean = stripped.lower()
     for name, pattern in SECTION_PATTERNS.items():
         if re.search(pattern, clean):
             return name
