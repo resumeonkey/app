@@ -24,5 +24,5 @@ def get_db():
 
 
 def init_db():
-    from backend.models import master, adaptation  # noqa — registers models
+    from backend.models import master, adaptation, context  # noqa — registers all models
     Base.metadata.create_all(bind=engine)

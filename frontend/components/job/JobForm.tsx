@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { createAdaptation, type Adaptation } from "@/lib/api";
+import { createAdaptation, extractJobFromUrl, type Adaptation } from "@/lib/api";
 
 const LLM_OPTIONS = [
   { provider: "anthropic", model: "claude-haiku-4-5",        label: "Claude Haiku · Anthropic", tag: "" },
@@ -10,28 +10,67 @@ const LLM_OPTIONS = [
   { provider: "openai",    model: "gpt-4o",                  label: "GPT-4o · OpenAI",           tag: "créditos" },
 ];
 
+type Tab = "text" | "url";
+
 interface Props {
   onCreated: (adaptation: Adaptation) => void;
 }
 
 export function JobForm({ onCreated }: Props) {
-  const [jobDesc, setJobDesc]         = useState("");
-  const [instructions, setInstructions] = useState("");
-  const [selectedLLM, setSelectedLLM] = useState(0);
-  const [loading, setLoading]         = useState(false);
-  const [error, setError]             = useState("");
+  const [tab, setTab]                   = useState<Tab>("text");
 
+  // Text tab
+  const [jobDesc, setJobDesc]           = useState("");
+  const [instructions, setInstructions] = useState("");
+
+  // URL tab
+  const [url, setUrl]                   = useState("");
+  const [extracted, setExtracted]       = useState<{ text: string; score?: number; title?: string } | null>(null);
+  const [extracting, setExtracting]     = useState(false);
+  const [extractError, setExtractError] = useState("");
+
+  const [selectedLLM, setSelectedLLM]   = useState(0);
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState("");
+
+  const llm = LLM_OPTIONS[selectedLLM];
+
+  // ── URL extraction ─────────────────────────────────────────────────────────
+  const handleExtract = async () => {
+    if (!url.trim()) return;
+    setExtractError("");
+    setExtracted(null);
+    setExtracting(true);
+    try {
+      const data = await extractJobFromUrl(url.trim(), llm.provider, llm.model);
+      setExtracted({
+        text:  data.job_description,
+        score: data.compatibility_score,
+        title: data.job_title,
+      });
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } }; message?: string };
+      setExtractError(err?.response?.data?.detail || err?.message || "No se pudo extraer la oferta.");
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (!jobDesc.trim()) { setError("Pega la descripción del trabajo."); return; }
+    const desc = tab === "url" ? extracted?.text : jobDesc;
+    if (!desc?.trim()) {
+      setError(tab === "url" ? "Primero extrae la oferta desde la URL." : "Pega la descripción del trabajo.");
+      return;
+    }
     setError("");
     setLoading(true);
     try {
-      const llm = LLM_OPTIONS[selectedLLM];
       const adaptation = await createAdaptation({
-        job_description: jobDesc,
+        job_description:   desc,
         user_instructions: instructions || undefined,
-        llm_provider: llm.provider,
-        llm_model: llm.model,
+        llm_provider:      llm.provider,
+        llm_model:         llm.model,
       });
       onCreated(adaptation);
     } catch (e: unknown) {
@@ -42,21 +81,105 @@ export function JobForm({ onCreated }: Props) {
     }
   };
 
+  const isReady = tab === "text" ? !!jobDesc.trim() : !!extracted?.text;
+
   return (
     <div className="space-y-5">
-      <div>
-        <label className="label">Descripción del trabajo (pega el job posting completo)</label>
-        <textarea
-          className="textarea h-52 font-mono text-xs"
-          placeholder="Pega aquí el texto completo del job description..."
-          value={jobDesc}
-          onChange={(e) => setJobDesc(e.target.value)}
-        />
-        {jobDesc && (
-          <p className="text-xs text-gray-400 mt-1">{jobDesc.length} caracteres</p>
-        )}
+      {/* ── Tab switcher ──────────────────────────────────────────────────── */}
+      <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
+        <button
+          onClick={() => setTab("text")}
+          className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+            tab === "text" ? "bg-white shadow-sm text-gray-800" : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          📄 Pegar texto
+        </button>
+        <button
+          onClick={() => setTab("url")}
+          className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+            tab === "url" ? "bg-white shadow-sm text-gray-800" : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          🔗 Desde URL
+        </button>
       </div>
 
+      {/* ── Text tab ──────────────────────────────────────────────────────── */}
+      {tab === "text" && (
+        <div>
+          <label className="label">Descripción del trabajo (pega el job posting completo)</label>
+          <textarea
+            className="textarea h-52 font-mono text-xs"
+            placeholder="Pega aquí el texto completo del job description…"
+            value={jobDesc}
+            onChange={(e) => setJobDesc(e.target.value)}
+          />
+          {jobDesc && (
+            <p className="text-xs text-gray-400 mt-1">{jobDesc.length} caracteres</p>
+          )}
+        </div>
+      )}
+
+      {/* ── URL tab ───────────────────────────────────────────────────────── */}
+      {tab === "url" && (
+        <div className="space-y-3">
+          <div>
+            <label className="label">URL de la oferta</label>
+            <div className="flex gap-2">
+              <input
+                className="input flex-1"
+                placeholder="https://www.linkedin.com/jobs/view/… o cualquier job posting"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleExtract()}
+              />
+              <button
+                className="btn-secondary px-4"
+                onClick={handleExtract}
+                disabled={extracting || !url.trim()}
+              >
+                {extracting ? "Extrayendo…" : "Extraer"}
+              </button>
+            </div>
+          </div>
+
+          {extractError && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+              ⚠️ {extractError}
+            </p>
+          )}
+
+          {extracted && (
+            <div className="border border-green-200 rounded-xl p-4 bg-green-50 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-green-700">✅ Oferta extraída</p>
+                {extracted.score !== undefined && (
+                  <span className={`badge text-xs ${
+                    extracted.score >= 80 ? "bg-green-200 text-green-800" :
+                    extracted.score >= 60 ? "bg-yellow-200 text-yellow-800" :
+                                            "bg-red-200 text-red-800"
+                  }`}>
+                    {extracted.score}% compatibilidad
+                  </span>
+                )}
+              </div>
+              {extracted.title && (
+                <p className="text-xs text-green-800 font-medium">{extracted.title}</p>
+              )}
+              <p className="text-xs text-green-700">{extracted.text.length} caracteres extraídos</p>
+              <button
+                className="text-xs text-green-600 hover:text-green-800 underline"
+                onClick={() => { setTab("text"); setJobDesc(extracted.text); }}
+              >
+                Ver / editar texto completo →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Instructions ──────────────────────────────────────────────────── */}
       <div>
         <label className="label">Instrucciones adicionales (opcional)</label>
         <textarea
@@ -67,6 +190,7 @@ export function JobForm({ onCreated }: Props) {
         />
       </div>
 
+      {/* ── LLM selector ──────────────────────────────────────────────────── */}
       <div>
         <label className="label">Modelo de IA</label>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -103,9 +227,9 @@ export function JobForm({ onCreated }: Props) {
       <button
         className="btn-primary w-full py-3 text-base"
         onClick={handleSubmit}
-        disabled={loading || !jobDesc.trim()}
+        disabled={loading || !isReady}
       >
-        {loading ? "Analizando oferta y adaptando resume..." : "🚀 Adaptar resume a esta oferta"}
+        {loading ? "Analizando oferta y adaptando resume…" : "🚀 Adaptar resume a esta oferta"}
       </button>
     </div>
   );

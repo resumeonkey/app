@@ -5,18 +5,37 @@ services:
     buildCommand: pip install -r backend/requirements.txt
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
+    # Free tier spins down after 15 min inactivity (cold start ~30s).
+    # Upgrade to Starter ($7/mo) once you have real users.
     envVars:
+      # ── Database ────────────────────────────────────────────────────────────
       - key: DATABASE_URL
-        sync: false   # set in Render dashboard → Supabase PostgreSQL URL
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: GROQ_API_KEY
-        sync: false
+        sync: false   # Supabase → Settings → Database → URI (postgres://...)
+
+      # ── Supabase Storage ────────────────────────────────────────────────────
       - key: SUPABASE_URL
-        sync: false
+        sync: false   # Supabase → Settings → API → Project URL
       - key: SUPABASE_SERVICE_KEY
-        sync: false
+        sync: false   # Supabase → Settings → API → service_role (secret)
       - key: SUPABASE_BUCKET
         value: resumes
+
+      # ── AI providers (at least one required) ────────────────────────────────
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false   # free tier — recommended as default
+      - key: GEMINI_API_KEY
+        sync: false   # free tier — recommended as default
+      - key: OPENAI_API_KEY
+        sync: false
+
+      # ── CORS — must match your Vercel frontend URL exactly ──────────────────
       - key: ALLOWED_ORIGINS
-        sync: false   # set to your Vercel URL, e.g. https://resume-adapter.vercel.app
+        sync: false   # e.g. https://resume-adapter.vercel.app
+
+      # ── App settings ────────────────────────────────────────────────────────
+      - key: MAX_UPLOAD_MB
+        value: "20"
+      - key: DEBUG
+        value: "false"

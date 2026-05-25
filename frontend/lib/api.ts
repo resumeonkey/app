@@ -125,3 +125,77 @@ export const deleteContext = (id: string) =>
 
 export const getDownloadUrl = (adaptationId: string) =>
   `${api.defaults.baseURL}/api/export/${adaptationId}/docx`;
+
+// ── Job Search ─────────────────────────────────────────────────────────────────
+
+export interface SearchParams {
+  job_title: string;
+  custom_query: string;
+  country: string;
+  province: string;
+  city: string;
+  remote: "remote" | "hybrid" | "onsite" | "any";
+  job_type: string[];
+  experience_level: string[];
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_currency: "CAD" | "USD";
+  company_type: string[];
+  company_size: string[];
+  include_keywords: string[];
+  exclude_keywords: string[];
+  languages: string[];
+  date_posted: "24h" | "3d" | "7d" | "30d" | "any";
+  industries: string[];
+  num_results: number;
+  llm_provider: string;
+  llm_model: string;
+}
+
+export interface JobResult {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  url: string;
+  snippet: string;
+  salary: string | null;
+  date_posted: string | null;
+  compatibility_score: number;
+  matched_skills: string[];
+  missing_skills: string[];
+  score_summary: string;
+}
+
+export interface SearchResponse {
+  results: JobResult[];
+  queries_used: string[];
+}
+
+export interface ExtractResponse {
+  url: string;
+  job_description: string;
+  compatibility_score?: number;
+  job_title?: string;
+  company?: string;
+  location?: string;
+  salary?: string | null;
+  matched_skills?: string[];
+  missing_skills?: string[];
+  score_summary?: string;
+}
+
+export const suggestSearchParams = (llm_provider = "anthropic", llm_model = "claude-haiku-4-5") =>
+  api
+    .get<{ suggestions: Partial<SearchParams> & { skills_highlight?: string } }>(
+      `/api/search/suggest?llm_provider=${llm_provider}&llm_model=${llm_model}`
+    )
+    .then((r) => r.data);
+
+export const runJobSearch = (params: SearchParams) =>
+  api.post<SearchResponse>("/api/search/run", params).then((r) => r.data);
+
+export const extractJobFromUrl = (url: string, llm_provider = "anthropic", llm_model = "claude-haiku-4-5") =>
+  api
+    .post<ExtractResponse>("/api/search/extract", { url, llm_provider, llm_model })
+    .then((r) => r.data);
