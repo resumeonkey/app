@@ -7,8 +7,10 @@ Job search endpoints.
 """
 import asyncio
 import json
+import logging
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -24,8 +26,16 @@ from backend.services.job_search import (
     extract_job_via_jina,
     score_job,
     _build_profile_text,
+    _build_jobbank_url,
+    _build_workopolis_url,
+    _build_eluta_url,
+    _parse_jobbank_results,
+    _parse_workopolis_results,
+    _parse_eluta_results,
     _CCFTA_ELIGIBLE_TITLES,
 )
+
+log = logging.getLogger(__name__)
 from backend.services.llm_client import call_llm
 
 router = APIRouter()
@@ -311,4 +321,62 @@ async def extract_job_description(req: ExtractRequest, db: Session = Depends(get
         "url":             req.url,
         "job_description": job_text,
         **score_data,
+    }
+
+
+@router.get("/debug-source")
+async def debug_source(
+    source: str = "jobbank",
+    query: str = "implementation consultant",
+    location: str = "Canada",
+    province: str = "",
+):
+    """
+    Debug endpoint: fetch raw Jina markdown for a given source + query and
+    show how many results the parser finds. Useful for fixing regex patterns.
+
+    Usage: GET /api/search/debug-source?source=jobbank&query=software+developer
+    Sources: jobbank | workopolis | eluta
+    """
+    headers = {"X-Return-Format": "markdown", "X-Timeout": "20"}
+
+    if source == "jobbank":
+        target_url = _build_jobbank_url(query, location, province)
+    elif source == "workopolis":
+        target_url = _build_workopolis_url(query, location)
+    elif source == "eluta":
+        target_url = _build_eluta_url(query, location)
+    else:
+        raise HTTPException(status_code=400, detail="source must be jobbank | workopolis | eluta")
+
+    try:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            resp = await client.get(f"https://r.jina.ai/{target_url}", headers=headers)
+            resp.raise_for_status()
+        content = resp.content.decode("utf-8", errors="replace")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Jina fetch failed: {e}")
+
+    # Count parser hits
+    if source == "jobbank":
+        parsed = _parse_jobbank_results(content, 20)
+    elif source == "workopolis":
+        parsed = _parse_workopolis_results(content, 20)
+    else:
+        parsed = _parse_eluta_results(content, 20)
+
+    log.warning(
+        "debug-source %s: %d chars, %d parsed results",
+        source, len(content), len(parsed),
+    )
+
+    return {
+        "source": source,
+        "target_url": target_url,
+        "jina_url": f"https://r.jina.ai/{target_url}",
+        "content_length": len(content),
+        "parsed_count": len(parsed),
+        "parsed_titles": [r["title"] for r in parsed],
+        # First 4000 chars so you can inspect the markdown format
+        "raw_preview": content[:4000],
     }
