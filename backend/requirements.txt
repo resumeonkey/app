@@ -11,4 +11,4 @@ pdfplumber==0.11.2
 pypdf==4.2.0
 lxml==5.2.2
 psycopg2-binary>=2.9.9
-supabase==2.4.3
+supabase>=2.10.0
