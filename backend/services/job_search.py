@@ -386,6 +386,224 @@ async def search_jobbank_via_jina(
     return _parse_jobbank_results(content, num_results)
 
 
+# ── Workopolis via Jina Reader ───────────────────────────────────────────────
+
+_WORKOPOLIS_DATE_FILTER = {
+    "24h": "1", "3d": "3", "7d": "7", "30d": "30",
+}
+
+
+def _build_workopolis_url(
+    query: str,
+    location: str = "Canada",
+    remote: str = "any",
+    date_posted: str = "any",
+) -> str:
+    """Build a Workopolis job search URL."""
+    base = (
+        f"https://www.workopolis.com/jobsearch/find-jobs"
+        f"?ak={quote_plus(query)}"
+        f"&l={quote_plus(location)}"
+    )
+    if remote == "remote":
+        base += "&ftr=Remote"
+    elif remote == "hybrid":
+        base += "&ftr=Hybrid"
+    age = _WORKOPOLIS_DATE_FILTER.get(date_posted)
+    if age:
+        base += f"&age={age}"
+    return base
+
+
+_WORKOPOLIS_JOB_RE = re.compile(
+    # ## [Job Title](https://www.workopolis.com/jobsearch/viewjob/HASH)
+    # Company—Location [optional rating]
+    r'##\s+\[(.+?)\]\((https://www\.workopolis\.com/jobsearch/viewjob/[^\)\s]+)\)\s*\n'
+    r'([^\n—–-]+?)\s*[—–-]+\s*([^\n\[\d]+)',
+    re.IGNORECASE,
+)
+
+_WORKOPOLIS_SALARY_RE = re.compile(
+    r'\$[\d,]+(?:\.\d+)?(?:\s*[–—-]\s*\$[\d,]+(?:\.\d+)?)?(?:\s+a\s+\w+)?',
+    re.IGNORECASE,
+)
+
+_WORKOPOLIS_DATE_RE = re.compile(
+    r'(\d+[dhw]|\d+\s+days?\s+ago|Just now|Today)',
+    re.IGNORECASE,
+)
+
+
+def _parse_workopolis_results(content: str, num_results: int) -> list[dict]:
+    """Extract job listings from Workopolis page markdown rendered by Jina."""
+    results = []
+    seen: set[str] = set()
+
+    for m in _WORKOPOLIS_JOB_RE.finditer(content):
+        title   = m.group(1).strip()
+        url     = m.group(2).strip()
+        company = m.group(3).strip()
+        loc_raw = m.group(4).strip()
+
+        if url in seen:
+            continue
+        seen.add(url)
+
+        # Strip trailing rating like "[4.2]" from location
+        location = re.split(r'\s*\[|\s{2,}|\n', loc_raw)[0].strip()
+
+        # Look for salary in 250 chars following the match
+        context  = content[m.start():m.end() + 250]
+        salary_m = _WORKOPOLIS_SALARY_RE.search(context[m.end() - m.start():])
+        salary   = salary_m.group(0).strip() if salary_m else None
+
+        date_m = _WORKOPOLIS_DATE_RE.search(context[m.end() - m.start():])
+        date   = date_m.group(0) if date_m else ""
+
+        results.append({
+            "id":             str(uuid.uuid4()),
+            "title":          title,
+            "company":        company,
+            "location":       location,
+            "url":            url,
+            "snippet":        f"{title} at {company} — {location}",
+            "content":        "",
+            "date":           date,
+            "salary_display": salary,
+            "source":         "workopolis",
+        })
+
+        if len(results) >= num_results:
+            break
+
+    return results
+
+
+async def search_workopolis_via_jina(
+    query: str,
+    num_results: int = 10,
+    location: str = "Canada",
+    remote: str = "any",
+    date_posted: str = "any",
+) -> list[dict]:
+    """
+    Search Workopolis via Jina Reader (major Canadian job aggregator).
+    Returns jobs not always found on LinkedIn (retail, trades, office, SMEs).
+    """
+    search_url = _build_workopolis_url(query, location, remote, date_posted)
+    headers = {
+        "X-Return-Format": "markdown",
+        "X-Timeout":       "20",
+    }
+    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=True) as client:
+        response = await client.get(f"https://r.jina.ai/{search_url}", headers=headers)
+        response.raise_for_status()
+
+    content = response.content.decode("utf-8", errors="replace")
+    results = _parse_workopolis_results(content, num_results)
+    log.info("workopolis: found %d results for %r", len(results), query)
+    return results
+
+
+# ── Eluta.ca via Jina Reader ──────────────────────────────────────────────────
+
+def _build_eluta_url(query: str, location: str = "Canada") -> str:
+    """Build an Eluta.ca job search URL (aggregates Canadian company career pages)."""
+    return (
+        f"https://www.eluta.ca/search"
+        f"?q={quote_plus(query)}"
+        f"&l={quote_plus(location)}"
+    )
+
+
+_ELUTA_JOB_RE = re.compile(
+    # ## [Job Title](https://www.eluta.ca/...) [$salary optional]
+    # (blank line)
+    # [Company Name](company_url)
+    r'##\s+\[(.+?)\]\((https?://(?:www\.)?eluta\.ca/[^\)\s]+)\)'
+    r'(?:\s+\[?\$([^\]\n\[]+?)\]?)?\s*\n'   # optional inline salary
+    r'(?:\n|\s)*'
+    r'\[([^\]]+)\]\([^\)]+\)',               # [Company](url)
+    re.IGNORECASE,
+)
+
+_ELUTA_LOCATION_RE = re.compile(
+    r'\n\s*([A-Z][A-Za-z\s\.\-]+(?:,\s*[A-Z]{2})?)\s*\n',
+)
+
+_ELUTA_DATE_RE = re.compile(
+    r'(\d+\s+days?\s+ago|\d+[dh]\s+ago|Today|Posted\s+\w+)',
+    re.IGNORECASE,
+)
+
+
+def _parse_eluta_results(content: str, num_results: int) -> list[dict]:
+    """Extract job listings from Eluta.ca page markdown rendered by Jina."""
+    results = []
+    seen: set[str] = set()
+
+    for m in _ELUTA_JOB_RE.finditer(content):
+        title   = m.group(1).strip()
+        url     = m.group(2).strip()
+        salary  = m.group(3).strip() if m.group(3) else None
+        company = m.group(4).strip()
+
+        if url in seen:
+            continue
+        seen.add(url)
+
+        # Location is typically on the line right after the company link
+        after = content[m.end():m.end() + 300]
+        loc_m = _ELUTA_LOCATION_RE.search(after)
+        location = loc_m.group(1).strip() if loc_m else "Canada"
+
+        date_m = _ELUTA_DATE_RE.search(after)
+        date   = date_m.group(0) if date_m else ""
+
+        results.append({
+            "id":             str(uuid.uuid4()),
+            "title":          title,
+            "company":        company,
+            "location":       location,
+            "url":            url,
+            "snippet":        f"{title} at {company} — {location}",
+            "content":        "",
+            "date":           date,
+            "salary_display": salary,
+            "source":         "eluta",
+        })
+
+        if len(results) >= num_results:
+            break
+
+    return results
+
+
+async def search_eluta_via_jina(
+    query: str,
+    num_results: int = 10,
+    location: str = "Canada",
+) -> list[dict]:
+    """
+    Search Eluta.ca via Jina Reader.
+    Eluta aggregates directly from Canadian employer career pages — unique listings
+    not found on LinkedIn or Job Bank.
+    """
+    search_url = _build_eluta_url(query, location)
+    headers = {
+        "X-Return-Format": "markdown",
+        "X-Timeout":       "20",
+    }
+    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=True) as client:
+        response = await client.get(f"https://r.jina.ai/{search_url}", headers=headers)
+        response.raise_for_status()
+
+    content = response.content.decode("utf-8", errors="replace")
+    results = _parse_eluta_results(content, num_results)
+    log.info("eluta: found %d results for %r", len(results), query)
+    return results
+
+
 # ── Jina Reader — extract full job description ────────────────────────────────
 
 async def extract_job_via_jina(url: str) -> str:

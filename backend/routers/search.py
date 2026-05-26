@@ -19,6 +19,8 @@ from backend.services.job_search import (
     generate_search_queries,
     search_jobs_via_jina,
     search_jobbank_via_jina,
+    search_workopolis_via_jina,
+    search_eluta_via_jina,
     extract_job_via_jina,
     score_job,
     _build_profile_text,
@@ -164,11 +166,12 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
     location_parts = [p for p in [params.city, params.province, params.country] if p.strip()]
     location_str   = ", ".join(location_parts) if location_parts else "Canada"
 
-    # Split results evenly between sources (LinkedIn gets slightly more)
+    # Each source fetches results_per_source jobs; dedup + score happens after.
+    # 5 sources in parallel: LinkedIn x2, Job Bank, Workopolis, Eluta.
     results_per_source = max(4, params.num_results // 2)
 
     search_tasks = [
-        # LinkedIn — up to 2 queries
+        # LinkedIn — up to 2 keyword queries
         *[
             search_jobs_via_jina(
                 query=q,
@@ -179,7 +182,7 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             )
             for q in queries[:2]
         ],
-        # Job Bank Canada — 1 query (government + SME jobs not on LinkedIn)
+        # Job Bank Canada — government portal, strong LMIA data
         search_jobbank_via_jina(
             query=queries[0],
             num_results=results_per_source,
@@ -187,6 +190,20 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             province=params.province,
             remote=params.remote,
             lmia_only=params.lmia_only,
+        ),
+        # Workopolis — major Canadian aggregator (SMEs, office, retail)
+        search_workopolis_via_jina(
+            query=queries[0],
+            num_results=results_per_source,
+            location=location_str,
+            remote=params.remote,
+            date_posted=params.date_posted,
+        ),
+        # Eluta.ca — aggregates directly from company career pages
+        search_eluta_via_jina(
+            query=queries[0],
+            num_results=results_per_source,
+            location=location_str,
         ),
     ]
     results_per_query = await asyncio.gather(*search_tasks, return_exceptions=True)

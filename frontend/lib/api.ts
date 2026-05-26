@@ -170,7 +170,7 @@ export interface JobResult {
   missing_skills: string[];
   score_summary: string;
   // Source + immigration fields
-  source: "linkedin" | "jobbank";
+  source: "linkedin" | "jobbank" | "workopolis" | "eluta";
   lmia_approved: boolean;
   ccfta_eligible: boolean;
   immigration_support: "yes" | "mentioned" | "no";

@@ -158,6 +158,16 @@ function JobResultCard({ job, llmProvider, llmModel, onAdapted }: CardProps) {
                 🍁 Job Bank
               </span>
             )}
+            {job.source === "workopolis" && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 border border-orange-200 font-medium">
+                🇨🇦 Workopolis
+              </span>
+            )}
+            {job.source === "eluta" && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-50 text-teal-600 border border-teal-200 font-medium">
+                🔍 Eluta
+              </span>
+            )}
             {/* Immigration badges */}
             {job.lmia_approved && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
