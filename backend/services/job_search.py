@@ -749,7 +749,30 @@ async def extract_job_via_jina(url: str) -> str:
         response.raise_for_status()
 
     raw = response.content.decode("utf-8", errors="replace")
-    return _clean_extracted_text(raw)
+    cleaned = _clean_extracted_text(raw)
+    if _is_error_page(cleaned):
+        raise ValueError("URL returned a bot-block or error page — cannot extract job description")
+    return cleaned
+
+
+_ERROR_PAGE_MARKERS = (
+    # Cloudflare
+    "cloudflare", "cf-ray", "error 403", "error 1020", "error 1015",
+    "access denied", "403 forbidden", "attention required",
+    # Generic bot/scraping blocks
+    "please enable cookies", "enable javascript and cookies",
+    "your browser", "ddos protection", "checking your browser",
+    "security check", "ray id",
+    # Workopolis / job board login walls
+    "sign in to view", "create an account", "log in to apply",
+)
+
+def _is_error_page(text: str) -> bool:
+    """Return True when extracted text looks like a bot-block or error page."""
+    sample = text[:2000].lower()
+    marker_hits = sum(1 for m in _ERROR_PAGE_MARKERS if m in sample)
+    # Flag if 2+ markers found OR text is very short (under 300 chars after strip)
+    return marker_hits >= 2 or len(text.strip()) < 300
 
 
 def _clean_extracted_text(text: str) -> str:

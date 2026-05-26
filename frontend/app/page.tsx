@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { getActiveMaster, runJobSearch, suggestSearchParams, type MasterDetail, type Adaptation, type SearchParams, type SearchResponse, type SearchRecommendation } from "@/lib/api";
 import { SearchRecommendations } from "@/components/search/SearchRecommendations";
+import { AdaptationHistory } from "@/components/history/AdaptationHistory";
 // job_url → Adaptation map for this session
 type AdaptedJobsMap = Record<string, Adaptation>;
 import { MasterUpload } from "@/components/master/MasterUpload";
@@ -64,6 +65,11 @@ export default function HomePage() {
     setAdaptedJobs(prev => ({ ...prev, [jobUrl]: a }));
   };
 
+  const handleViewFromHistory = (a: Adaptation) => {
+    setAdaptId(a.id);
+    setView("result");
+  };
+
   const handleSearch = async (params: SearchParams) => {
     setSearchLoading(true);
     setSearchError("");
@@ -120,6 +126,14 @@ export default function HomePage() {
 
       {/* ── Personal context repository ──────────────────────────────────────── */}
       {view !== "result" && <ContextPanel />}
+
+      {/* ── Session history ──────────────────────────────────────────────────── */}
+      {view !== "result" && (
+        <AdaptationHistory
+          adaptedJobs={adaptedJobs}
+          onView={handleViewFromHistory}
+        />
+      )}
 
       {/* ── Job input section ────────────────────────────────────────────────── */}
       {view === "adapt" && master && (
