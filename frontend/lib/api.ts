@@ -202,9 +202,22 @@ export interface ExtractResponse {
   score_summary?: string;
 }
 
+export interface SearchRecommendation {
+  title: string;
+  keywords: string;
+  experience_level: string[];
+  industries: string[];
+  remote: "remote" | "hybrid" | "onsite" | "any";
+  why: string;
+  icon: string;
+}
+
 export const suggestSearchParams = (llm_provider = "anthropic", llm_model = "claude-haiku-4-5") =>
   api
-    .get<{ suggestions: Partial<SearchParams> & { skills_highlight?: string } }>(
+    .get<{
+      suggestions: Partial<SearchParams> & { skills_highlight?: string };
+      recommendations: SearchRecommendation[];
+    }>(
       `/api/search/suggest?llm_provider=${llm_provider}&llm_model=${llm_model}`
     )
     .then((r) => r.data);

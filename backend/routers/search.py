@@ -114,31 +114,65 @@ async def suggest_params(
     if not profile:
         return {"suggestions": {}}
 
-    prompt = f"""Analiza este perfil de resume y sugiere parámetros de búsqueda.
+    prompt = f"""Analiza este perfil de resume y genera:
+1. Los parámetros de búsqueda más apropiados (campo principal).
+2. Entre 4 y 5 roles alternativos que el candidato podría buscar, con motivo específico.
 
 ## Perfil
-{profile[:600]}
+{profile[:800]}
 
-Responde ÚNICAMENTE con JSON:
+Responde ÚNICAMENTE con JSON válido:
 {{
   "job_title": "título del puesto más apropiado para este candidato",
   "experience_level": ["mid"],
   "industries": ["Technology"],
-  "skills_highlight": "3-5 skills principales separadas por coma"
-}}"""
+  "skills_highlight": "3-5 skills principales separadas por coma",
+  "recommendations": [
+    {{
+      "title": "Implementation Consultant",
+      "keywords": "software implementation consultant ERP",
+      "experience_level": ["mid"],
+      "industries": ["Technology", "Consulting"],
+      "remote": "any",
+      "why": "Tu experiencia en onboarding técnico y QA encaja directamente",
+      "icon": "🚀"
+    }},
+    {{
+      "title": "Business Analyst",
+      "keywords": "business analyst requirements agile",
+      "experience_level": ["mid"],
+      "industries": ["Technology"],
+      "remote": "any",
+      "why": "Mapea con tus habilidades de análisis y documentación de procesos",
+      "icon": "📊"
+    }}
+  ]
+}}
+
+Reglas para recommendations:
+- Entre 4 y 5 entradas, roles DISTINTOS entre sí
+- "why" debe ser específico al perfil (max 80 chars), en español
+- "keywords" es la query de búsqueda en inglés para Canada
+- "icon" un emoji relevante al rol
+- "remote" puede ser "remote", "hybrid", o "any"
+- Los roles deben tener alta probabilidad de match con el perfil"""
 
     try:
         raw = await call_llm(
             provider=llm_provider,
             model=llm_model,
-            system="Eres un coach de carrera. Analizas perfiles y sugieres búsquedas de empleo.",
+            system="Eres un coach de carrera senior. Analizas perfiles y sugieres búsquedas precisas.",
             user=prompt,
             json_mode=True,
-            temperature=0.2,
+            temperature=0.3,
         )
-        return {"suggestions": json.loads(raw)}
+        data = json.loads(raw)
+        return {
+            "suggestions": {k: v for k, v in data.items() if k != "recommendations"},
+            "recommendations": data.get("recommendations", []),
+        }
     except Exception:
-        return {"suggestions": {}}
+        return {"suggestions": {}, "recommendations": []}
 
 
 @router.post("/run")

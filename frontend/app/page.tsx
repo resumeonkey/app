@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { getActiveMaster, runJobSearch, type MasterDetail, type Adaptation, type SearchParams, type SearchResponse } from "@/lib/api";
+import { getActiveMaster, runJobSearch, suggestSearchParams, type MasterDetail, type Adaptation, type SearchParams, type SearchResponse, type SearchRecommendation } from "@/lib/api";
+import { SearchRecommendations } from "@/components/search/SearchRecommendations";
 // job_url → Adaptation map for this session
 type AdaptedJobsMap = Record<string, Adaptation>;
 import { MasterUpload } from "@/components/master/MasterUpload";
@@ -22,16 +23,29 @@ export default function HomePage() {
   const [inputMode, setInputMode]   = useState<InputMode>("manual");
 
   // Search state
-  const [searchLoading, setSearchLoading]   = useState(false);
-  const [searchResult, setSearchResult]     = useState<SearchResponse | null>(null);
-  const [searchError, setSearchError]       = useState("");
-  const [lastSearchParams, setLastParams]   = useState<SearchParams | null>(null);
+  const [searchLoading, setSearchLoading]         = useState(false);
+  const [searchResult, setSearchResult]           = useState<SearchResponse | null>(null);
+  const [searchError, setSearchError]             = useState("");
+  const [lastSearchParams, setLastParams]         = useState<SearchParams | null>(null);
   // Tracks which job URLs have been adapted in this session
-  const [adaptedJobs, setAdaptedJobs]       = useState<AdaptedJobsMap>({});
+  const [adaptedJobs, setAdaptedJobs]             = useState<AdaptedJobsMap>({});
+  // Personalized search recommendations
+  const [recommendations, setRecommendations]     = useState<SearchRecommendation[]>([]);
+  const [recsLoading, setRecsLoading]             = useState(false);
 
   useEffect(() => {
     getActiveMaster()
-      .then(setMaster)
+      .then((m) => {
+        setMaster(m);
+        // Load personalized recommendations once master is known
+        if (m) {
+          setRecsLoading(true);
+          suggestSearchParams()
+            .then(({ recommendations: recs }) => setRecommendations(recs ?? []))
+            .catch(() => setRecommendations([]))
+            .finally(() => setRecsLoading(false));
+        }
+      })
       .catch(() => setMaster(null))
       .finally(() => setLoading(false));
   }, []);
@@ -146,6 +160,13 @@ export default function HomePage() {
           {/* ── Search mode ─────────────────────────────────────────────── */}
           {inputMode === "search" && (
             <div className="space-y-5">
+              {/* Personalized recommendations — click to search instantly */}
+              <SearchRecommendations
+                recommendations={recommendations}
+                loading={recsLoading}
+                onSearch={handleSearch}
+              />
+
               <SearchPanel onSearch={handleSearch} loading={searchLoading} />
 
               {searchError && (
