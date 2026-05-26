@@ -142,7 +142,7 @@ function JobResultCard({ job, llmProvider, llmModel, onAdapted }: CardProps) {
           </div>
 
           {/* Score label + salary */}
-          <div className="flex items-center gap-3 mt-1.5">
+          <div className="flex flex-wrap items-center gap-2 mt-1.5">
             <span className={`text-[10px] px-2 py-0.5 rounded-full border ${scoreColor}`}>
               {scoreLabel}
             </span>
@@ -151,6 +151,33 @@ function JobResultCard({ job, llmProvider, llmModel, onAdapted }: CardProps) {
             )}
             {job.date_posted && (
               <span className="text-xs text-gray-400">{job.date_posted}</span>
+            )}
+            {/* Source badge */}
+            {job.source === "jobbank" && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-600 border border-red-200 font-medium">
+                🍁 Job Bank
+              </span>
+            )}
+            {/* Immigration badges */}
+            {job.lmia_approved && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+                ✅ LMIA
+              </span>
+            )}
+            {job.ccfta_eligible && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-medium">
+                🇨🇱 CCFTA
+              </span>
+            )}
+            {job.immigration_support === "yes" && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 font-medium">
+                ✈️ Apoya migración
+              </span>
+            )}
+            {job.bilingual_advantage && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-medium">
+                🗣️ Bilingüe+
+              </span>
             )}
           </div>
 

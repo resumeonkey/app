@@ -44,6 +44,9 @@ const DEFAULT_PARAMS: SearchParams = {
   num_results: 8,
   llm_provider: "anthropic",
   llm_model: "claude-haiku-4-5",
+  lmia_only: false,
+  bilingual_spanish: false,
+  ccfta_check: false,
 };
 
 interface Props {
@@ -455,6 +458,63 @@ export function SearchPanel({ onSearch, loading }: Props) {
           </div>
         </div>
       )}
+
+      {/* ── Inmigrante / Hispanohablante ─────────────────────────────────── */}
+      <div className="border border-indigo-100 rounded-xl p-4 bg-indigo-50/40 space-y-3">
+        <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">
+          🇨🇱 Perfil inmigrante / Hispanohablante
+        </p>
+        <div className="space-y-2">
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              className="mt-0.5 accent-indigo-600"
+              checked={params.lmia_only}
+              onChange={(e) => set("lmia_only", e.target.checked)}
+            />
+            <div>
+              <p className="text-sm font-medium text-gray-700 group-hover:text-indigo-700">
+                Solo empleos con LMIA aprobado
+              </p>
+              <p className="text-xs text-gray-400">
+                El empleador ya tiene permiso oficial para contratar trabajadores extranjeros
+              </p>
+            </div>
+          </label>
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              className="mt-0.5 accent-indigo-600"
+              checked={params.bilingual_spanish}
+              onChange={(e) => set("bilingual_spanish", e.target.checked)}
+            />
+            <div>
+              <p className="text-sm font-medium text-gray-700 group-hover:text-indigo-700">
+                Priorizar empleos bilingüe / Español
+              </p>
+              <p className="text-xs text-gray-400">
+                Busca roles donde el español sea una ventaja competitiva
+              </p>
+            </div>
+          </label>
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              className="mt-0.5 accent-indigo-600"
+              checked={params.ccfta_check}
+              onChange={(e) => set("ccfta_check", e.target.checked)}
+            />
+            <div>
+              <p className="text-sm font-medium text-gray-700 group-hover:text-indigo-700">
+                Evaluar elegibilidad CCFTA
+              </p>
+              <p className="text-xs text-gray-400">
+                Tratado Chile-Canadá: ciertos roles no requieren LMIA para ciudadanos chilenos
+              </p>
+            </div>
+          </label>
+        </div>
+      </div>
 
       {/* ── Model selector ────────────────────────────────────────────────── */}
       <div>

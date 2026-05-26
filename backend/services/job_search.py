@@ -21,6 +21,20 @@ from backend.services.llm_client import call_llm
 
 log = logging.getLogger(__name__)
 
+# ── CCFTA eligible job title keywords (Canada-Chile Free Trade Agreement) ─────
+# Appendix L-1: Chilean nationals can get work permits WITHOUT LMIA in these roles.
+_CCFTA_ELIGIBLE_TITLES = [
+    "computer systems analyst", "systems analyst", "it analyst", "business analyst",
+    "engineer", "software engineer", "data engineer", "cloud engineer",
+    "management consultant", "business consultant", "implementation consultant",
+    "operations consultant", "it consultant", "erp consultant", "crm consultant",
+    "accountant", "cpa", "auditor", "financial analyst",
+    "mathematician", "statistician", "data scientist", "data analyst",
+    "actuary", "economist", "scientist",
+    "architect", "urban planner",
+    "land surveyor", "geologist", "meteorologist",
+]
+
 
 def _parse_json_response(raw: str) -> dict:
     """Parse JSON from LLM response, stripping markdown fences if present."""
@@ -72,6 +86,7 @@ async def generate_search_queries(
     params: dict,
     provider: str,
     model: str,
+    bilingual_spanish: bool = False,
 ) -> list[str]:
     """
     Use LLM to generate 2–4 keyword search queries from the candidate profile
@@ -80,6 +95,11 @@ async def generate_search_queries(
     """
     profile_text = _build_profile_text(master_sections)
     job_title    = params.get("job_title", "").strip()
+
+    bilingual_hint = (
+        '\n- El candidato es hispanohablante nativo. Incluir una query con "bilingual Spanish" '
+        'o "bilingüe" si aplica al puesto.'
+    ) if bilingual_spanish else ""
 
     prompt = f"""Eres un experto en búsqueda de empleo.
 
@@ -93,7 +113,7 @@ async def generate_search_queries(
 - Industrias: {', '.join(params.get('industries', [])) or 'cualquiera'}
 - Nivel: {', '.join(params.get('experience_level', [])) or 'cualquiera'}
 - Keywords adicionales: {', '.join(params.get('include_keywords', [])) or 'ninguno'}
-- Excluir: {', '.join(params.get('exclude_keywords', [])) or 'ninguno'}
+- Excluir: {', '.join(params.get('exclude_keywords', [])) or 'ninguno'}{bilingual_hint}
 
 ## Tu tarea
 Genera 2–4 variaciones de búsqueda de keywords para LinkedIn Jobs.
@@ -252,6 +272,7 @@ def _build_jobbank_url(
     location: str = "Canada",
     province: str = "",
     remote: str = "any",
+    lmia_only: bool = False,
 ) -> str:
     """Build a Job Bank Canada search URL."""
     base = (
@@ -263,9 +284,12 @@ def _build_jobbank_url(
     code = _JOBBANK_PROVINCE_CODES.get(province.lower().strip(), "")
     if code:
         base += f"&fprov={code}"
-    # Remote/telework filter (1=telework available)
+    # Remote/telework filter
     if remote == "remote":
-        base += "&fsrc=7"  # telework jobs
+        base += "&fsrc=7"
+    # LMIA filter — only show employers with approved LMIA (can hire foreign workers)
+    if lmia_only:
+        base += "&fwlmia=1"
     return base
 
 
@@ -338,12 +362,13 @@ async def search_jobbank_via_jina(
     location: str = "Canada",
     province: str = "",
     remote: str = "any",
+    lmia_only: bool = False,
 ) -> list[dict]:
     """
     Search Job Bank Canada via Jina Reader (free, government portal, no blocking).
     Especially useful for jobs not posted on LinkedIn (SMEs, government, nonprofits).
     """
-    jobbank_url = _build_jobbank_url(query, location, province, remote)
+    jobbank_url = _build_jobbank_url(query, location, province, remote, lmia_only)
 
     headers = {
         "X-Return-Format": "markdown",
@@ -403,6 +428,8 @@ async def score_job(
     master_sections: dict,
     provider: str,
     model: str,
+    ccfta_check: bool = False,
+    bilingual_spanish: bool = False,
 ) -> dict:
     """
     Score job–candidate compatibility using LLM.
@@ -411,6 +438,19 @@ async def score_job(
     profile_text = _build_profile_text(master_sections)
     job_excerpt  = job_text[:2000]
 
+    ccfta_block = """
+## Evaluación CCFTA (Tratado Libre Comercio Chile-Canadá)
+El candidato es chileno. El CCFTA permite trabajar en Canadá SIN LMIA para estas categorías:
+Computer Systems Analyst, Engineer, Management Consultant, Accountant, Mathematician/Statistician,
+Data Scientist, Scientist, Architect, Land Surveyor.
+"ccfta_eligible": true si el puesto encaja en alguna categoría anterior.
+""" if ccfta_check else ""
+
+    bilingual_block = """
+## Evaluación bilingüe
+"bilingual_advantage": true si el puesto valora o requiere español/bilingüe.
+""" if bilingual_spanish else ""
+
     prompt = f"""Evalúa la compatibilidad entre este candidato y esta oferta laboral.
 
 ## Perfil del candidato
@@ -418,7 +458,7 @@ async def score_job(
 
 ## Oferta laboral
 {job_excerpt}
-
+{ccfta_block}{bilingual_block}
 ## Tu tarea
 Extrae datos clave y calcula el score. Responde ÚNICAMENTE con JSON válido:
 
@@ -431,8 +471,13 @@ Extrae datos clave y calcula el score. Responde ÚNICAMENTE con JSON válido:
   "date_posted": "fecha si disponible, sino null",
   "matched_skills": ["skill1", "skill2"],
   "missing_skills": ["skill3"],
-  "score_summary": "Una oración (máx 90 chars) explicando el score"
+  "score_summary": "Una oración (máx 90 chars) explicando el score",
+  "ccfta_eligible": false,
+  "immigration_support": "no",
+  "bilingual_advantage": false
 }}
+
+Valores para "immigration_support": "yes" (menciona sponsorship/LMIA/work permit), "mentioned" (referencia vaga), "no".
 
 ## Guía de scoring
 90-100: Candidato cumple todos los requisitos + extras
@@ -453,14 +498,18 @@ Extrae datos clave y calcula el score. Responde ÚNICAMENTE con JSON válido:
         data = _parse_json_response(raw)
         return {
             "compatibility_score": max(0, min(100, int(data.get("compatibility_score", 50)))),
-            "job_title":      str(data.get("job_title", "")).strip(),
-            "company":        str(data.get("company", "")).strip(),
-            "location":       str(data.get("location", "")).strip(),
-            "salary":         data.get("salary"),
-            "date_posted":    data.get("date_posted"),
-            "matched_skills": data.get("matched_skills", []),
-            "missing_skills": data.get("missing_skills", []),
-            "score_summary":  str(data.get("score_summary", "")).strip()[:120],
+            "job_title":           str(data.get("job_title", "")).strip(),
+            "company":             str(data.get("company", "")).strip(),
+            "location":            str(data.get("location", "")).strip(),
+            "salary":              data.get("salary"),
+            "date_posted":         data.get("date_posted"),
+            "matched_skills":      data.get("matched_skills", []),
+            "missing_skills":      data.get("missing_skills", []),
+            "score_summary":       str(data.get("score_summary", "")).strip()[:120],
+            # Immigration fields
+            "ccfta_eligible":      bool(data.get("ccfta_eligible", False)),
+            "immigration_support": str(data.get("immigration_support", "no")),
+            "bilingual_advantage": bool(data.get("bilingual_advantage", False)),
         }
     except Exception as e:
         log.warning("score_job failed (provider=%s model=%s): %s", provider, model, e)

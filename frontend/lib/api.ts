@@ -150,6 +150,10 @@ export interface SearchParams {
   num_results: number;
   llm_provider: string;
   llm_model: string;
+  // Filtros para inmigrantes / hispanohablantes
+  lmia_only: boolean;
+  bilingual_spanish: boolean;
+  ccfta_check: boolean;
 }
 
 export interface JobResult {
@@ -165,6 +169,12 @@ export interface JobResult {
   matched_skills: string[];
   missing_skills: string[];
   score_summary: string;
+  // Source + immigration fields
+  source: "linkedin" | "jobbank";
+  lmia_approved: boolean;
+  ccfta_eligible: boolean;
+  immigration_support: "yes" | "mentioned" | "no";
+  bilingual_advantage: boolean;
 }
 
 export interface SearchResponse {

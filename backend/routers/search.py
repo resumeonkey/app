@@ -22,6 +22,7 @@ from backend.services.job_search import (
     extract_job_via_jina,
     score_job,
     _build_profile_text,
+    _CCFTA_ELIGIBLE_TITLES,
 )
 from backend.services.llm_client import call_llm
 
@@ -67,6 +68,11 @@ class SearchParams(BaseModel):
     num_results: int = 8
     llm_provider: str = "anthropic"
     llm_model: str = "claude-haiku-4-5"
+
+    # Filtros para inmigrantes / hispanohablantes
+    lmia_only: bool = False         # Job Bank: solo empleos con LMIA aprobado
+    bilingual_spanish: bool = False # Boost "bilingüe español" en queries
+    ccfta_check: bool = False       # Evaluar elegibilidad bajo Tratado Chile-Canadá
 
 
 class ExtractRequest(BaseModel):
@@ -147,6 +153,7 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             params=params.model_dump(),
             provider=params.llm_provider,
             model=params.llm_model,
+            bilingual_spanish=params.bilingual_spanish,
         )
 
     if not queries:
@@ -179,6 +186,7 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             location=location_str,
             province=params.province,
             remote=params.remote,
+            lmia_only=params.lmia_only,
         ),
     ]
     results_per_query = await asyncio.gather(*search_tasks, return_exceptions=True)
@@ -208,6 +216,8 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             master_sections=master_sections,
             provider=params.llm_provider,
             model=params.llm_model,
+            ccfta_check=params.ccfta_check,
+            bilingual_spanish=params.bilingual_spanish,
         )
         for r in raw_results
     ]
@@ -222,9 +232,12 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
                 "job_title": raw.get("title", ""), "company": "",
                 "location": "", "salary": None, "date_posted": None,
                 "matched_skills": [], "missing_skills": [], "score_summary": "",
+                "ccfta_eligible": False, "immigration_support": "no", "bilingual_advantage": False,
             }
-        # Prefer LinkedIn-parsed title/company/location over LLM extraction
-        # (LinkedIn data is accurate; LLM had only a title snippet to work with)
+        # Fast CCFTA pre-check from title keywords (no LLM needed)
+        title_lower = (raw.get("title") or "").lower()
+        fast_ccfta = any(kw in title_lower for kw in _CCFTA_ELIGIBLE_TITLES)
+
         final.append({
             "id":                  raw.get("id", ""),
             "title":               raw.get("title") or score.get("job_title", ""),
@@ -232,12 +245,18 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             "location":            raw.get("location") or score.get("location", ""),
             "url":                 raw.get("url", ""),
             "snippet":             raw.get("snippet", ""),
-            "salary":              score.get("salary"),
+            "salary":              score.get("salary") or raw.get("salary_display"),
             "date_posted":         raw.get("date") or score.get("date_posted", ""),
             "compatibility_score": score.get("compatibility_score", 50),
             "matched_skills":      score.get("matched_skills", []),
             "missing_skills":      score.get("missing_skills", []),
             "score_summary":       score.get("score_summary", ""),
+            # Immigration fields
+            "source":              raw.get("source", "linkedin"),
+            "lmia_approved":       raw.get("lmia_approved", False),
+            "ccfta_eligible":      score.get("ccfta_eligible", False) or fast_ccfta,
+            "immigration_support": score.get("immigration_support", "no"),
+            "bilingual_advantage": score.get("bilingual_advantage", False),
         })
 
     final.sort(key=lambda x: x["compatibility_score"], reverse=True)
