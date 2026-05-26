@@ -38,6 +38,11 @@ Optimiza la sección de educación para esta oferta:
 3. Ajusta el lenguaje para alinear terminología con la oferta (sin inventar nada)
 4. Sigue al pie de la letra las instrucciones del especialista si las hay
 
+## IDIOMA — REGLA ABSOLUTA
+Escribe en el MISMO IDIOMA que la "Sección de educación original" de arriba.
+Si el original está en inglés → inglés. Si está en español → español.
+NUNCA traduzcas, aunque este prompt esté en español.
+
 ## FORMATO DE RESPUESTA — CRÍTICO
 Devuelve ÚNICAMENTE el texto adaptado de la sección education, listo para insertar en Word.
 PROHIBIDO incluir:

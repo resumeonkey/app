@@ -52,6 +52,9 @@ export interface Adaptation {
   llm_provider: string;
   llm_model: string;
   error_msg?: string | null;
+  // Application tracking
+  job_url?: string | null;
+  applied_at?: string | null;
 }
 
 // ── Master ─────────────────────────────────────────────────────────────────────
@@ -77,7 +80,11 @@ export const createAdaptation = (body: {
   user_instructions?: string;
   llm_provider: string;
   llm_model: string;
+  job_url?: string;
 }) => api.post<Adaptation>("/api/adaptations/", body).then((r) => r.data);
+
+export const toggleApplied = (id: string) =>
+  api.patch<Adaptation>(`/api/adaptations/${id}/applied`).then((r) => r.data);
 
 export const listAdaptations = () =>
   api.get<Adaptation[]>("/api/adaptations/").then((r) => r.data);

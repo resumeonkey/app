@@ -41,6 +41,11 @@ Ejemplo: "Led cross-functional team of 8 engineers to deliver $2M platform migra
 - NO inventes métricas o resultados que no estén en el original
 - Si decides no cambiar nada en un rol, devuelve ese rol exactamente como estaba
 
+## IDIOMA — REGLA ABSOLUTA
+Escribe en el MISMO IDIOMA que la "Sección de experiencia original" de arriba.
+Si el original está en inglés → inglés. Si está en español → español.
+NUNCA traduzcas, aunque este prompt esté en español.
+
 ## FORMATO DE RESPUESTA — CRÍTICO
 Devuelve ÚNICAMENTE el texto de la sección experience adaptado, listo para insertar en Word.
 PROHIBIDO incluir:

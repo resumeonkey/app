@@ -21,7 +21,11 @@ ADAPTABLE_SECTIONS = ["summary", "skills", "experience", "projects", "education"
 SYSTEM_RULE = """REGLA MAESTRA: Usa siempre el resume tipo canadiense ya cargado como plantilla maestra.
 Adapta SOLO el contenido necesario para la oferta. Nunca alteres la estructura,
 el estilo canadiense, ni el formato del documento base. El output debe verse como
-una variante del mismo CV, no como un CV nuevo."""
+una variante del mismo CV, no como un CV nuevo.
+
+IDIOMA OBLIGATORIO: Escribe SIEMPRE en el mismo idioma que el texto original del resume.
+Si el resume original está en inglés → responde en inglés. Si está en español → español.
+NUNCA traduzcas el contenido aunque el resto del prompt esté en español."""
 
 
 async def run_adaptation(

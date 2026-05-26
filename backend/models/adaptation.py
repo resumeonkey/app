@@ -36,3 +36,7 @@ class Adaptation(Base):
     # LLM config used
     llm_provider    = Column(String, default="openai")
     llm_model       = Column(String, default="gpt-4o")
+
+    # Application tracking
+    job_url         = Column(String, nullable=True)   # URL of the job in job search results
+    applied_at      = Column(DateTime, nullable=True) # set when user marks "I applied"

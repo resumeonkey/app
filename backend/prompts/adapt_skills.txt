@@ -35,6 +35,11 @@ Optimiza la sección de skills para esta oferta:
 - NO agregues skills nuevas aunque la oferta las pida
 - Mantén el mismo formato de presentación (bullets, categorías, etc.)
 
+## IDIOMA — REGLA ABSOLUTA
+Escribe en el MISMO IDIOMA que "Skills actuales en el resume maestro" de arriba.
+Si el original está en inglés → inglés. Si está en español → español.
+NUNCA traduzcas, aunque este prompt esté en español.
+
 ## FORMATO DE RESPUESTA — CRÍTICO
 Devuelve ÚNICAMENTE el texto adaptado de la sección, listo para insertar en el documento Word.
 PROHIBIDO incluir:

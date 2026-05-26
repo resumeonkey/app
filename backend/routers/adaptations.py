@@ -29,6 +29,7 @@ class CreateAdaptationRequest(BaseModel):
     user_instructions: Optional[str] = None
     llm_provider: str = "openai"
     llm_model: str = "gpt-4o"
+    job_url: Optional[str] = None   # URL of the job listing (for tracking)
 
 
 class AdaptationSummary(BaseModel):
@@ -105,10 +106,14 @@ async def _run_adaptation_task(adaptation_id: str):
         if not adaptation.company_name:
             adaptation.company_name = analysis.get("company_name", "")
 
-        # Build adapted DOCX
-        safe_company = (adaptation.company_name or "company").replace(" ", "_")[:20]
-        safe_title   = (adaptation.job_title or "role").replace(" ", "_")[:20]
-        output_name  = f"resume_{safe_title}_{safe_company}_{adaptation.id[:8]}.docx"
+        # Build adapted DOCX — filename: CandidateName_JobTitle_Company.docx
+        def _slug(s: str, maxlen: int = 22) -> str:
+            return re.sub(r'[^\w]', '_', s).strip('_')[:maxlen]
+
+        safe_name    = _slug(master.candidate_name or "Resume")
+        safe_title   = _slug(adaptation.job_title or "role")
+        safe_company = _slug(adaptation.company_name or "company")
+        output_name  = f"{safe_name}_{safe_title}_{safe_company}.docx"
         output_tmp   = tempfile.NamedTemporaryFile(delete=False, suffix=".docx").name
 
         try:
@@ -181,6 +186,7 @@ async def create_adaptation(
         user_instructions=body.user_instructions,
         llm_provider=body.llm_provider,
         llm_model=body.llm_model,
+        job_url=body.job_url,
         status="pending",
     )
     db.add(adaptation)
@@ -210,6 +216,21 @@ def get_adaptation(adaptation_id: str, db: Session = Depends(get_db)):
     return _to_detail(a)
 
 
+@router.patch("/{adaptation_id}/applied")
+def toggle_applied(adaptation_id: str, db: Session = Depends(get_db)):
+    """Mark/unmark an adaptation as 'I applied to this job'."""
+    a = db.query(Adaptation).filter(Adaptation.id == adaptation_id).first()
+    if not a:
+        raise HTTPException(404, "Adaptation not found")
+    if a.applied_at:
+        a.applied_at = None          # toggle off
+    else:
+        a.applied_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(a)
+    return _to_detail(a)
+
+
 @router.delete("/{adaptation_id}", status_code=204)
 def delete_adaptation(adaptation_id: str, db: Session = Depends(get_db)):
     import os
@@ -231,6 +252,8 @@ def _to_summary(a: Adaptation) -> dict:
         "job_title": a.job_title, "company_name": a.company_name,
         "status": a.status, "created_at": a.created_at,
         "sections_changed": changed,
+        "job_url": a.job_url,
+        "applied_at": a.applied_at.isoformat() if a.applied_at else None,
     }
 
 def _to_detail(a: Adaptation) -> dict:

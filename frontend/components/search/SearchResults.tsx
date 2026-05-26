@@ -1,6 +1,12 @@
 "use client";
 import { useState } from "react";
-import { extractJobFromUrl, createAdaptation, type JobResult, type Adaptation } from "@/lib/api";
+import {
+  extractJobFromUrl,
+  createAdaptation,
+  toggleApplied,
+  type JobResult,
+  type Adaptation,
+} from "@/lib/api";
 
 interface Props {
   results: JobResult[];
@@ -8,9 +14,20 @@ interface Props {
   llmProvider: string;
   llmModel: string;
   onAdapted: (adaptation: Adaptation) => void;
+  // job_url → adaptation for jobs already adapted this session
+  adaptedJobs?: Record<string, Adaptation>;
+  onJobAdapted?: (jobUrl: string, adaptation: Adaptation) => void;
 }
 
-export function SearchResults({ results, queriesUsed, llmProvider, llmModel, onAdapted }: Props) {
+export function SearchResults({
+  results,
+  queriesUsed,
+  llmProvider,
+  llmModel,
+  onAdapted,
+  adaptedJobs = {},
+  onJobAdapted,
+}: Props) {
   return (
     <div className="space-y-4">
       {/* Meta */}
@@ -36,6 +53,8 @@ export function SearchResults({ results, queriesUsed, llmProvider, llmModel, onA
           llmProvider={llmProvider}
           llmModel={llmModel}
           onAdapted={onAdapted}
+          existingAdaptation={adaptedJobs[job.url] ?? null}
+          onJobAdapted={onJobAdapted}
         />
       ))}
 
@@ -55,12 +74,24 @@ interface CardProps {
   llmProvider: string;
   llmModel: string;
   onAdapted: (a: Adaptation) => void;
+  existingAdaptation: Adaptation | null;
+  onJobAdapted?: (jobUrl: string, adaptation: Adaptation) => void;
 }
 
-function JobResultCard({ job, llmProvider, llmModel, onAdapted }: CardProps) {
+function JobResultCard({
+  job,
+  llmProvider,
+  llmModel,
+  onAdapted,
+  existingAdaptation,
+  onJobAdapted,
+}: CardProps) {
   const [expanded, setExpanded] = useState(false);
   const [adapting, setAdapting] = useState(false);
   const [error, setError] = useState("");
+  const [adaptation, setAdaptation] = useState<Adaptation | null>(existingAdaptation);
+  const [applied, setApplied] = useState<boolean>(!!existingAdaptation?.applied_at);
+  const [togglingApplied, setTogglingApplied] = useState(false);
 
   const score = job.compatibility_score;
   const scoreColor =
@@ -88,13 +119,16 @@ function JobResultCard({ job, llmProvider, llmModel, onAdapted }: CardProps) {
         // Use snippet as fallback
       }
 
-      // Step 2: create adaptation
-      const adaptation = await createAdaptation({
+      // Step 2: create adaptation (store job_url for tracking)
+      const newAdaptation = await createAdaptation({
         job_description: jobDescription,
         llm_provider: llmProvider,
         llm_model: llmModel,
+        job_url: job.url,
       });
-      onAdapted(adaptation);
+      setAdaptation(newAdaptation);
+      onJobAdapted?.(job.url, newAdaptation);
+      onAdapted(newAdaptation);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } }; message?: string };
       setError(err?.response?.data?.detail || err?.message || "Error al iniciar la adaptación.");
@@ -102,8 +136,28 @@ function JobResultCard({ job, llmProvider, llmModel, onAdapted }: CardProps) {
     }
   };
 
+  const handleToggleApplied = async () => {
+    if (!adaptation) return;
+    setTogglingApplied(true);
+    try {
+      const updated = await toggleApplied(adaptation.id);
+      setApplied(!!updated.applied_at);
+      setAdaptation(updated);
+    } catch {
+      // ignore
+    } finally {
+      setTogglingApplied(false);
+    }
+  };
+
   return (
-    <div className="border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition-all">
+    <div className={`border rounded-xl p-4 transition-all ${
+      applied
+        ? "border-green-300 bg-green-50/30"
+        : adaptation
+        ? "border-indigo-200 bg-indigo-50/20"
+        : "border-gray-200 hover:border-gray-300"
+    }`}>
       <div className="flex items-start gap-3">
         {/* Score badge */}
         <div className={`flex-shrink-0 w-14 h-14 rounded-xl border-2 flex flex-col items-center justify-center ${scoreColor}`}>
@@ -122,7 +176,7 @@ function JobResultCard({ job, llmProvider, llmModel, onAdapted }: CardProps) {
                 {[job.company, job.location].filter(Boolean).join(" · ") || "Empresa no especificada"}
               </p>
             </div>
-            <div className="flex-shrink-0 flex gap-2">
+            <div className="flex-shrink-0 flex gap-2 flex-wrap justify-end">
               <a
                 href={job.url}
                 target="_blank"
@@ -131,17 +185,32 @@ function JobResultCard({ job, llmProvider, llmModel, onAdapted }: CardProps) {
               >
                 Ver ↗
               </a>
-              <button
-                className="btn-primary text-xs py-1 px-2"
-                onClick={handleAdapt}
-                disabled={adapting}
-              >
-                {adapting ? "…" : "Adaptar →"}
-              </button>
+              {adaptation ? (
+                /* Already adapted — show postular toggle */
+                <button
+                  className={`text-xs py-1 px-2 rounded-lg font-medium transition-colors ${
+                    applied
+                      ? "bg-green-100 text-green-700 border border-green-300 hover:bg-green-200"
+                      : "bg-indigo-100 text-indigo-700 border border-indigo-300 hover:bg-indigo-200"
+                  }`}
+                  onClick={handleToggleApplied}
+                  disabled={togglingApplied}
+                >
+                  {togglingApplied ? "…" : applied ? "✓ Postulé" : "Marcar postulado"}
+                </button>
+              ) : (
+                <button
+                  className="btn-primary text-xs py-1 px-2"
+                  onClick={handleAdapt}
+                  disabled={adapting}
+                >
+                  {adapting ? "…" : "Adaptar →"}
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Score label + salary */}
+          {/* Score label + salary + badges */}
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
             <span className={`text-[10px] px-2 py-0.5 rounded-full border ${scoreColor}`}>
               {scoreLabel}
@@ -151,6 +220,17 @@ function JobResultCard({ job, llmProvider, llmModel, onAdapted }: CardProps) {
             )}
             {job.date_posted && (
               <span className="text-xs text-gray-400">{job.date_posted}</span>
+            )}
+            {/* Applied badge */}
+            {applied && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-300 font-medium">
+                ✅ Postulado
+              </span>
+            )}
+            {adaptation && !applied && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 border border-indigo-300 font-medium">
+                📄 Resume listo
+              </span>
             )}
             {/* Source badge */}
             {job.source === "jobbank" && (

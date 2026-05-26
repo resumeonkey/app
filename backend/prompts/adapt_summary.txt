@@ -39,6 +39,11 @@ Reescribe el summary para que:
 - NO cambies el estilo de escritura (ej: si el original usa primera persona implícita, mantenerlo)
 - NO alargues ni acortes dramáticamente (±10% máximo)
 
+## IDIOMA — REGLA ABSOLUTA
+Escribe el texto adaptado en el MISMO IDIOMA que el "Summary/Profile original" de arriba.
+Si el original está en inglés → inglés. Si está en español → español.
+NUNCA traduzcas el contenido del resume, aunque este prompt esté en español.
+
 ## FORMATO DE RESPUESTA — CRÍTICO
 Devuelve ÚNICAMENTE el texto del summary adaptado, listo para insertar en el documento Word.
 PROHIBIDO incluir:

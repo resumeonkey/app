@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { getActiveMaster, runJobSearch, type MasterDetail, type Adaptation, type SearchParams, type SearchResponse } from "@/lib/api";
+// job_url → Adaptation map for this session
+type AdaptedJobsMap = Record<string, Adaptation>;
 import { MasterUpload } from "@/components/master/MasterUpload";
 import { MasterStatus } from "@/components/master/MasterStatus";
 import { JobForm } from "@/components/job/JobForm";
@@ -24,6 +26,8 @@ export default function HomePage() {
   const [searchResult, setSearchResult]     = useState<SearchResponse | null>(null);
   const [searchError, setSearchError]       = useState("");
   const [lastSearchParams, setLastParams]   = useState<SearchParams | null>(null);
+  // Tracks which job URLs have been adapted in this session
+  const [adaptedJobs, setAdaptedJobs]       = useState<AdaptedJobsMap>({});
 
   useEffect(() => {
     getActiveMaster()
@@ -40,6 +44,10 @@ export default function HomePage() {
   const handleAdaptationCreated = (a: Adaptation) => {
     setAdaptId(a.id);
     setView("result");
+  };
+
+  const handleJobAdapted = (jobUrl: string, a: Adaptation) => {
+    setAdaptedJobs(prev => ({ ...prev, [jobUrl]: a }));
   };
 
   const handleSearch = async (params: SearchParams) => {
@@ -153,6 +161,8 @@ export default function HomePage() {
                   llmProvider={lastSearchParams?.llm_provider ?? "anthropic"}
                   llmModel={lastSearchParams?.llm_model ?? "claude-haiku-4-5"}
                   onAdapted={handleAdaptationCreated}
+                  adaptedJobs={adaptedJobs}
+                  onJobAdapted={handleJobAdapted}
                 />
               )}
             </div>

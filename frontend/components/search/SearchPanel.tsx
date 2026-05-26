@@ -536,6 +536,26 @@ export function SearchPanel({ onSearch, loading }: Props) {
         </div>
       </div>
 
+      {/* ── Num results ───────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <label className="label mb-0">Número de ofertas</label>
+        <div className="flex gap-1.5">
+          {[8, 12, 20, 30].map((n) => (
+            <button
+              key={n}
+              onClick={() => set("num_results", n)}
+              className={`w-10 py-1 rounded-lg border text-xs font-medium transition-all ${
+                params.num_results === n
+                  ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                  : "border-gray-200 text-gray-500 hover:border-gray-300"
+              }`}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* ── Submit ────────────────────────────────────────────────────────── */}
       <button
         className="btn-primary w-full py-3 text-base"
