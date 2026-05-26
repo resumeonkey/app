@@ -370,6 +370,21 @@ async def debug_source(
         source, len(content), len(parsed),
     )
 
+    # Find lines that contain posting URLs (to help diagnose parser issues)
+    import re as _re
+    url_patterns = {
+        "jobbank":   r'jobbank\.gc\.ca/jobsearch/jobposting/\d+',
+        "workopolis": r'workopolis\.com/jobsearch/viewjob/',
+        "eluta":     r'eluta\.ca/',
+    }
+    pat = url_patterns.get(source, "")
+    url_lines = []
+    if pat:
+        for i, line in enumerate(content.splitlines()):
+            if _re.search(pat, line, _re.IGNORECASE):
+                url_lines.append({"line": i, "text": line[:200]})
+        url_lines = url_lines[:20]
+
     return {
         "source": source,
         "target_url": target_url,
@@ -377,6 +392,10 @@ async def debug_source(
         "content_length": len(content),
         "parsed_count": len(parsed),
         "parsed_titles": [r["title"] for r in parsed],
-        # First 4000 chars so you can inspect the markdown format
-        "raw_preview": content[:4000],
+        # Lines containing job posting URLs (key for diagnosing parser)
+        "url_lines_found": len(url_lines),
+        "url_lines_sample": url_lines[:5],
+        # First 3000 chars (nav) + chars 3000-7000 (actual listings)
+        "raw_nav": content[:3000],
+        "raw_listings": content[3000:7500],
     }

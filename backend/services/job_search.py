@@ -293,61 +293,118 @@ def _build_jobbank_url(
     return base
 
 
-_JOBBANK_LINK_RE = re.compile(
-    # Job Bank markdown: [...Job Bank TITLE * DATE * COMPANY * Location LOC * ...](url)
-    r'\[(?:[^\]]*?)Job\s*Bank\s+([^\*\]]+?)'   # title after "Job Bank"
-    r'\s*\*\s*([^\*]+?)'                         # date
-    r'\s*\*\s*([^\*]+?)'                         # company
-    r'\s*\*\s*Location\s+([^\*\]]+?)'            # location
-    r'(?:\s*\*[^\]]*)?'                          # optional salary/other
-    r'\]\((https://www\.jobbank\.gc\.ca/jobsearch/jobposting/\d+[^)]*)\)',
-    re.DOTALL | re.IGNORECASE,
+# URL-anchored pattern — any link to a Job Bank job posting
+_JOBBANK_POSTING_RE = re.compile(
+    r'\[([^\]]{1,300})\]\((https://www\.jobbank\.gc\.ca/jobsearch/jobposting/\d+[^)]*)\)',
+    re.IGNORECASE | re.DOTALL,
 )
 
-_JOBBANK_SALARY_RE = re.compile(
-    r'Salary\s+(\$[\d,]+(?:\.\d+)?(?:\s+to\s+\$[\d,]+(?:\.\d+)?)?[^*\]]*)',
+# Noise text Jina sometimes injects into Job Bank link text
+_JOBBANK_NOISE_RE = re.compile(
+    r'This job was posted directly by the employer on Job Bank\.?\s*'
+    r'|^\s*Job\s*Bank\s+',
     re.IGNORECASE,
 )
 
+_JOBBANK_SALARY_RE = re.compile(
+    r'\$[\d,]+(?:\.\d+)?(?:\s*(?:to|-|–)\s*\$[\d,]+(?:\.\d+)?)?(?:\s+(?:per\s+)?(?:hour|year|month))?',
+    re.IGNORECASE,
+)
+
+# Province abbreviations for location guessing from context
+_CA_PROVINCE_RE = re.compile(
+    r'\b(British Columbia|Alberta|Ontario|Quebec|Manitoba|Saskatchewan|'
+    r'Nova Scotia|New Brunswick|Newfoundland|Prince Edward Island|'
+    r'BC|AB|ON|QC|MB|SK|NS|NB|NL|PE|NT|YT|NU)\b',
+)
+
+
+def _extract_jobbank_context(content: str, m_start: int, m_end: int) -> tuple[str, str, str, str | None]:
+    """Extract company, location, date, salary from context around a Job Bank match."""
+    before = content[max(0, m_start - 400):m_start]
+    after  = content[m_end:min(len(content), m_end + 600)]
+    ctx    = before + after
+
+    # Company: look for "Business name:" or "Employer:" label
+    company = ""
+    for pat in (r'Business\s+name[:\s]+([^\n]{3,60})', r'Employer[:\s]+([^\n]{3,60})'):
+        cm = re.search(pat, ctx, re.IGNORECASE)
+        if cm:
+            company = cm.group(1).strip()
+            break
+
+    # Location: look for "Location:" label or Canadian province mention
+    location = "Canada"
+    lm = re.search(r'Location[:\s]+([^\n]{3,60})', ctx, re.IGNORECASE)
+    if lm:
+        location = lm.group(1).strip()
+    else:
+        pm = _CA_PROVINCE_RE.search(after[:300])
+        if pm:
+            location = pm.group(0)
+
+    # Date
+    date = ""
+    dm = re.search(r'(\d{4}-\d{2}-\d{2}|\d+\s+days?\s+ago|Today|yesterday)', ctx, re.IGNORECASE)
+    if dm:
+        date = dm.group(0)
+
+    # Salary
+    salary = None
+    sm = _JOBBANK_SALARY_RE.search(after[:400])
+    if sm:
+        salary = sm.group(0).strip()
+
+    return company, location, date, salary
+
 
 def _parse_jobbank_results(content: str, num_results: int) -> list[dict]:
-    """Extract job listings from Job Bank page markdown rendered by Jina."""
+    """
+    Extract job listings from Job Bank page markdown rendered by Jina.
+    URL-first approach: find jobposting URLs, then extract context around them.
+    """
     results = []
     seen: set[str] = set()
 
-    for m in _JOBBANK_LINK_RE.finditer(content):
-        title   = m.group(1).strip()
-        date    = m.group(2).strip()
-        company = m.group(3).strip()
-        loc_raw = m.group(4).strip()
-        raw_url = m.group(5)
+    for m in _JOBBANK_POSTING_RE.finditer(content):
+        raw_link_text = m.group(1).strip()
+        raw_url       = m.group(2)
 
-        # Strip jsessionid tracking params
-        url = re.sub(r';jsessionid=[^?]*', '', raw_url).split("?")[0]
-        url += "?source=searchresults"
+        # Clean URL (strip session params)
+        url = re.sub(r';jsessionid=[^?&]*', '', raw_url)
+        base_url = url.split("?")[0]
 
-        if url in seen:
+        if base_url in seen:
             continue
-        seen.add(url)
 
-        # Extract salary from surrounding context
-        context   = content[m.start():m.end() + 50]
-        salary_m  = _JOBBANK_SALARY_RE.search(context)
-        salary    = salary_m.group(1).strip() if salary_m else None
+        # Clean title from link text (remove Job Bank boilerplate)
+        title = _JOBBANK_NOISE_RE.sub('', raw_link_text).strip()
+        # Collapse internal whitespace/newlines from multi-line link text
+        title = re.sub(r'\s+', ' ', title).strip()
 
-        location = loc_raw.split("*")[0].strip()
+        if len(title) < 3:
+            continue
+
+        seen.add(base_url)
+
+        company, location, date, salary = _extract_jobbank_context(content, m.start(), m.end())
+
+        # LMIA: check nearby text
+        after_ctx = content[m.end():m.end() + 300]
+        lmia = bool(re.search(r'\blmia\b|labour\s+market\s+impact', after_ctx, re.IGNORECASE))
 
         results.append({
-            "id":       str(uuid.uuid4()),
-            "title":    title,
-            "company":  company,
-            "location": location,
-            "url":      url,
-            "snippet":  f"{title} at {company} — {location}",
-            "content":  "",
-            "date":     date,
+            "id":             str(uuid.uuid4()),
+            "title":          title,
+            "company":        company,
+            "location":       location,
+            "url":            base_url + "?source=searchresults",
+            "snippet":        f"{title} at {company} — {location}" if company else title,
+            "content":        "",
+            "date":           date,
             "salary_display": salary,
-            "source":   "jobbank",
+            "source":         "jobbank",
+            "lmia_approved":  lmia,
         })
 
         if len(results) >= num_results:
@@ -415,11 +472,9 @@ def _build_workopolis_url(
     return base
 
 
-_WORKOPOLIS_JOB_RE = re.compile(
-    # ## [Job Title](https://www.workopolis.com/jobsearch/viewjob/HASH)
-    # Company—Location [optional rating]
-    r'##\s+\[(.+?)\]\((https://www\.workopolis\.com/jobsearch/viewjob/[^\)\s]+)\)\s*\n'
-    r'([^\n—–-]+?)\s*[—–-]+\s*([^\n\[\d]+)',
+# URL-anchored pattern — any link containing a Workopolis viewjob URL
+_WORKOPOLIS_POSTING_RE = re.compile(
+    r'\[([^\]]{3,200})\]\((https://www\.workopolis\.com/jobsearch/viewjob/[^\)\s]+)\)',
     re.IGNORECASE,
 )
 
@@ -433,31 +488,55 @@ _WORKOPOLIS_DATE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Various dash chars Workopolis might use between company and location
+_DASH_SPLIT_RE = re.compile(r'\s*[—–\-]\s*')
+
 
 def _parse_workopolis_results(content: str, num_results: int) -> list[dict]:
-    """Extract job listings from Workopolis page markdown rendered by Jina."""
+    """
+    Extract job listings from Workopolis page markdown rendered by Jina.
+    URL-first: find viewjob URLs then extract company/location from surrounding context.
+    """
     results = []
     seen: set[str] = set()
 
-    for m in _WORKOPOLIS_JOB_RE.finditer(content):
-        title   = m.group(1).strip()
-        url     = m.group(2).strip()
-        company = m.group(3).strip()
-        loc_raw = m.group(4).strip()
+    for m in _WORKOPOLIS_POSTING_RE.finditer(content):
+        title = m.group(1).strip()
+        url   = m.group(2).strip()
 
         if url in seen:
             continue
         seen.add(url)
 
-        # Strip trailing rating like "[4.2]" from location
-        location = re.split(r'\s*\[|\s{2,}|\n', loc_raw)[0].strip()
+        # The line immediately after the job link often has "Company — Location [rating]"
+        after = content[m.end():m.end() + 400]
+        lines = [ln.strip() for ln in after.split('\n') if ln.strip()]
 
-        # Look for salary in 250 chars following the match
-        context  = content[m.start():m.end() + 250]
-        salary_m = _WORKOPOLIS_SALARY_RE.search(context[m.end() - m.start():])
+        company  = ""
+        location = "Canada"
+        if lines:
+            # First non-empty line should be "Company — Location"
+            first_line = lines[0]
+            # Strip markdown link syntax if present
+            first_line = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', first_line)
+            parts = _DASH_SPLIT_RE.split(first_line, maxsplit=1)
+            if len(parts) == 2:
+                company  = parts[0].strip()
+                # Strip trailing rating like "[4.2]"
+                location = re.sub(r'\s*\[[\d.]+\]\s*$', '', parts[1]).strip()
+            else:
+                company = first_line[:60]
+
+        # Province fallback
+        if location == "Canada":
+            pm = _CA_PROVINCE_RE.search(after[:300])
+            if pm:
+                location = pm.group(0)
+
+        salary_m = _WORKOPOLIS_SALARY_RE.search(after[:400])
         salary   = salary_m.group(0).strip() if salary_m else None
 
-        date_m = _WORKOPOLIS_DATE_RE.search(context[m.end() - m.start():])
+        date_m = _WORKOPOLIS_DATE_RE.search(after[:400])
         date   = date_m.group(0) if date_m else ""
 
         results.append({
@@ -466,7 +545,7 @@ def _parse_workopolis_results(content: str, num_results: int) -> list[dict]:
             "company":        company,
             "location":       location,
             "url":            url,
-            "snippet":        f"{title} at {company} — {location}",
+            "snippet":        f"{title} at {company} — {location}" if company else title,
             "content":        "",
             "date":           date,
             "salary_display": salary,
@@ -516,19 +595,20 @@ def _build_eluta_url(query: str, location: str = "Canada") -> str:
     )
 
 
-_ELUTA_JOB_RE = re.compile(
-    # ## [Job Title](https://www.eluta.ca/...) [$salary optional]
-    # (blank line)
-    # [Company Name](company_url)
-    r'##\s+\[(.+?)\]\((https?://(?:www\.)?eluta\.ca/[^\)\s]+)\)'
-    r'(?:\s+\[?\$([^\]\n\[]+?)\]?)?\s*\n'   # optional inline salary
-    r'(?:\n|\s)*'
-    r'\[([^\]]+)\]\([^\)]+\)',               # [Company](url)
+# URL-anchored pattern — Eluta job posting links (exclude home/search/about pages)
+_ELUTA_POSTING_RE = re.compile(
+    r'\[([^\]]{3,200})\]\((https?://(?:www\.)?eluta\.ca/(?!search\b|home\b|about\b|browse\b)[^\)\s]{10,})\)',
     re.IGNORECASE,
 )
 
-_ELUTA_LOCATION_RE = re.compile(
-    r'\n\s*([A-Z][A-Za-z\s\.\-]+(?:,\s*[A-Z]{2})?)\s*\n',
+_ELUTA_COMPANY_RE = re.compile(
+    r'\[([^\]]{2,60})\]\(https?://(?:www\.)?eluta\.ca/employer/[^\)]+\)',
+    re.IGNORECASE,
+)
+
+_ELUTA_SALARY_RE = re.compile(
+    r'\$[\d,]+(?:\.\d+)?(?:\s*(?:to|-|–)\s*\$[\d,]+(?:\.\d+)?)?(?:\s+(?:per\s+)?(?:hour|year|month))?',
+    re.IGNORECASE,
 )
 
 _ELUTA_DATE_RE = re.compile(
@@ -536,26 +616,50 @@ _ELUTA_DATE_RE = re.compile(
     re.IGNORECASE,
 )
 
+_ELUTA_LOCATION_LINE_RE = re.compile(
+    r'\n([A-Z][A-Za-z\s,\.]{5,50}(?:BC|AB|ON|QC|MB|SK|NS|NB|NL|PE|NT|YT|NU)[A-Za-z\s,\.]{0,20})\n',
+)
+
 
 def _parse_eluta_results(content: str, num_results: int) -> list[dict]:
-    """Extract job listings from Eluta.ca page markdown rendered by Jina."""
+    """
+    Extract job listings from Eluta.ca page markdown rendered by Jina.
+    URL-first: find job-page URLs, then extract company/location from surrounding context.
+    """
     results = []
     seen: set[str] = set()
 
-    for m in _ELUTA_JOB_RE.finditer(content):
-        title   = m.group(1).strip()
-        url     = m.group(2).strip()
-        salary  = m.group(3).strip() if m.group(3) else None
-        company = m.group(4).strip()
+    for m in _ELUTA_POSTING_RE.finditer(content):
+        title = m.group(1).strip()
+        url   = m.group(2).strip()
 
+        # Skip Eluta navigation / non-job links (company pages, apply links, etc.)
+        if any(kw in title.lower() for kw in ('view all', 'see all', 'apply', 'more jobs', 'sign up')):
+            continue
         if url in seen:
             continue
         seen.add(url)
 
-        # Location is typically on the line right after the company link
-        after = content[m.end():m.end() + 300]
-        loc_m = _ELUTA_LOCATION_RE.search(after)
-        location = loc_m.group(1).strip() if loc_m else "Canada"
+        after = content[m.end():m.end() + 500]
+
+        # Company: look for an Eluta employer link nearby
+        company = ""
+        cm = _ELUTA_COMPANY_RE.search(after[:300])
+        if cm:
+            company = cm.group(1).strip()
+
+        # Location: look for a line containing a province abbreviation
+        location = "Canada"
+        lm = _ELUTA_LOCATION_LINE_RE.search(after[:400])
+        if lm:
+            location = lm.group(1).strip()
+        else:
+            pm = _CA_PROVINCE_RE.search(after[:300])
+            if pm:
+                location = pm.group(0)
+
+        salary_m = _ELUTA_SALARY_RE.search(after[:400])
+        salary   = salary_m.group(0).strip() if salary_m else None
 
         date_m = _ELUTA_DATE_RE.search(after)
         date   = date_m.group(0) if date_m else ""
