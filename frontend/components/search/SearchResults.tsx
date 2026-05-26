@@ -127,6 +127,7 @@ function JobResultCard({
         job_url: job.url,
       });
       setAdaptation(newAdaptation);
+      setApplied(false); // new adaptation resets applied status
       onJobAdapted?.(job.url, newAdaptation);
       onAdapted(newAdaptation);
     } catch (e: unknown) {
@@ -185,19 +186,41 @@ function JobResultCard({
               >
                 Ver ↗
               </a>
+
               {adaptation ? (
-                /* Already adapted — show postular toggle */
-                <button
-                  className={`text-xs py-1 px-2 rounded-lg font-medium transition-colors ${
-                    applied
-                      ? "bg-green-100 text-green-700 border border-green-300 hover:bg-green-200"
-                      : "bg-indigo-100 text-indigo-700 border border-indigo-300 hover:bg-indigo-200"
-                  }`}
-                  onClick={handleToggleApplied}
-                  disabled={togglingApplied}
-                >
-                  {togglingApplied ? "…" : applied ? "✓ Postulé" : "Marcar postulado"}
-                </button>
+                <>
+                  {/* View the generated resume */}
+                  <button
+                    className="btn-secondary text-xs py-1 px-2 border-indigo-300 text-indigo-600 hover:bg-indigo-50"
+                    onClick={() => onAdapted(adaptation)}
+                    title="Ver el resume generado para esta oferta"
+                  >
+                    📄 Ver resume
+                  </button>
+
+                  {/* Re-adapt (generate a new one) */}
+                  <button
+                    className="btn-secondary text-xs py-1 px-2"
+                    onClick={handleAdapt}
+                    disabled={adapting}
+                    title="Generar un nuevo resume adaptado"
+                  >
+                    {adapting ? "…" : "↻ Re-adaptar"}
+                  </button>
+
+                  {/* Mark as applied toggle */}
+                  <button
+                    className={`text-xs py-1 px-2 rounded-lg font-medium transition-colors ${
+                      applied
+                        ? "bg-green-100 text-green-700 border border-green-300 hover:bg-green-200"
+                        : "bg-indigo-100 text-indigo-700 border border-indigo-300 hover:bg-indigo-200"
+                    }`}
+                    onClick={handleToggleApplied}
+                    disabled={togglingApplied}
+                  >
+                    {togglingApplied ? "…" : applied ? "✓ Postulé" : "Marcar postulado"}
+                  </button>
+                </>
               ) : (
                 <button
                   className="btn-primary text-xs py-1 px-2"
