@@ -10,6 +10,7 @@ Public API:
   score_job(job_text, master_sections, provider, model) → dict
 """
 import json
+import logging
 import re
 import uuid
 from urllib.parse import quote, quote_plus
@@ -17,6 +18,17 @@ from urllib.parse import quote, quote_plus
 import httpx
 
 from backend.services.llm_client import call_llm
+
+log = logging.getLogger(__name__)
+
+
+def _parse_json_response(raw: str) -> dict:
+    """Parse JSON from LLM response, stripping markdown fences if present."""
+    text = raw.strip()
+    # Strip ```json ... ``` or ``` ... ``` fences
+    text = re.sub(r'^```(?:json)?\s*', '', text)
+    text = re.sub(r'\s*```$', '', text)
+    return json.loads(text.strip())
 
 _HTTP_TIMEOUT = 30          # seconds per Jina request
 _MAX_JOB_CHARS = 8_000      # cap on extracted job text forwarded to LLM
@@ -85,12 +97,12 @@ Responde ÚNICAMENTE con JSON válido:
             json_mode=True,
             temperature=0.3,
         )
-        data   = json.loads(raw)
+        data   = _parse_json_response(raw)
         result = data.get("queries", [])
         if isinstance(result, list) and result:
             return [str(q).strip() for q in result[:4] if str(q).strip()]
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("generate_search_queries failed: %s", e)
 
     # Fallback: use job_title directly
     if job_title:
@@ -305,7 +317,7 @@ Extrae datos clave y calcula el score. Responde ÚNICAMENTE con JSON válido:
             json_mode=True,
             temperature=0.1,
         )
-        data = json.loads(raw)
+        data = _parse_json_response(raw)
         return {
             "compatibility_score": max(0, min(100, int(data.get("compatibility_score", 50)))),
             "job_title":      str(data.get("job_title", "")).strip(),
@@ -317,7 +329,8 @@ Extrae datos clave y calcula el score. Responde ÚNICAMENTE con JSON válido:
             "missing_skills": data.get("missing_skills", []),
             "score_summary":  str(data.get("score_summary", "")).strip()[:120],
         }
-    except Exception:
+    except Exception as e:
+        log.warning("score_job failed (provider=%s model=%s): %s", provider, model, e)
         return _fallback_score()
 
 
