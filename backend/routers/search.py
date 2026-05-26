@@ -24,6 +24,7 @@ from backend.services.job_search import (
     search_workopolis_via_jina,
     search_eluta_via_jina,
     extract_job_via_jina,
+    batch_score_jobs,
     score_job,
     _build_profile_text,
     _build_jobbank_url,
@@ -234,33 +235,21 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
     if not raw_results:
         return {"results": [], "queries_used": queries}
 
-    # ── Step 3: Score (parallel) ──────────────────────────────────────────────
-    # Use title + company + location as the scoring text (LinkedIn already parsed them).
-    # This avoids fetching each job page just for scoring — much faster & cheaper.
-    score_tasks = [
-        score_job(
-            job_text=f"{r.get('title', '')} at {r.get('company', '')} — {r.get('location', '')}\n\n{r.get('snippet', '')}",
-            master_sections=master_sections,
-            provider=params.llm_provider,
-            model=params.llm_model,
-            ccfta_check=params.ccfta_check,
-            bilingual_spanish=params.bilingual_spanish,
-        )
-        for r in raw_results
-    ]
-    scores = await asyncio.gather(*score_tasks, return_exceptions=True)
+    # ── Step 3: Batch score — ALL jobs in ONE LLM call (~88% token savings) ─────
+    scores = await batch_score_jobs(
+        raw_jobs=raw_results,
+        master_sections=master_sections,
+        provider=params.llm_provider,
+        model=params.llm_model,
+        ccfta_check=params.ccfta_check,
+        bilingual_spanish=params.bilingual_spanish,
+    )
 
     # ── Step 4: Merge + sort ─────────────────────────────────────────────────
     final: list[dict] = []
     for raw, score in zip(raw_results, scores):
-        if isinstance(score, Exception):
-            score = {
-                "compatibility_score": 50,
-                "job_title": raw.get("title", ""), "company": "",
-                "location": "", "salary": None, "date_posted": None,
-                "matched_skills": [], "missing_skills": [], "score_summary": "",
-                "ccfta_eligible": False, "immigration_support": "no", "bilingual_advantage": False,
-            }
+        if not isinstance(score, dict):
+            score = {}
         # Fast CCFTA pre-check from title keywords (no LLM needed)
         title_lower = (raw.get("title") or "").lower()
         fast_ccfta = any(kw in title_lower for kw in _CCFTA_ELIGIBLE_TITLES)

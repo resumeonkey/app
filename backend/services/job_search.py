@@ -9,6 +9,7 @@ Public API:
   extract_job_via_jina(url) → str
   score_job(job_text, master_sections, provider, model) → dict
 """
+import asyncio
 import json
 import logging
 import re
@@ -47,6 +48,22 @@ def _parse_json_response(raw: str) -> dict:
 _HTTP_TIMEOUT = 30          # seconds per Jina request
 _MAX_JOB_CHARS = 8_000      # cap on extracted job text forwarded to LLM
 _PROFILE_CHARS = 500        # profile excerpt sent to LLM for query generation
+_SCORE_JOB_CHARS = 700      # job text sent per job in single-job scoring (reduced)
+_BATCH_PROFILE_CHARS = 220  # profile excerpt in batch scoring (very compact)
+_BATCH_SNIPPET_CHARS = 130  # snippet chars per job in batch mode
+
+# Lighter models for scoring (vs generation). Saves tokens on rate-limited tiers.
+_SCORE_MODEL_MAP: dict[str, str] = {
+    # Groq: llama-3.1-8b has 500K TPD vs 100K for llama-3.3-70b (5× more headroom)
+    "groq": "llama-3.1-8b-instant",
+    # anthropic: claude-haiku is already the lightest — keep as-is
+    # gemini: gemini-2.0-flash is already cheap — keep as-is
+}
+
+
+def _scoring_model(provider: str, model: str) -> str:
+    """Return lightest model for the provider when doing compatibility scoring."""
+    return _SCORE_MODEL_MAP.get(provider, model)
 
 # ── LinkedIn filter constants ─────────────────────────────────────────────────
 _REMOTE_FILTER = {
@@ -745,6 +762,152 @@ def _clean_extracted_text(text: str) -> str:
 
 # ── LLM scoring ───────────────────────────────────────────────────────────────
 
+def _fallback_score(raw: dict | None = None) -> dict:
+    """Return a neutral score dict, optionally seeded with raw job metadata."""
+    return {
+        "compatibility_score": 50,
+        "job_title":           (raw or {}).get("title", ""),
+        "company":             (raw or {}).get("company", ""),
+        "location":            (raw or {}).get("location", ""),
+        "salary":              (raw or {}).get("salary_display"),
+        "date_posted":         (raw or {}).get("date"),
+        "matched_skills":      [],
+        "missing_skills":      [],
+        "score_summary":       "No se pudo calcular la compatibilidad.",
+        "ccfta_eligible":      False,
+        "immigration_support": "no",
+        "bilingual_advantage": False,
+    }
+
+
+async def batch_score_jobs(
+    raw_jobs: list[dict],
+    master_sections: dict,
+    provider: str,
+    model: str,
+    ccfta_check: bool = False,
+    bilingual_spanish: bool = False,
+) -> list[dict]:
+    """
+    Score ALL jobs in a SINGLE LLM call — ~88% fewer tokens than per-job scoring.
+    Token comparison for 8 jobs:
+      Old: 8 calls × ~850 tokens = 6,800 tokens
+      New: 1 call  × ~750 tokens =   750 tokens
+
+    Falls back to individual score_job() calls if the batch parse fails.
+    """
+    if not raw_jobs:
+        return []
+
+    # Auto-downgrade to lighter model for scoring (Groq 8B has 5× more daily tokens)
+    score_model = _scoring_model(provider, model)
+
+    profile = _build_profile_text(master_sections)[:_BATCH_PROFILE_CHARS]
+
+    # Build compact 1-line summary per job (title + company + location + snippet)
+    job_lines = []
+    for i, job in enumerate(raw_jobs):
+        snippet = (job.get("snippet", "") or "")[:_BATCH_SNIPPET_CHARS].replace("\n", " ")
+        job_lines.append(
+            f'{i}. {job.get("title","?")} @ {job.get("company","?")} — '
+            f'{job.get("location","?")} | {snippet}'
+        )
+    jobs_text = "\n".join(job_lines)
+
+    ccfta_note = (
+        "\nCCFTA=true if role matches: Engineer/Analyst/Consultant/Accountant/Scientist/Architect."
+    ) if ccfta_check else ""
+    bilingual_note = (
+        "\nbilingual=true if job values/requires Spanish or bilingual."
+    ) if bilingual_spanish else ""
+
+    prompt = f"""Score candidate-job compatibility for each job below. Return a JSON object.
+
+Candidate (brief):
+{profile}
+
+Jobs (index. Title @ Company — Location | snippet):
+{jobs_text}
+
+Scoring: 90-100=all requirements met, 70-89=most, 50-69=partial, 30-49=significant gaps, 0-29=low fit.
+immigration: "yes"=explicit sponsorship/LMIA/permit, "mentioned"=vague, "no"=none.{ccfta_note}{bilingual_note}
+
+Return ONLY this JSON (one entry per job, same index order):
+{{"results":[
+  {{"i":0,"score":75,"matched":["skill1","skill2"],"missing":["skill3"],"summary":"brief reason max 90 chars","ccfta":false,"immigration":"no","bilingual":false}},
+  ...
+]}}"""
+
+    try:
+        raw = await call_llm(
+            provider=provider,
+            model=score_model,
+            system="Senior recruiter. Score candidate-job fit. Be concise and accurate.",
+            user=prompt,
+            json_mode=True,
+            temperature=0.1,
+        )
+        parsed = _parse_json_response(raw)
+
+        # Handle both {"results": [...]} and bare [...]
+        entries: list[dict] = parsed.get("results", parsed) if isinstance(parsed, dict) else parsed
+        if not isinstance(entries, list):
+            raise ValueError(f"Unexpected batch response type: {type(parsed)}")
+
+        # Build indexed lookup
+        by_index: dict[int, dict] = {int(e.get("i", e.get("index", idx))): e
+                                      for idx, e in enumerate(entries)}
+
+        results = []
+        for i, raw_job in enumerate(raw_jobs):
+            entry = by_index.get(i)
+            if not entry:
+                results.append(_fallback_score(raw_job))
+                continue
+            results.append({
+                "compatibility_score": max(0, min(100, int(entry.get("score", 50)))),
+                "job_title":           raw_job.get("title", ""),
+                "company":             raw_job.get("company", ""),
+                "location":            raw_job.get("location", ""),
+                "salary":              raw_job.get("salary_display"),
+                "date_posted":         raw_job.get("date"),
+                "matched_skills":      entry.get("matched", []),
+                "missing_skills":      entry.get("missing", []),
+                "score_summary":       str(entry.get("summary", ""))[:120],
+                "ccfta_eligible":      bool(entry.get("ccfta", False)),
+                "immigration_support": str(entry.get("immigration", "no")),
+                "bilingual_advantage": bool(entry.get("bilingual", False)),
+            })
+
+        log.info(
+            "batch_score_jobs: %d jobs scored in 1 call (provider=%s model=%s→%s)",
+            len(raw_jobs), provider, model, score_model,
+        )
+        return results
+
+    except Exception as e:
+        log.warning(
+            "batch_score_jobs failed (provider=%s model=%s): %s — falling back to per-job",
+            provider, model, e,
+        )
+        # Per-job fallback (original behaviour, also uses lighter model)
+        tasks = [
+            score_job(
+                job_text=(
+                    f"{r.get('title','')} at {r.get('company','')} — {r.get('location','')}"
+                    f"\n\n{r.get('snippet','')}"
+                ),
+                master_sections=master_sections,
+                provider=provider,
+                model=model,
+                ccfta_check=ccfta_check,
+                bilingual_spanish=bilingual_spanish,
+            )
+            for r in raw_jobs
+        ]
+        return await asyncio.gather(*tasks)  # type: ignore[return-value]
+
+
 async def score_job(
     job_text: str,
     master_sections: dict,
@@ -754,65 +917,54 @@ async def score_job(
     bilingual_spanish: bool = False,
 ) -> dict:
     """
-    Score job–candidate compatibility using LLM.
-    Only the first 2000 chars of job_text are sent to keep token cost low.
+    Score a SINGLE job–candidate pair using LLM.
+    Used for the /extract endpoint (full job description available).
+    For search results, use batch_score_jobs() instead to save tokens.
     """
     profile_text = _build_profile_text(master_sections)
-    job_excerpt  = job_text[:2000]
+    job_excerpt  = job_text[:_SCORE_JOB_CHARS]
 
-    ccfta_block = """
-## Evaluación CCFTA (Tratado Libre Comercio Chile-Canadá)
-El candidato es chileno. El CCFTA permite trabajar en Canadá SIN LMIA para estas categorías:
-Computer Systems Analyst, Engineer, Management Consultant, Accountant, Mathematician/Statistician,
-Data Scientist, Scientist, Architect, Land Surveyor.
-"ccfta_eligible": true si el puesto encaja en alguna categoría anterior.
-""" if ccfta_check else ""
+    ccfta_block = (
+        "\nCCFTA check: ccfta_eligible=true if role matches Engineer/Systems Analyst/"
+        "Management Consultant/Accountant/Scientist/Architect (Canada-Chile FTA)."
+    ) if ccfta_check else ""
 
-    bilingual_block = """
-## Evaluación bilingüe
-"bilingual_advantage": true si el puesto valora o requiere español/bilingüe.
-""" if bilingual_spanish else ""
+    bilingual_block = (
+        "\nbilingual_advantage: true if job values/requires Spanish or bilingual."
+    ) if bilingual_spanish else ""
 
-    prompt = f"""Evalúa la compatibilidad entre este candidato y esta oferta laboral.
+    prompt = f"""Score candidate-job compatibility. Return only JSON.
 
-## Perfil del candidato
+Candidate:
 {profile_text}
 
-## Oferta laboral
+Job:
 {job_excerpt}
 {ccfta_block}{bilingual_block}
-## Tu tarea
-Extrae datos clave y calcula el score. Responde ÚNICAMENTE con JSON válido:
-
+JSON:
 {{
-  "compatibility_score": 85,
-  "job_title": "título exacto del puesto",
-  "company": "nombre de la empresa o cadena vacía",
-  "location": "ciudad, provincia o 'Remote'",
-  "salary": "rango salarial si disponible, sino null",
-  "date_posted": "fecha si disponible, sino null",
-  "matched_skills": ["skill1", "skill2"],
-  "missing_skills": ["skill3"],
-  "score_summary": "Una oración (máx 90 chars) explicando el score",
+  "compatibility_score": 75,
+  "job_title": "exact title",
+  "company": "company or empty",
+  "location": "city/province or Remote",
+  "salary": "range or null",
+  "date_posted": "date or null",
+  "matched_skills": ["skill1"],
+  "missing_skills": ["skill2"],
+  "score_summary": "one sentence max 90 chars",
   "ccfta_eligible": false,
   "immigration_support": "no",
   "bilingual_advantage": false
 }}
 
-Valores para "immigration_support": "yes" (menciona sponsorship/LMIA/work permit), "mentioned" (referencia vaga), "no".
-
-## Guía de scoring
-90-100: Candidato cumple todos los requisitos + extras
-70-89:  Cumple mayoría, pequeñas brechas
-50-69:  Cumple básico, brechas moderadas
-30-49:  Parcialmente compatible, brechas significativas
-0-29:   Poca compatibilidad"""
+Scoring: 90-100=all met, 70-89=most, 50-69=partial, 30-49=gaps, 0-29=low fit.
+immigration: "yes"=explicit sponsor/LMIA/permit, "mentioned"=vague, "no"=none."""
 
     try:
         raw = await call_llm(
             provider=provider,
-            model=model,
-            system="Eres un reclutador senior. Evalúas candidatos con precisión y brevedad.",
+            model=_scoring_model(provider, model),
+            system="Senior recruiter. Score candidate-job fit accurately.",
             user=prompt,
             json_mode=True,
             temperature=0.1,
@@ -828,7 +980,6 @@ Valores para "immigration_support": "yes" (menciona sponsorship/LMIA/work permit
             "matched_skills":      data.get("matched_skills", []),
             "missing_skills":      data.get("missing_skills", []),
             "score_summary":       str(data.get("score_summary", "")).strip()[:120],
-            # Immigration fields
             "ccfta_eligible":      bool(data.get("ccfta_eligible", False)),
             "immigration_support": str(data.get("immigration_support", "no")),
             "bilingual_advantage": bool(data.get("bilingual_advantage", False)),
@@ -836,13 +987,3 @@ Valores para "immigration_support": "yes" (menciona sponsorship/LMIA/work permit
     except Exception as e:
         log.warning("score_job failed (provider=%s model=%s): %s", provider, model, e)
         return _fallback_score()
-
-
-def _fallback_score() -> dict:
-    return {
-        "compatibility_score": 50,
-        "job_title": "", "company": "", "location": "",
-        "salary": None, "date_posted": None,
-        "matched_skills": [], "missing_skills": [],
-        "score_summary": "No se pudo calcular la compatibilidad.",
-    }
