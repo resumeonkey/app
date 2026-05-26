@@ -47,6 +47,23 @@ _DATE_FILTER = {
     "30d": "r2592000",
 }
 
+# ── Job Bank province codes ───────────────────────────────────────────────────
+_JOBBANK_PROVINCE_CODES = {
+    "british columbia": "BC", "bc": "BC",
+    "alberta": "AB", "ab": "AB",
+    "ontario": "ON", "on": "ON",
+    "quebec": "QC", "qc": "QC",
+    "manitoba": "MB", "mb": "MB",
+    "saskatchewan": "SK", "sk": "SK",
+    "nova scotia": "NS", "ns": "NS",
+    "new brunswick": "NB", "nb": "NB",
+    "newfoundland": "NL", "nl": "NL",
+    "prince edward island": "PE", "pei": "PE",
+    "northwest territories": "NT", "nt": "NT",
+    "yukon": "YT", "yt": "YT",
+    "nunavut": "NU", "nu": "NU",
+}
+
 
 # ── Query generation ──────────────────────────────────────────────────────────
 
@@ -226,6 +243,122 @@ async def search_jobs_via_jina(
 
     content = response.content.decode("utf-8", errors="replace")
     return _parse_linkedin_results(content, num_results)
+
+
+# ── Job Bank (Canada) via Jina Reader ────────────────────────────────────────
+
+def _build_jobbank_url(
+    query: str,
+    location: str = "Canada",
+    province: str = "",
+    remote: str = "any",
+) -> str:
+    """Build a Job Bank Canada search URL."""
+    base = (
+        f"https://www.jobbank.gc.ca/jobsearch/jobsearch"
+        f"?searchstring={quote_plus(query)}"
+        f"&locationstring={quote_plus(location)}"
+    )
+    # Province filter
+    code = _JOBBANK_PROVINCE_CODES.get(province.lower().strip(), "")
+    if code:
+        base += f"&fprov={code}"
+    # Remote/telework filter (1=telework available)
+    if remote == "remote":
+        base += "&fsrc=7"  # telework jobs
+    return base
+
+
+_JOBBANK_LINK_RE = re.compile(
+    # Job Bank markdown: [...Job Bank TITLE * DATE * COMPANY * Location LOC * ...](url)
+    r'\[(?:[^\]]*?)Job\s*Bank\s+([^\*\]]+?)'   # title after "Job Bank"
+    r'\s*\*\s*([^\*]+?)'                         # date
+    r'\s*\*\s*([^\*]+?)'                         # company
+    r'\s*\*\s*Location\s+([^\*\]]+?)'            # location
+    r'(?:\s*\*[^\]]*)?'                          # optional salary/other
+    r'\]\((https://www\.jobbank\.gc\.ca/jobsearch/jobposting/\d+[^)]*)\)',
+    re.DOTALL | re.IGNORECASE,
+)
+
+_JOBBANK_SALARY_RE = re.compile(
+    r'Salary\s+(\$[\d,]+(?:\.\d+)?(?:\s+to\s+\$[\d,]+(?:\.\d+)?)?[^*\]]*)',
+    re.IGNORECASE,
+)
+
+
+def _parse_jobbank_results(content: str, num_results: int) -> list[dict]:
+    """Extract job listings from Job Bank page markdown rendered by Jina."""
+    results = []
+    seen: set[str] = set()
+
+    for m in _JOBBANK_LINK_RE.finditer(content):
+        title   = m.group(1).strip()
+        date    = m.group(2).strip()
+        company = m.group(3).strip()
+        loc_raw = m.group(4).strip()
+        raw_url = m.group(5)
+
+        # Strip jsessionid tracking params
+        url = re.sub(r';jsessionid=[^?]*', '', raw_url).split("?")[0]
+        url += "?source=searchresults"
+
+        if url in seen:
+            continue
+        seen.add(url)
+
+        # Extract salary from surrounding context
+        context   = content[m.start():m.end() + 50]
+        salary_m  = _JOBBANK_SALARY_RE.search(context)
+        salary    = salary_m.group(1).strip() if salary_m else None
+
+        location = loc_raw.split("*")[0].strip()
+
+        results.append({
+            "id":       str(uuid.uuid4()),
+            "title":    title,
+            "company":  company,
+            "location": location,
+            "url":      url,
+            "snippet":  f"{title} at {company} — {location}",
+            "content":  "",
+            "date":     date,
+            "salary_display": salary,
+            "source":   "jobbank",
+        })
+
+        if len(results) >= num_results:
+            break
+
+    return results
+
+
+async def search_jobbank_via_jina(
+    query: str,
+    num_results: int = 10,
+    location: str = "Canada",
+    province: str = "",
+    remote: str = "any",
+) -> list[dict]:
+    """
+    Search Job Bank Canada via Jina Reader (free, government portal, no blocking).
+    Especially useful for jobs not posted on LinkedIn (SMEs, government, nonprofits).
+    """
+    jobbank_url = _build_jobbank_url(query, location, province, remote)
+
+    headers = {
+        "X-Return-Format": "markdown",
+        "X-Timeout":       "20",
+    }
+
+    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=True) as client:
+        response = await client.get(
+            f"https://r.jina.ai/{jobbank_url}",
+            headers=headers,
+        )
+        response.raise_for_status()
+
+    content = response.content.decode("utf-8", errors="replace")
+    return _parse_jobbank_results(content, num_results)
 
 
 # ── Jina Reader — extract full job description ────────────────────────────────

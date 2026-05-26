@@ -18,6 +18,7 @@ from backend.models.master import MasterResume
 from backend.services.job_search import (
     generate_search_queries,
     search_jobs_via_jina,
+    search_jobbank_via_jina,
     extract_job_via_jina,
     score_job,
     _build_profile_text,
@@ -151,20 +152,34 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
     if not queries:
         raise HTTPException(status_code=422, detail="No se pudieron generar consultas de búsqueda.")
 
-    # ── Step 2: Search LinkedIn via Jina Reader (parallel, max 2 queries) ──────
-    # Build location string for LinkedIn URL
+    # ── Step 2: Search LinkedIn + Job Bank via Jina Reader (parallel) ───────────
+    # Build location strings
     location_parts = [p for p in [params.city, params.province, params.country] if p.strip()]
     location_str   = ", ".join(location_parts) if location_parts else "Canada"
 
+    # Split results evenly between sources (LinkedIn gets slightly more)
+    results_per_source = max(4, params.num_results // 2)
+
     search_tasks = [
-        search_jobs_via_jina(
-            query=q,
-            num_results=params.num_results,
+        # LinkedIn — up to 2 queries
+        *[
+            search_jobs_via_jina(
+                query=q,
+                num_results=results_per_source,
+                location=location_str,
+                remote=params.remote,
+                date_posted=params.date_posted,
+            )
+            for q in queries[:2]
+        ],
+        # Job Bank Canada — 1 query (government + SME jobs not on LinkedIn)
+        search_jobbank_via_jina(
+            query=queries[0],
+            num_results=results_per_source,
             location=location_str,
+            province=params.province,
             remote=params.remote,
-            date_posted=params.date_posted,
-        )
-        for q in queries[:2]
+        ),
     ]
     results_per_query = await asyncio.gather(*search_tasks, return_exceptions=True)
 
