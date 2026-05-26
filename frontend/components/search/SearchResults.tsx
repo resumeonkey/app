@@ -212,7 +212,7 @@ function JobResultCard({
                     onClick={() => setShowInstructions(!showInstructions)}
                     title="Agregar instrucciones antes de re-adaptar"
                   >
-                    📝
+                    📝 {showInstructions ? "Ocultar" : "Instrucciones"}
                   </button>
 
                   {/* Re-adapt */}
@@ -250,7 +250,7 @@ function JobResultCard({
                     onClick={() => setShowInstructions(!showInstructions)}
                     title="Pegar análisis de tu agente IA u otras instrucciones"
                   >
-                    📝
+                    📝 {showInstructions ? "Ocultar" : "Instrucciones"}
                   </button>
                   <button
                     className="btn-primary text-xs py-1 px-2"
@@ -263,6 +263,33 @@ function JobResultCard({
               )}
             </div>
           </div>
+
+          {/* Instructions panel — shown when 📝 is toggled */}
+          {showInstructions && (
+            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+              <p className="text-[11px] font-medium text-amber-700 mb-1.5">
+                📝 Instrucciones para la adaptación
+              </p>
+              <textarea
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                placeholder={
+                  "Pega aquí el análisis de tu agente IA, cambios específicos que quieres, " +
+                  "o cualquier nota para guiar la adaptación del resume.\n\n" +
+                  "Ej: «Enfatiza más la experiencia de configuración en Entel. " +
+                  "El summary debe mencionar implementación de software. " +
+                  "Evita resaltar habilidades de testing puro.»"
+                }
+                rows={5}
+                className="w-full text-xs font-mono rounded border border-amber-300 bg-white
+                           p-2 resize-y focus:outline-none focus:border-amber-500
+                           placeholder:text-gray-400 placeholder:font-sans"
+              />
+              <p className="text-[10px] text-amber-600 mt-1">
+                El LLM usará esto como guía prioritaria al reescribir las secciones de tu resume.
+              </p>
+            </div>
+          )}
 
           {/* Score label + salary + badges */}
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
@@ -324,33 +351,6 @@ function JobResultCard({
               </span>
             )}
           </div>
-
-          {/* Instructions panel — shown when 📝 is toggled */}
-          {showInstructions && (
-            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
-              <p className="text-[11px] font-medium text-amber-700 mb-1.5">
-                📝 Instrucciones para la adaptación
-              </p>
-              <textarea
-                value={instructions}
-                onChange={(e) => setInstructions(e.target.value)}
-                placeholder={
-                  "Pega aquí el análisis de tu agente IA, cambios específicos que quieres, " +
-                  "o cualquier nota para guiar la adaptación del resume.\n\n" +
-                  "Ej: «Enfatiza más la experiencia de configuración en Entel. " +
-                  "El summary debe mencionar implementación de software. " +
-                  "Evita resaltar habilidades de testing puro.»"
-                }
-                rows={5}
-                className="w-full text-xs font-mono rounded border border-amber-300 bg-white
-                           p-2 resize-y focus:outline-none focus:border-amber-500
-                           placeholder:text-gray-400 placeholder:font-sans"
-              />
-              <p className="text-[10px] text-amber-600 mt-1">
-                El LLM usará esto como guía prioritaria al reescribir las secciones de tu resume.
-              </p>
-            </div>
-          )}
 
           {/* Score summary */}
           {job.score_summary && (
