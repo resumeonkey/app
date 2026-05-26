@@ -92,6 +92,9 @@ function JobResultCard({
   const [adaptation, setAdaptation] = useState<Adaptation | null>(existingAdaptation);
   const [applied, setApplied] = useState<boolean>(!!existingAdaptation?.applied_at);
   const [togglingApplied, setTogglingApplied] = useState(false);
+  // Instructions panel
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [instructions, setInstructions] = useState("");
 
   const score = job.compatibility_score;
   const scoreColor =
@@ -125,6 +128,7 @@ function JobResultCard({
         llm_provider: llmProvider,
         llm_model: llmModel,
         job_url: job.url,
+        user_instructions: instructions.trim() || undefined,
       });
       setAdaptation(newAdaptation);
       setApplied(false); // new adaptation resets applied status
@@ -198,7 +202,20 @@ function JobResultCard({
                     📄 Ver resume
                   </button>
 
-                  {/* Re-adapt (generate a new one) */}
+                  {/* Instructions toggle */}
+                  <button
+                    className={`text-xs py-1 px-2 rounded-lg border font-medium transition-colors ${
+                      showInstructions
+                        ? "bg-amber-100 text-amber-700 border-amber-300"
+                        : "btn-secondary"
+                    }`}
+                    onClick={() => setShowInstructions(!showInstructions)}
+                    title="Agregar instrucciones antes de re-adaptar"
+                  >
+                    📝
+                  </button>
+
+                  {/* Re-adapt */}
                   <button
                     className="btn-secondary text-xs py-1 px-2"
                     onClick={handleAdapt}
@@ -222,13 +239,27 @@ function JobResultCard({
                   </button>
                 </>
               ) : (
-                <button
-                  className="btn-primary text-xs py-1 px-2"
-                  onClick={handleAdapt}
-                  disabled={adapting}
-                >
-                  {adapting ? "…" : "Adaptar →"}
-                </button>
+                <div className="flex gap-2">
+                  {/* Instructions toggle */}
+                  <button
+                    className={`text-xs py-1 px-2 rounded-lg border font-medium transition-colors ${
+                      showInstructions
+                        ? "bg-amber-100 text-amber-700 border-amber-300"
+                        : "btn-secondary"
+                    }`}
+                    onClick={() => setShowInstructions(!showInstructions)}
+                    title="Pegar análisis de tu agente IA u otras instrucciones"
+                  >
+                    📝
+                  </button>
+                  <button
+                    className="btn-primary text-xs py-1 px-2"
+                    onClick={handleAdapt}
+                    disabled={adapting}
+                  >
+                    {adapting ? "…" : "Adaptar →"}
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -293,6 +324,33 @@ function JobResultCard({
               </span>
             )}
           </div>
+
+          {/* Instructions panel — shown when 📝 is toggled */}
+          {showInstructions && (
+            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+              <p className="text-[11px] font-medium text-amber-700 mb-1.5">
+                📝 Instrucciones para la adaptación
+              </p>
+              <textarea
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                placeholder={
+                  "Pega aquí el análisis de tu agente IA, cambios específicos que quieres, " +
+                  "o cualquier nota para guiar la adaptación del resume.\n\n" +
+                  "Ej: «Enfatiza más la experiencia de configuración en Entel. " +
+                  "El summary debe mencionar implementación de software. " +
+                  "Evita resaltar habilidades de testing puro.»"
+                }
+                rows={5}
+                className="w-full text-xs font-mono rounded border border-amber-300 bg-white
+                           p-2 resize-y focus:outline-none focus:border-amber-500
+                           placeholder:text-gray-400 placeholder:font-sans"
+              />
+              <p className="text-[10px] text-amber-600 mt-1">
+                El LLM usará esto como guía prioritaria al reescribir las secciones de tu resume.
+              </p>
+            </div>
+          )}
 
           {/* Score summary */}
           {job.score_summary && (
