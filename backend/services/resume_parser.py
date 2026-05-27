@@ -60,7 +60,12 @@ def parse_docx(file_path: str) -> dict[str, Any]:
 
     paragraphs = []
     for i, para in enumerate(doc.paragraphs):
-        text = para.text.strip()
+        # Replace soft line breaks (\n from <w:br w:type="textWrapping"/>) with a
+        # space so that raw_text has EXACTLY one entry per paragraph when split("\n").
+        # Without this, a paragraph like "Product Owner | May 2021\nEntel, Chile"
+        # would create 2 lines in raw_text but only 1 slot in para_indices, causing
+        # a systematic off-by-one overflow that corrupts every subsequent section.
+        text = para.text.strip().replace("\n", " ")
         style = para.style.name if para.style else ""
         paragraphs.append({"index": i, "text": text, "style": style, "empty": not text})
 

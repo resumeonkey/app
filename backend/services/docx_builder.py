@@ -4,9 +4,14 @@ in the original document, preserving all formatting, styles, and layout.
 
 Strategy:
 1. Copy the original docx to a new file.
-2. For each changed section, find its paragraphs by index and update them in-place.
-3. When adapted text has more/fewer lines than original, expand/contract carefully.
-4. Never touch paragraphs outside changed sections.
+2. Resolve and sort all blocks by their first para_index DESCENDING (last → first).
+   This is critical: processing end-to-beginning means any insertion or deletion
+   in section N only shifts paragraphs AFTER N, which we have already processed.
+   Forward processing causes a cascade where summary's extra line shifts skills into
+   a heading slot, which shifts experience into a heading slot, etc.
+3. For each section, find its paragraphs by index and update them in-place.
+4. When adapted text has more/fewer lines than original, expand/contract carefully.
+5. Never touch paragraphs outside changed sections.
 """
 import os
 import re
@@ -26,9 +31,9 @@ _JOB_TITLE_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Sections where runs are intentionally bold (certifications, education entries).
-# Bold is preserved for these; stripped as safety-net for all others.
-_BOLD_PRESERVE_SECTIONS = frozenset({"certifications", "education", "languages"})
+# Sections whose bullet items are intentionally bold (certifications list in
+# Canadian resumes).  Bold is always preserved for these, regardless of numPr.
+_BOLD_PRESERVE_SECTIONS = frozenset({"certifications"})
 
 
 def build_adapted_docx(
@@ -45,13 +50,13 @@ def build_adapted_docx(
     shutil.copy2(master_path, output_path)
     doc = Document(output_path)
 
+    # ── Resolve section info for all blocks ────────────────────────────────────
+    resolved: list[tuple[str, str, list[int]]] = []   # (section_name, text, indices)
     for block in blocks_changed:
         section_name = block["section"]
         adapted_text = block["adapted"]
 
         # Look up by exact key first; fall back to case-insensitive partial match.
-        # This makes the builder robust whether blocks_changed uses canonical names
-        # ("experience") or actual document heading text ("Work Experience").
         section_info = master_sections.get(section_name)
         if section_info is None:
             for key, info in master_sections.items():
@@ -66,6 +71,15 @@ def build_adapted_docx(
         if not para_indices:
             continue
 
+        resolved.append((section_name, adapted_text, para_indices))
+
+    # ── CRITICAL: process from LAST section to FIRST ───────────────────────────
+    # Any insertion/deletion in section X only shifts paragraphs at indices > X.
+    # Processing in reverse order means those shifts only affect sections we have
+    # already processed — so their para_indices stay correct.
+    resolved.sort(key=lambda x: x[2][0], reverse=True)
+
+    for section_name, adapted_text, para_indices in resolved:
         _replace_section_content(doc, para_indices, adapted_text, section_name=section_name)
 
     doc.save(output_path)
@@ -98,12 +112,6 @@ def _replace_section_content(
     if len(new_lines) > max_lines:
         new_lines = new_lines[:max_lines]
 
-    # We'll map new lines onto the existing paragraph slots.
-    # If more new lines than slots, insert extra paragraphs after the last slot.
-    # If fewer new lines, clear extra paragraphs (set to empty).
-
-    # Paragraphs to remove when adapted text is shorter than original.
-    # Collect them first; remove AFTER the loop (modifying the doc mid-loop is unsafe).
     paragraphs_to_remove: list = []
 
     for slot_num, para_idx in enumerate(valid_indices):
@@ -128,11 +136,7 @@ def _replace_section_content(
 
 
 def _remove_paragraph(para) -> None:
-    """
-    Physically remove a paragraph from the document XML.
-    Used when the adapted text is shorter than the original, so surplus
-    original paragraphs don't produce blank lines in the output.
-    """
+    """Physically remove a paragraph from the document XML."""
     p = para._p
     parent = p.getparent()
     if parent is not None:
@@ -140,25 +144,28 @@ def _remove_paragraph(para) -> None:
 
 
 def _set_paragraph_text(para, text: str, section_name: str = ""):
-    """Clear all runs in paragraph and set new text, preserving first-run formatting.
+    """
+    Clear all runs in paragraph and set new text, preserving first-run formatting.
 
-    Special case: if the new text looks like a job-title line (contains | + month),
-    the paragraph is re-formatted as a bold non-bullet heading even if the
-    original paragraph slot had a list-bullet style.  This fixes master DOCX files
-    where some role headers are incorrectly stored as bullet paragraphs.
+    Job-title detection:
+      Lines matching _JOB_TITLE_RE (contains | + month name) are forced to bold
+      headings with numPr removed, regardless of the original paragraph style.
 
-    Bold stripping:
-      For experience/projects/volunteer sections, bold is stripped from non-title
-      lines as a safety net against overflow into bold job-title slots.
-      For certifications/education/languages, bold is preserved (those items are
-      intentionally bold in Canadian-style resumes).
+    Bold logic for non-title lines:
+      • Non-bullet paragraphs (numPr=False): bold is always preserved.
+        These are heading/title slots — their bold is intentional.
+      • Bullet paragraphs in certifications: bold is preserved
+        (certifications are intentionally bold bullets in Canadian resumes).
+      • Bullet paragraphs in all other sections: bold is stripped as a safety
+        net against overflow content inheriting bold from a wrong slot.
+        Since experience bullets are not bold in the master, stripping is
+        usually a no-op; it only matters in rare overflow edge cases.
     """
     from docx.oxml import OxmlElement
 
-    # Handle bullet-like prefix (strip leading "• " or "- ")
+    # Strip leading bullet chars that some LLMs prepend
     clean_text = text.lstrip("•-– ").strip() if text.startswith(("•", "-", "–")) else text
     if not clean_text:
-        # Empty text — just clear the paragraph content
         for run in para.runs:
             run._r.getparent().remove(run._r)
         for r in para._p.findall(qn("w:r")):
@@ -169,23 +176,17 @@ def _set_paragraph_text(para, text: str, section_name: str = ""):
 
     if is_job_title:
         # ── Job-title line: force bold heading, remove bullet properties ──────
-        # Clear existing runs
         for run in para.runs:
             run._r.getparent().remove(run._r)
         for r in para._p.findall(qn("w:r")):
             para._p.remove(r)
 
-        # Strip list/bullet properties from pPr so it doesn't render as a bullet
         pPr = para._p.find(qn("w:pPr"))
         if pPr is not None:
-            for child_tag in ("w:numPr", "w:pStyle"):
-                el = pPr.find(qn(child_tag))
-                if el is not None:
-                    # Remove numPr entirely; keep pStyle but we'll leave it
-                    if child_tag == "w:numPr":
-                        pPr.remove(el)
+            numPr = pPr.find(qn("w:numPr"))
+            if numPr is not None:
+                pPr.remove(numPr)
 
-        # Create bold run
         r = OxmlElement("w:r")
         rPr = OxmlElement("w:rPr")
         b = OxmlElement("w:b")
@@ -198,17 +199,27 @@ def _set_paragraph_text(para, text: str, section_name: str = ""):
         para._p.append(r)
 
     else:
-        # ── Normal line: preserve original run formatting ─────────────────────
-        # Bold is stripped for experience-type sections (safety net: prevents
-        # bullet content from inheriting bold when it overflows into a job-title
-        # paragraph slot).  For certifications/education/languages, bold is
-        # intentional and must be preserved.
+        # ── Normal line: conditional bold preservation ────────────────────────
         first_run_rpr = None
         if para.runs:
             rpr = para.runs[0]._r.find(qn("w:rPr"))
             if rpr is not None:
                 first_run_rpr = deepcopy(rpr)
-                if section_name not in _BOLD_PRESERVE_SECTIONS:
+
+                # Determine whether to strip bold:
+                # • Non-bullet slots (numPr=False): preserve bold always —
+                #   these are title/heading slots, bold is intentional.
+                # • Certifications bullets: preserve bold (intentional).
+                # • All other bullet slots: strip bold as safety net.
+                orig_has_numpr = (
+                    para._p.find(qn("w:pPr")) is not None
+                    and para._p.find(qn("w:pPr")).find(qn("w:numPr")) is not None
+                )
+                should_strip_bold = (
+                    orig_has_numpr
+                    and section_name not in _BOLD_PRESERVE_SECTIONS
+                )
+                if should_strip_bold:
                     for bold_tag in ("w:b", "w:bCs"):
                         el = first_run_rpr.find(qn(bold_tag))
                         if el is not None:
@@ -234,12 +245,10 @@ def _insert_paragraph_after(ref_para, text: str):
     from docx.oxml import OxmlElement
     new_p = OxmlElement("w:p")
 
-    # Copy paragraph properties (pPr) from reference
     ref_ppr = ref_para._p.find(qn("w:pPr"))
     if ref_ppr is not None:
         new_p.append(deepcopy(ref_ppr))
 
-    # Add text run
     r = OxmlElement("w:r")
     t = OxmlElement("w:t")
     t.text = text
@@ -247,10 +256,8 @@ def _insert_paragraph_after(ref_para, text: str):
     r.append(t)
     new_p.append(r)
 
-    # Insert after reference paragraph in the XML tree
     ref_para._p.addnext(new_p)
 
-    # Return a Paragraph wrapper — find the newly added para
     from docx.text.paragraph import Paragraph
     return Paragraph(new_p, ref_para._p.getparent())
 
