@@ -22,22 +22,26 @@ NO inventar logros, fechas, empresas, ni responsabilidades que no estén en el o
 ## Instrucciones adicionales del usuario
 {user_instructions}
 
-## Tu tarea
+## REGLA DE LÍNEAS — CRÍTICA (violación rompe el formato Word)
+El documento Word mapea cada línea de tu output a un párrafo físico por posición.
+Si agregas o quitas UNA sola línea, todos los estilos posteriores quedan corridos.
 
-Para cada rol de experiencia:
-1. INCLUYE la línea de título/empresa/fecha tal como aparece en el original — NUNCA la omitas.
-   El documento Word formatea esas líneas con estilos especiales; si no las incluyes en el output
-   el builder las sobreescribe con bullets y se pierde el formato del encabezado de rol.
-2. Reordena bullets dentro de cada rol para priorizar los más relevantes para esta oferta
-3. Reformula (no inventes) bullets para que incluyan keywords de la oferta cuando encajen naturalmente
-4. Si un bullet existente describe algo relevante pero no usa la terminología de la oferta, actualiza el vocabulario
-5. Mantén el formato de logros canadiense: verbo de acción + contexto + resultado cuantificado
+Por eso:
+1. Cuenta las líneas del texto original arriba (incluyendo encabezados y líneas en blanco).
+2. Tu output DEBE TENER EXACTAMENTE LA MISMA CANTIDAD DE LÍNEAS.
 
-## Estructura de output obligatoria por cada rol
-[Título del rol] | [Empresa] | [Fechas]   ← COPIAR EXACTAMENTE del original
-[Bullet 1 adaptado o sin cambios]
-[Bullet 2 adaptado o sin cambios]
-...
+Para cada línea del original, aplica esta regla:
+- Línea que empieza con "•", "-" o "–" → es un bullet. Puedes reformular su contenido.
+- Línea que NO empieza con "•", "-" o "–" → es un encabezado (título de rol, empresa, fechas).
+  CÓPIALA EXACTAMENTE tal como aparece. Sin cambios. Sin dividirla en dos líneas.
+  Sin agregar una línea de "Empresa, País" si no estaba en el original.
+  Sin convertirla en bullet.
+
+## Tu tarea con los bullets
+1. Reordena bullets dentro de cada rol para priorizar los más relevantes para esta oferta
+2. Reformula (no inventes) bullets para que incluyan keywords de la oferta cuando encajen naturalmente
+3. Si un bullet existente describe algo relevante pero no usa la terminología de la oferta, actualiza el vocabulario
+4. Mantén el formato de logros canadiense: verbo de acción + contexto + resultado cuantificado
 
 ## Formato canadiense esperado para bullets
 • [Verbo de acción fuerte] + [qué hiciste] + [resultado medible cuando exista]
