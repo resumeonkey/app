@@ -1,40 +1,53 @@
 """
-Reconstruct the adapted .docx by modifying ONLY the changed sections
-in the original document, preserving all formatting, styles, and layout.
+DOCX adaptation: XML-level text replacement.
 
-Strategy:
-1. Copy the original docx to a new file.
-2. Resolve and sort all blocks by their first para_index DESCENDING (last → first).
-   This is critical: processing end-to-beginning means any insertion or deletion
-   in section N only shifts paragraphs AFTER N, which we have already processed.
-   Forward processing causes a cascade where summary's extra line shifts skills into
-   a heading slot, which shifts experience into a heading slot, etc.
-3. For each section, find its paragraphs by index and update them in-place.
-4. When adapted text has more/fewer lines than original, expand/contract carefully.
-5. Never touch paragraphs outside changed sections.
+Approach (inspired by cv_editor.py pattern):
+  1. Build a {normalized_original_line: adapted_line} replacement map from all
+     blocks_changed (we have both block["original"] and block["adapted"]).
+  2. Open the DOCX as a zip, parse word/document.xml with lxml.
+  3. Iterate EVERY <w:p> element in the document — body AND table cells.
+     For each paragraph, normalize its text; if it matches an original line,
+     replace the runs with the adapted text while preserving formatting.
+  4. Remove paragraphs whose original line has no corresponding adapted line
+     (LLM output shorter than original section).
+  5. Repack the zip.
+
+Advantages over para_indices:
+  - No cascade: text matching is independent for each paragraph.
+  - No index tracking: insertions/deletions in one section don't affect others.
+  - Covers table cells: skills table entries can now be updated.
+  - Format-safe: we only touch run text, never section headings or layout.
 """
 import os
 import re
 import shutil
-from docx import Document
-from docx.oxml.ns import qn
-from lxml import etree
+import zipfile
 from copy import deepcopy
 from typing import Any
 
+from lxml import etree
+
+# Word namespace
+_WNS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+_XML_NS = "http://www.w3.org/XML/1998/namespace"
+
+def _w(tag: str) -> str:
+    return f"{{{_WNS}}}{tag}"
+
+
 # Pattern: "| May 2020 – Apr 2021" — marks a job-title line.
-# IMPORTANT: must require a MONTH NAME so that certification lines like
-# "CertiProf | 2025" or "Udemy | 2024" are NOT mistakenly treated as job titles.
+# Requires a MONTH NAME so "CertiProf | 2025" does NOT match.
 _JOB_TITLE_RE = re.compile(
     r'\|\s*(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|'
     r'jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)',
     re.IGNORECASE,
 )
 
-# Sections whose bullet items are intentionally bold (certifications list in
-# Canadian resumes).  Bold is always preserved for these, regardless of numPr.
+# Sections whose bullet items are intentionally bold (preserve bold).
 _BOLD_PRESERVE_SECTIONS = frozenset({"certifications"})
 
+
+# ── Public API ─────────────────────────────────────────────────────────────────
 
 def build_adapted_docx(
     master_path: str,
@@ -44,228 +57,169 @@ def build_adapted_docx(
 ) -> str:
     """
     Creates output_path as an adapted copy of master_path.
-    Returns the output_path.
+    Uses XML-level text replacement: finds each original paragraph by its
+    text content and replaces it with the adapted version in-place.
+    Returns output_path.
     """
-    # Work on a copy — never mutate the master
     shutil.copy2(master_path, output_path)
-    doc = Document(output_path)
 
-    # ── Resolve section info for all blocks ────────────────────────────────────
-    resolved: list[tuple[str, str, list[int]]] = []   # (section_name, text, indices)
+    # ── Build replacement + removal maps ──────────────────────────────────────
+    replacements: dict[str, tuple[str, str]] = {}   # norm_orig → (adapted, section)
+    removals:     set[str]                   = set() # norm_orig → remove paragraph
+
     for block in blocks_changed:
-        section_name = block["section"]
-        adapted_text = block["adapted"]
+        section_name = block.get("section", "")
+        orig_lines = [l.strip() for l in block.get("original", "").split("\n") if l.strip()]
+        adpt_lines = [l.strip() for l in block.get("adapted",  "").split("\n") if l.strip()]
 
-        # Look up by exact key first; fall back to case-insensitive partial match.
-        section_info = master_sections.get(section_name)
-        if section_info is None:
-            for key, info in master_sections.items():
-                if section_name.lower() in key.lower() or key.lower() in section_name.lower():
-                    section_info = info
-                    break
+        for i, orig in enumerate(orig_lines):
+            key = _norm(orig)
+            if not key:
+                continue
+            if i < len(adpt_lines):
+                adpt = adpt_lines[i].lstrip("•-– ").strip()
+                replacements[key] = (adpt, section_name)
+            else:
+                # LLM produced fewer lines — mark original paragraph for removal
+                removals.add(key)
 
-        if not section_info:
+    # ── Open DOCX zip, parse XML ──────────────────────────────────────────────
+    with zipfile.ZipFile(output_path, "r") as zin:
+        all_files = {name: zin.read(name) for name in zin.namelist()}
+
+    doc_xml = all_files.get("word/document.xml")
+    if not doc_xml:
+        return output_path
+
+    root = etree.fromstring(doc_xml)
+
+    # ── Apply replacements & collect removals ─────────────────────────────────
+    paras_to_remove: list = []
+
+    for p_elem in root.iter(_w("p")):
+        para_text = _para_text(p_elem)
+        if not para_text:
             continue
 
-        para_indices = section_info.get("para_indices", [])
-        if not para_indices:
-            continue
+        if para_text in replacements:
+            adpt, sname = replacements[para_text]
+            _set_para_text(p_elem, adpt, section_name=sname)
 
-        resolved.append((section_name, adapted_text, para_indices))
+        elif para_text in removals:
+            paras_to_remove.append(p_elem)
 
-    # ── CRITICAL: process from LAST section to FIRST ───────────────────────────
-    # Any insertion/deletion in section X only shifts paragraphs at indices > X.
-    # Processing in reverse order means those shifts only affect sections we have
-    # already processed — so their para_indices stay correct.
-    resolved.sort(key=lambda x: x[2][0], reverse=True)
+    for p in paras_to_remove:
+        parent = p.getparent()
+        if parent is not None:
+            parent.remove(p)
 
-    for section_name, adapted_text, para_indices in resolved:
-        _replace_section_content(doc, para_indices, adapted_text, section_name=section_name)
+    # ── Repack ────────────────────────────────────────────────────────────────
+    all_files["word/document.xml"] = etree.tostring(
+        root,
+        xml_declaration=True,
+        encoding="UTF-8",
+        standalone=True,
+    )
 
-    doc.save(output_path)
+    tmp = output_path + ".tmp"
+    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zout:
+        for name, data in all_files.items():
+            zout.writestr(name, data)
+    os.replace(tmp, output_path)
+
     return output_path
 
 
-def _replace_section_content(
-    doc: Document,
-    para_indices: list[int],
-    new_text: str,
-    section_name: str = "",
-):
-    """
-    Replace the text in the paragraphs at para_indices with new_text lines.
-    Preserves the formatting (bold, italic, font) of the first run of each paragraph.
-    Uses doc.paragraphs (body-level only) — must match resume_parser.parse_docx ordering.
-    """
-    new_lines = [line for line in new_text.split("\n") if line.strip()]
-    paras     = doc.paragraphs
+# ── XML helpers ────────────────────────────────────────────────────────────────
 
-    # Validate indices
-    valid_indices = [i for i in para_indices if i < len(paras)]
-    if not valid_indices:
+def _norm(text: str) -> str:
+    """Normalize whitespace for matching (collapses soft-break spaces, etc.)."""
+    return " ".join(text.replace("\n", " ").split()).strip()
+
+
+def _para_text(p_elem) -> str:
+    """
+    Concatenate all <w:t> text in a paragraph, replacing <w:br> with space.
+    Then normalize whitespace so soft-break paragraphs match their DB raw_text.
+    """
+    parts: list[str] = []
+    for elem in p_elem.iter():
+        if elem.tag == _w("t") and elem.text:
+            parts.append(elem.text)
+        elif elem.tag == _w("br"):
+            parts.append(" ")
+    return _norm("".join(parts))
+
+
+def _set_para_text(p_elem, new_text: str, section_name: str = "") -> None:
+    """
+    Replace the text of a paragraph in-place.
+
+    Job-title lines (matched by _JOB_TITLE_RE):
+      → Force bold run, remove w:numPr (strip bullet).
+
+    All other lines:
+      → Copy first-run rPr, apply bold-stripping rules:
+        • Non-bullet slots (no numPr): always preserve bold (heading/title slots).
+        • Bullet slots in certifications: preserve bold (intentional).
+        • Bullet slots elsewhere: strip bold (safety net against overflow).
+    """
+    clean = new_text.lstrip("•-– ").strip()
+    if not clean:
         return
 
-    # Safety cap: LLM sometimes expands content far beyond the original.
-    # Allow at most 50% more lines than the original slot count to prevent
-    # the adapted section from overrunning into adjacent sections.
-    max_lines = len(valid_indices) + max(5, len(valid_indices) // 2)
-    if len(new_lines) > max_lines:
-        new_lines = new_lines[:max_lines]
+    is_job_title = bool(_JOB_TITLE_RE.search(clean))
 
-    paragraphs_to_remove: list = []
+    # ── Collect first-run formatting ──────────────────────────────────────────
+    first_rpr = None
+    all_runs = list(p_elem.findall(f".//{_w('r')}"))
+    if all_runs:
+        rpr = all_runs[0].find(_w("rPr"))
+        if rpr is not None:
+            first_rpr = deepcopy(rpr)
 
-    for slot_num, para_idx in enumerate(valid_indices):
-        para = paras[para_idx]
-        if slot_num < len(new_lines):
-            _set_paragraph_text(para, new_lines[slot_num], section_name=section_name)
-        else:
-            # More original slots than new lines — remove excess paragraphs
-            # so they don't leave blank lines in the document.
-            paragraphs_to_remove.append(para)
+    # ── Paragraph properties ──────────────────────────────────────────────────
+    pPr = p_elem.find(_w("pPr"))
+    orig_has_numpr = (
+        pPr is not None and pPr.find(_w("numPr")) is not None
+    )
 
-    for para in paragraphs_to_remove:
-        _remove_paragraph(para)
+    # ── Remove existing runs (direct children of p_elem) ─────────────────────
+    for child in list(p_elem):
+        if child.tag == _w("r"):
+            p_elem.remove(child)
 
-    # If more new lines than original paragraphs, insert after the last valid index
-    if len(new_lines) > len(valid_indices):
-        last_para = paras[valid_indices[-1]]
-        extra_lines = new_lines[len(valid_indices):]
-        for line in reversed(extra_lines):
-            new_para = _insert_paragraph_after(last_para, line)
-            _copy_style(last_para, new_para)
-
-
-def _remove_paragraph(para) -> None:
-    """Physically remove a paragraph from the document XML."""
-    p = para._p
-    parent = p.getparent()
-    if parent is not None:
-        parent.remove(p)
-
-
-def _set_paragraph_text(para, text: str, section_name: str = ""):
-    """
-    Clear all runs in paragraph and set new text, preserving first-run formatting.
-
-    Job-title detection:
-      Lines matching _JOB_TITLE_RE (contains | + month name) are forced to bold
-      headings with numPr removed, regardless of the original paragraph style.
-
-    Bold logic for non-title lines:
-      • Non-bullet paragraphs (numPr=False): bold is always preserved.
-        These are heading/title slots — their bold is intentional.
-      • Bullet paragraphs in certifications: bold is preserved
-        (certifications are intentionally bold bullets in Canadian resumes).
-      • Bullet paragraphs in all other sections: bold is stripped as a safety
-        net against overflow content inheriting bold from a wrong slot.
-        Since experience bullets are not bold in the master, stripping is
-        usually a no-op; it only matters in rare overflow edge cases.
-    """
-    from docx.oxml import OxmlElement
-
-    # Strip leading bullet chars that some LLMs prepend
-    clean_text = text.lstrip("•-– ").strip() if text.startswith(("•", "-", "–")) else text
-    if not clean_text:
-        for run in para.runs:
-            run._r.getparent().remove(run._r)
-        for r in para._p.findall(qn("w:r")):
-            para._p.remove(r)
-        return
-
-    is_job_title = bool(_JOB_TITLE_RE.search(clean_text))
-
+    # ── Build replacement run ─────────────────────────────────────────────────
     if is_job_title:
-        # ── Job-title line: force bold heading, remove bullet properties ──────
-        for run in para.runs:
-            run._r.getparent().remove(run._r)
-        for r in para._p.findall(qn("w:r")):
-            para._p.remove(r)
-
-        pPr = para._p.find(qn("w:pPr"))
+        # Strip bullet, force bold heading
         if pPr is not None:
-            numPr = pPr.find(qn("w:numPr"))
+            numPr = pPr.find(_w("numPr"))
             if numPr is not None:
                 pPr.remove(numPr)
 
-        r = OxmlElement("w:r")
-        rPr = OxmlElement("w:rPr")
-        b = OxmlElement("w:b")
-        rPr.append(b)
-        r.append(rPr)
-        t = OxmlElement("w:t")
-        t.text = clean_text
-        t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
-        r.append(t)
-        para._p.append(r)
+        r = etree.SubElement(p_elem, _w("r"))
+        rpr_new = etree.SubElement(r, _w("rPr"))
+        etree.SubElement(rpr_new, _w("b"))
 
     else:
-        # ── Normal line: conditional bold preservation ────────────────────────
-        first_run_rpr = None
-        if para.runs:
-            rpr = para.runs[0]._r.find(qn("w:rPr"))
-            if rpr is not None:
-                first_run_rpr = deepcopy(rpr)
+        r = etree.SubElement(p_elem, _w("r"))
 
-                # Determine whether to strip bold:
-                # • Non-bullet slots (numPr=False): preserve bold always —
-                #   these are title/heading slots, bold is intentional.
-                # • Certifications bullets: preserve bold (intentional).
-                # • All other bullet slots: strip bold as safety net.
-                orig_has_numpr = (
-                    para._p.find(qn("w:pPr")) is not None
-                    and para._p.find(qn("w:pPr")).find(qn("w:numPr")) is not None
-                )
-                should_strip_bold = (
-                    orig_has_numpr
-                    and section_name not in _BOLD_PRESERVE_SECTIONS
-                )
-                if should_strip_bold:
-                    for bold_tag in ("w:b", "w:bCs"):
-                        el = first_run_rpr.find(qn(bold_tag))
-                        if el is not None:
-                            first_run_rpr.remove(el)
+        if first_rpr is not None:
+            # Bold-stripping logic:
+            #   Non-bullet slot → always preserve bold (title/heading slot).
+            #   Cert section bullet → preserve bold (intentional).
+            #   Other bullet slots → strip bold (safety net).
+            should_strip = (
+                orig_has_numpr
+                and section_name not in _BOLD_PRESERVE_SECTIONS
+            )
+            if should_strip:
+                for bold_tag in (_w("b"), _w("bCs")):
+                    el = first_rpr.find(bold_tag)
+                    if el is not None:
+                        first_rpr.remove(el)
+            r.append(deepcopy(first_rpr))
 
-        for run in para.runs:
-            run._r.getparent().remove(run._r)
-        for r in para._p.findall(qn("w:r")):
-            para._p.remove(r)
-
-        r = OxmlElement("w:r")
-        if first_run_rpr is not None:
-            r.append(deepcopy(first_run_rpr))
-        t = OxmlElement("w:t")
-        t.text = clean_text
-        t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
-        r.append(t)
-        para._p.append(r)
-
-
-def _insert_paragraph_after(ref_para, text: str):
-    """Insert a new paragraph after ref_para with the same style."""
-    from docx.oxml import OxmlElement
-    new_p = OxmlElement("w:p")
-
-    ref_ppr = ref_para._p.find(qn("w:pPr"))
-    if ref_ppr is not None:
-        new_p.append(deepcopy(ref_ppr))
-
-    r = OxmlElement("w:r")
-    t = OxmlElement("w:t")
-    t.text = text
-    t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
-    r.append(t)
-    new_p.append(r)
-
-    ref_para._p.addnext(new_p)
-
-    from docx.text.paragraph import Paragraph
-    return Paragraph(new_p, ref_para._p.getparent())
-
-
-def _copy_style(source_para, target_para):
-    """Copy paragraph style name from source to target."""
-    try:
-        if source_para.style:
-            target_para.style = source_para.style
-    except Exception:
-        pass
+    t = etree.SubElement(r, _w("t"))
+    t.text = clean
+    t.set(f"{{{_XML_NS}}}space", "preserve")
