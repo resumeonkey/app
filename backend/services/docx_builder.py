@@ -180,12 +180,19 @@ def _set_paragraph_text(para, text: str):
         para._p.append(r)
 
     else:
-        # ── Normal line: preserve original run formatting ─────────────────────
+        # ── Normal line: preserve original run formatting (minus bold) ────────
+        # Strip w:b / w:bCs so bullet/content lines never inherit bold from a
+        # master slot that happened to be bold (e.g. a highlighted achievement
+        # line in the master).  Job-title bold is handled explicitly above.
         first_run_rpr = None
         if para.runs:
             rpr = para.runs[0]._r.find(qn("w:rPr"))
             if rpr is not None:
                 first_run_rpr = deepcopy(rpr)
+                for bold_tag in ("w:b", "w:bCs"):
+                    el = first_run_rpr.find(qn(bold_tag))
+                    if el is not None:
+                        first_run_rpr.remove(el)
 
         for run in para.runs:
             run._r.getparent().remove(run._r)
