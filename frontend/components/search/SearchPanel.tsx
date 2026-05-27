@@ -114,6 +114,68 @@ export function SearchPanel({ onSearch, loading }: Props) {
     onSearch(params);
   };
 
+  // ── Build direct URLs for each job board ─────────────────────────────────
+  const buildExternalUrls = () => {
+    const query  = encodeURIComponent((params.custom_query || params.job_title).trim());
+    const loc    = encodeURIComponent([params.city, params.province, params.country].filter(Boolean).join(", ") || "Canada");
+    const locCA  = encodeURIComponent([params.city, params.province].filter(Boolean).join(", ") || "Canada");
+
+    // LinkedIn remote filter
+    const liRemote = params.remote === "remote" ? "&f_WT=2"
+                   : params.remote === "hybrid"  ? "&f_WT=3"
+                   : params.remote === "onsite"  ? "&f_WT=1" : "";
+    // LinkedIn date posted
+    const liDate   = params.date_posted === "24h" ? "&f_TPR=r86400"
+                   : params.date_posted === "3d"  ? "&f_TPR=r259200"
+                   : params.date_posted === "7d"  ? "&f_TPR=r604800"
+                   : params.date_posted === "30d" ? "&f_TPR=r2592000" : "";
+
+    return [
+      {
+        id:    "linkedin",
+        label: "LinkedIn",
+        icon:  "💼",
+        color: "hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700",
+        url:   `https://www.linkedin.com/jobs/search/?keywords=${query}&location=${loc}${liRemote}${liDate}`,
+      },
+      {
+        id:    "jobbank",
+        label: "Job Bank",
+        icon:  "🍁",
+        color: "hover:border-red-300 hover:bg-red-50 hover:text-red-700",
+        url:   `https://www.jobbank.gc.ca/jobsearch/jobsearch?searchstring=${query}&locationstring=${locCA}${params.lmia_only ? "&mid=" : ""}`,
+      },
+      {
+        id:    "workopolis",
+        label: "Workopolis",
+        icon:  "🇨🇦",
+        color: "hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700",
+        url:   `https://www.workopolis.com/jobsearch/find-jobs?q=${query}&l=${locCA}`,
+      },
+      {
+        id:    "eluta",
+        label: "Eluta",
+        icon:  "🔍",
+        color: "hover:border-teal-300 hover:bg-teal-50 hover:text-teal-700",
+        url:   `https://www.eluta.ca/search?q=${query}&l=${loc}`,
+      },
+      {
+        id:    "indeed",
+        label: "Indeed",
+        icon:  "🔎",
+        color: "hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700",
+        url:   `https://ca.indeed.com/jobs?q=${query}&l=${locCA}${params.remote === "remote" ? "&remotejob=1" : ""}`,
+      },
+      {
+        id:    "glassdoor",
+        label: "Glassdoor",
+        icon:  "🪟",
+        color: "hover:border-green-300 hover:bg-green-50 hover:text-green-700",
+        url:   `https://www.glassdoor.ca/Job/jobs.htm?sc.keyword=${query}&locT=N`,
+      },
+    ];
+  };
+
   const ToggleChip = ({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) => (
     <button
       onClick={onClick}
@@ -564,6 +626,33 @@ export function SearchPanel({ onSearch, loading }: Props) {
       >
         {loading ? "Buscando y analizando ofertas…" : "🔍 Buscar empleos"}
       </button>
+
+      {/* ── Manual fallback links ─────────────────────────────────────────── */}
+      <div>
+        <p className="text-[11px] text-gray-400 uppercase tracking-wide font-medium mb-2">
+          También buscar directamente en:
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {buildExternalUrls().map((board) => (
+            <a
+              key={board.id}
+              href={board.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200
+                         text-xs text-gray-500 bg-white font-medium transition-all ${board.color}`}
+              title={`Buscar en ${board.label} con tus parámetros actuales`}
+            >
+              <span>{board.icon}</span>
+              {board.label}
+              <span className="opacity-50">↗</span>
+            </a>
+          ))}
+        </div>
+        <p className="text-[10px] text-gray-400 mt-1.5">
+          Abre el portal con tu búsqueda actual — útil cuando el scraping no devuelve resultados de esa fuente.
+        </p>
+      </div>
     </div>
   );
 }
