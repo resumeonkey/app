@@ -9,12 +9,19 @@ Strategy:
 4. Never touch paragraphs outside changed sections.
 """
 import os
+import re
 import shutil
 from docx import Document
 from docx.oxml.ns import qn
 from lxml import etree
 from copy import deepcopy
 from typing import Any
+
+# Pattern: "| May 2020 – Apr 2021" or "| 2018 – 2020" — marks a job-title line
+_JOB_TITLE_RE = re.compile(
+    r'\|\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|20\d{2}|19\d{2})',
+    re.IGNORECASE,
+)
 
 
 def build_adapted_docx(
@@ -121,39 +128,78 @@ def _remove_paragraph(para) -> None:
 
 
 def _set_paragraph_text(para, text: str):
-    """Clear all runs in paragraph and set new text, preserving first-run formatting."""
-    # Capture first run's XML for format reference before clearing
-    first_run_rpr = None
-    if para.runs:
-        first_run = para.runs[0]
-        rpr = first_run._r.find(qn("w:rPr"))
-        if rpr is not None:
-            first_run_rpr = deepcopy(rpr)
+    """Clear all runs in paragraph and set new text, preserving first-run formatting.
 
-    # Clear all runs
-    for run in para.runs:
-        run._r.getparent().remove(run._r)
+    Special case: if the new text looks like a job-title line (contains | + date),
+    the paragraph is re-formatted as a bold non-bullet heading even if the
+    original paragraph slot had a list-bullet style.  This fixes master DOCX files
+    where some role headers are incorrectly stored as bullet paragraphs.
+    """
+    from docx.oxml import OxmlElement
 
-    # Remove any remaining w:r elements
-    for r in para._p.findall(qn("w:r")):
-        para._p.remove(r)
-
-    if not text:
+    # Handle bullet-like prefix (strip leading "• " or "- ")
+    clean_text = text.lstrip("•-– ").strip() if text.startswith(("•", "-", "–")) else text
+    if not clean_text:
+        # Empty text — just clear the paragraph content
+        for run in para.runs:
+            run._r.getparent().remove(run._r)
+        for r in para._p.findall(qn("w:r")):
+            para._p.remove(r)
         return
 
-    # Handle bullet-like lines (strip leading "• " or "- ")
-    clean_text = text.lstrip("•-– ").strip() if text.startswith(("•", "-", "–")) else text
+    is_job_title = bool(_JOB_TITLE_RE.search(clean_text))
 
-    # Create new run
-    from docx.oxml import OxmlElement
-    r = OxmlElement("w:r")
-    if first_run_rpr is not None:
-        r.append(deepcopy(first_run_rpr))
-    t = OxmlElement("w:t")
-    t.text = clean_text
-    t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
-    r.append(t)
-    para._p.append(r)
+    if is_job_title:
+        # ── Job-title line: force bold heading, remove bullet properties ──────
+        # Clear existing runs
+        for run in para.runs:
+            run._r.getparent().remove(run._r)
+        for r in para._p.findall(qn("w:r")):
+            para._p.remove(r)
+
+        # Strip list/bullet properties from pPr so it doesn't render as a bullet
+        pPr = para._p.find(qn("w:pPr"))
+        if pPr is not None:
+            for child_tag in ("w:numPr", "w:pStyle"):
+                el = pPr.find(qn(child_tag))
+                if el is not None:
+                    # Remove numPr entirely; keep pStyle but we'll leave it
+                    if child_tag == "w:numPr":
+                        pPr.remove(el)
+
+        # Create bold run
+        r = OxmlElement("w:r")
+        rPr = OxmlElement("w:rPr")
+        b = OxmlElement("w:b")
+        rPr.append(b)
+        r.append(rPr)
+        t = OxmlElement("w:t")
+        t.text = clean_text
+        t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+        r.append(t)
+        para._p.append(r)
+
+    else:
+        # ── Normal line: preserve original run formatting ─────────────────────
+        first_run_rpr = None
+        if para.runs:
+            rpr = para.runs[0]._r.find(qn("w:rPr"))
+            if rpr is not None:
+                first_run_rpr = deepcopy(rpr)
+
+        for run in para.runs:
+            run._r.getparent().remove(run._r)
+        for r in para._p.findall(qn("w:r")):
+            para._p.remove(r)
+
+        r = OxmlElement("w:r")
+        if first_run_rpr is not None:
+            r.append(deepcopy(first_run_rpr))
+        t = OxmlElement("w:t")
+        t.text = clean_text
+        t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+        r.append(t)
+        para._p.append(r)
 
 
 def _insert_paragraph_after(ref_para, text: str):
