@@ -27,6 +27,7 @@ from backend.services.job_search import (
     batch_score_jobs,
     score_job,
     _build_profile_text,
+    _parse_json_response,
     _build_jobbank_url,
     _build_workopolis_url,
     _build_eluta_url,
@@ -168,7 +169,7 @@ Reglas para recommendations:
             json_mode=True,
             temperature=0.3,
         )
-        data = json.loads(raw)
+        data = _parse_json_response(raw)   # strips markdown fences before json.loads
         recs = data.get("recommendations", [])
         log.info("suggest_params: got %d recommendations (profile_chars=%d)",
                  len(recs), len(profile))
