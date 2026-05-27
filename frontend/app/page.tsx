@@ -1,10 +1,16 @@
 "use client";
-import { useEffect, useState } from "react";
-import { getActiveMaster, listAdaptations, runJobSearch, suggestSearchParams, type MasterDetail, type Adaptation, type SearchParams, type SearchResponse, type SearchRecommendation } from "@/lib/api";
-import { SearchRecommendations } from "@/components/search/SearchRecommendations";
-import { AdaptationHistory } from "@/components/history/AdaptationHistory";
-// job_url → Adaptation map for this session
-type AdaptedJobsMap = Record<string, Adaptation>;
+import { useCallback, useEffect, useState } from "react";
+import {
+  getActiveMaster,
+  listAdaptations,
+  runJobSearch,
+  suggestSearchParams,
+  type MasterDetail,
+  type Adaptation,
+  type SearchParams,
+  type SearchResponse,
+  type SearchRecommendation,
+} from "@/lib/api";
 import { MasterUpload } from "@/components/master/MasterUpload";
 import { MasterStatus } from "@/components/master/MasterStatus";
 import { JobForm } from "@/components/job/JobForm";
@@ -12,9 +18,12 @@ import { AdaptationResult } from "@/components/result/AdaptationResult";
 import { ContextPanel } from "@/components/context/ContextPanel";
 import { SearchPanel } from "@/components/search/SearchPanel";
 import { SearchResults } from "@/components/search/SearchResults";
+import { SearchRecommendations } from "@/components/search/SearchRecommendations";
+import { AdaptationHistory } from "@/components/history/AdaptationHistory";
 
-type AppView   = "upload_master" | "adapt" | "result";
-type InputMode = "search" | "manual";
+type AppView      = "upload_master" | "adapt" | "result";
+type InputMode    = "search" | "manual";
+type AdaptedJobsMap = Record<string, Adaptation>;
 
 export default function HomePage() {
   const [master, setMaster]         = useState<MasterDetail | null>(null);
@@ -24,26 +33,40 @@ export default function HomePage() {
   const [inputMode, setInputMode]   = useState<InputMode>("manual");
 
   // Search state
-  const [searchLoading, setSearchLoading]         = useState(false);
-  const [searchResult, setSearchResult]           = useState<SearchResponse | null>(null);
-  const [searchError, setSearchError]             = useState("");
-  const [lastSearchParams, setLastParams]         = useState<SearchParams | null>(null);
-  // Tracks which job URLs have been adapted in this session
-  const [adaptedJobs, setAdaptedJobs]             = useState<AdaptedJobsMap>({});
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchResult, setSearchResult]   = useState<SearchResponse | null>(null);
+  const [searchError, setSearchError]     = useState("");
+  const [lastSearchParams, setLastParams] = useState<SearchParams | null>(null);
+
+  // History: job_url → Adaptation (seeded from DB on mount)
+  const [adaptedJobs, setAdaptedJobs] = useState<AdaptedJobsMap>({});
+
   // Personalized search recommendations
-  const [recommendations, setRecommendations]     = useState<SearchRecommendation[]>([]);
-  const [recsLoading, setRecsLoading]             = useState(false);
-  const [recsLoaded, setRecsLoaded]               = useState(false);
+  const [recommendations, setRecommendations] = useState<SearchRecommendation[]>([]);
+  const [recsLoading, setRecsLoading]         = useState(false);
+  const [recsLoaded, setRecsLoaded]           = useState(false);
+
+  // ── Helpers (declared before useEffect so they're in scope) ─────────────────
+
+  const loadRecommendations = useCallback(() => {
+    setRecsLoading(true);
+    setRecsLoaded(false);
+    suggestSearchParams()
+      .then(({ recommendations: recs }) => setRecommendations(recs ?? []))
+      .catch(() => setRecommendations([]))
+      .finally(() => { setRecsLoading(false); setRecsLoaded(true); });
+  }, []);
+
+  // ── On mount: load master + history in parallel, then recommendations ────────
 
   useEffect(() => {
-    // Load master + adaptations history + recommendations in parallel
     Promise.all([
       getActiveMaster().catch(() => null),
-      listAdaptations().catch(() => [] as Adaptation[]),
+      listAdaptations().catch((): Adaptation[] => []),
     ]).then(([m, adaptations]) => {
       setMaster(m);
 
-      // Seed history from DB (only entries that have a job_url)
+      // Seed history from DB (only entries that carry a job_url)
       if (adaptations.length > 0) {
         const map: AdaptedJobsMap = {};
         for (const a of adaptations) {
@@ -52,24 +75,15 @@ export default function HomePage() {
         setAdaptedJobs(map);
       }
 
-      // Load personalized recommendations once master is known
       if (m) loadRecommendations();
     }).finally(() => setLoading(false));
-  }, []);
+  }, [loadRecommendations]);
 
-  const loadRecommendations = () => {
-    setRecsLoading(true);
-    setRecsLoaded(false);
-    suggestSearchParams()
-      .then(({ recommendations: recs }) => setRecommendations(recs ?? []))
-      .catch(() => setRecommendations([]))
-      .finally(() => { setRecsLoading(false); setRecsLoaded(true); });
-  };
+  // ── Event handlers ───────────────────────────────────────────────────────────
 
   const handleMasterUploaded = (m: MasterDetail) => {
     setMaster(m);
     setView("adapt");
-    // Refresh recommendations based on new master
     loadRecommendations();
   };
 
@@ -87,7 +101,6 @@ export default function HomePage() {
     setView("result");
   };
 
-  // Called by AdaptationHistory when applied status is toggled
   const handleUpdateAdaptation = (a: Adaptation) => {
     if (a.job_url) {
       setAdaptedJobs(prev => ({ ...prev, [a.job_url!]: a }));
@@ -109,6 +122,8 @@ export default function HomePage() {
       setSearchLoading(false);
     }
   };
+
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   if (loading) {
     return <div className="text-center py-20 text-gray-400">Cargando…</div>;
@@ -151,7 +166,7 @@ export default function HomePage() {
       {/* ── Personal context repository ──────────────────────────────────────── */}
       {view !== "result" && <ContextPanel />}
 
-      {/* ── Session history ──────────────────────────────────────────────────── */}
+      {/* ── Adaptation history (seeded from DB, updates on new adaptations) ─── */}
       {view !== "result" && (
         <AdaptationHistory
           adaptedJobs={adaptedJobs}
@@ -199,7 +214,7 @@ export default function HomePage() {
           {/* ── Search mode ─────────────────────────────────────────────── */}
           {inputMode === "search" && (
             <div className="space-y-5">
-              {/* Personalized recommendations — click to search instantly */}
+              {/* Personalized recommendations */}
               <SearchRecommendations
                 recommendations={recommendations}
                 loading={recsLoading}
