@@ -36,12 +36,17 @@ Por eso:
 Hay tres tipos de líneas en el original:
 
 TYPE A — Línea de título de rol (contiene fechas y/o "|"):
-  Ejemplo: "Product Owner | May 2021 – Jan 2025"
+  Ejemplo simple:   "Product Owner | May 2021 – Jan 2025"
+  Ejemplo combinado: "Product Owner · | May 2021 – Jan 2025 Entel, Chile"
   → CÓPIALA EXACTAMENTE. Cero cambios. Cero variaciones.
+  ⚠ CRÍTICO: Si el título Y la empresa aparecen en LA MISMA LÍNEA del original,
+    deben ir en LA MISMA LÍNEA del output. NO los separes en dos líneas.
+    Una línea original → una línea en el output. SIEMPRE.
 
-TYPE B — Línea de empresa/ubicación (corta, contiene coma):
-  Ejemplo: "Entel, Chile" o "Accenture, Chile"
+TYPE B — Línea de empresa/ubicación SEPARADA (corta, contiene coma, es la única cosa en esa línea):
+  Ejemplo: "Entel, Chile" o "Accenture, Chile" (cuando están solos en su propia línea)
   → CÓPIALA EXACTAMENTE. NO la omitas. NO la dividas.
+  ⚠ Si la empresa YA está en la misma línea que el título (TYPE A), NO la repitas.
 
 TYPE C — Línea de bullet/logro (describe qué hiciste):
   Ejemplo: "Configured telecom plans, bundles..."

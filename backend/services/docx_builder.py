@@ -26,6 +26,10 @@ _JOB_TITLE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Sections where runs are intentionally bold (certifications, education entries).
+# Bold is preserved for these; stripped as safety-net for all others.
+_BOLD_PRESERVE_SECTIONS = frozenset({"certifications", "education", "languages"})
+
 
 def build_adapted_docx(
     master_path: str,
@@ -62,13 +66,18 @@ def build_adapted_docx(
         if not para_indices:
             continue
 
-        _replace_section_content(doc, para_indices, adapted_text)
+        _replace_section_content(doc, para_indices, adapted_text, section_name=section_name)
 
     doc.save(output_path)
     return output_path
 
 
-def _replace_section_content(doc: Document, para_indices: list[int], new_text: str):
+def _replace_section_content(
+    doc: Document,
+    para_indices: list[int],
+    new_text: str,
+    section_name: str = "",
+):
     """
     Replace the text in the paragraphs at para_indices with new_text lines.
     Preserves the formatting (bold, italic, font) of the first run of each paragraph.
@@ -100,7 +109,7 @@ def _replace_section_content(doc: Document, para_indices: list[int], new_text: s
     for slot_num, para_idx in enumerate(valid_indices):
         para = paras[para_idx]
         if slot_num < len(new_lines):
-            _set_paragraph_text(para, new_lines[slot_num])
+            _set_paragraph_text(para, new_lines[slot_num], section_name=section_name)
         else:
             # More original slots than new lines — remove excess paragraphs
             # so they don't leave blank lines in the document.
@@ -130,13 +139,19 @@ def _remove_paragraph(para) -> None:
         parent.remove(p)
 
 
-def _set_paragraph_text(para, text: str):
+def _set_paragraph_text(para, text: str, section_name: str = ""):
     """Clear all runs in paragraph and set new text, preserving first-run formatting.
 
-    Special case: if the new text looks like a job-title line (contains | + date),
+    Special case: if the new text looks like a job-title line (contains | + month),
     the paragraph is re-formatted as a bold non-bullet heading even if the
     original paragraph slot had a list-bullet style.  This fixes master DOCX files
     where some role headers are incorrectly stored as bullet paragraphs.
+
+    Bold stripping:
+      For experience/projects/volunteer sections, bold is stripped from non-title
+      lines as a safety net against overflow into bold job-title slots.
+      For certifications/education/languages, bold is preserved (those items are
+      intentionally bold in Canadian-style resumes).
     """
     from docx.oxml import OxmlElement
 
@@ -183,19 +198,21 @@ def _set_paragraph_text(para, text: str):
         para._p.append(r)
 
     else:
-        # ── Normal line: preserve original run formatting (minus bold) ────────
-        # Strip w:b / w:bCs so bullet/content lines never inherit bold from a
-        # master slot that happened to be bold (e.g. a highlighted achievement
-        # line in the master).  Job-title bold is handled explicitly above.
+        # ── Normal line: preserve original run formatting ─────────────────────
+        # Bold is stripped for experience-type sections (safety net: prevents
+        # bullet content from inheriting bold when it overflows into a job-title
+        # paragraph slot).  For certifications/education/languages, bold is
+        # intentional and must be preserved.
         first_run_rpr = None
         if para.runs:
             rpr = para.runs[0]._r.find(qn("w:rPr"))
             if rpr is not None:
                 first_run_rpr = deepcopy(rpr)
-                for bold_tag in ("w:b", "w:bCs"):
-                    el = first_run_rpr.find(qn(bold_tag))
-                    if el is not None:
-                        first_run_rpr.remove(el)
+                if section_name not in _BOLD_PRESERVE_SECTIONS:
+                    for bold_tag in ("w:b", "w:bCs"):
+                        el = first_run_rpr.find(qn(bold_tag))
+                        if el is not None:
+                            first_run_rpr.remove(el)
 
         for run in para.runs:
             run._r.getparent().remove(run._r)
