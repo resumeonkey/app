@@ -17,9 +17,12 @@ from lxml import etree
 from copy import deepcopy
 from typing import Any
 
-# Pattern: "| May 2020 – Apr 2021" or "| 2018 – 2020" — marks a job-title line
+# Pattern: "| May 2020 – Apr 2021" — marks a job-title line.
+# IMPORTANT: must require a MONTH NAME so that certification lines like
+# "CertiProf | 2025" or "Udemy | 2024" are NOT mistakenly treated as job titles.
 _JOB_TITLE_RE = re.compile(
-    r'\|\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|20\d{2}|19\d{2})',
+    r'\|\s*(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|'
+    r'jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)',
     re.IGNORECASE,
 )
 
