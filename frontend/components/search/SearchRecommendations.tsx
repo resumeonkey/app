@@ -4,16 +4,19 @@ import { type SearchRecommendation, type SearchParams } from "@/lib/api";
 interface Props {
   recommendations: SearchRecommendation[];
   loading: boolean;
-  onSearch: (params: Partial<SearchParams>) => void;
+  onSearch: (params: SearchParams) => void;
   onRetry?: () => void;
 }
 
-const DEFAULT_PARAMS: Partial<SearchParams> = {
+const DEFAULT_PARAMS: SearchParams = {
+  job_title: "",
+  custom_query: "",
   country: "Canada",
   province: "",
   city: "",
   remote: "any",
   job_type: [],
+  experience_level: [],
   salary_min: null,
   salary_max: null,
   salary_currency: "CAD",
@@ -23,7 +26,10 @@ const DEFAULT_PARAMS: Partial<SearchParams> = {
   exclude_keywords: [],
   languages: ["english"],
   date_posted: "any",
+  industries: [],
   num_results: 8,
+  llm_provider: "anthropic",
+  llm_model: "claude-haiku-4-5",
   lmia_only: false,
   bilingual_spanish: false,
   ccfta_check: false,
