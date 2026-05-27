@@ -33,6 +33,7 @@ export default function HomePage() {
   // Personalized search recommendations
   const [recommendations, setRecommendations]     = useState<SearchRecommendation[]>([]);
   const [recsLoading, setRecsLoading]             = useState(false);
+  const [recsLoaded, setRecsLoaded]               = useState(false);
 
   useEffect(() => {
     // Load master + adaptations history + recommendations in parallel
@@ -52,19 +53,24 @@ export default function HomePage() {
       }
 
       // Load personalized recommendations once master is known
-      if (m) {
-        setRecsLoading(true);
-        suggestSearchParams()
-          .then(({ recommendations: recs }) => setRecommendations(recs ?? []))
-          .catch(() => setRecommendations([]))
-          .finally(() => setRecsLoading(false));
-      }
+      if (m) loadRecommendations();
     }).finally(() => setLoading(false));
   }, []);
+
+  const loadRecommendations = () => {
+    setRecsLoading(true);
+    setRecsLoaded(false);
+    suggestSearchParams()
+      .then(({ recommendations: recs }) => setRecommendations(recs ?? []))
+      .catch(() => setRecommendations([]))
+      .finally(() => { setRecsLoading(false); setRecsLoaded(true); });
+  };
 
   const handleMasterUploaded = (m: MasterDetail) => {
     setMaster(m);
     setView("adapt");
+    // Refresh recommendations based on new master
+    loadRecommendations();
   };
 
   const handleAdaptationCreated = (a: Adaptation) => {
@@ -198,6 +204,7 @@ export default function HomePage() {
                 recommendations={recommendations}
                 loading={recsLoading}
                 onSearch={handleSearch}
+                onRetry={recsLoaded ? loadRecommendations : undefined}
               />
 
               <SearchPanel onSearch={handleSearch} loading={searchLoading} />

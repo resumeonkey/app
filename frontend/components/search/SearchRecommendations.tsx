@@ -5,6 +5,7 @@ interface Props {
   recommendations: SearchRecommendation[];
   loading: boolean;
   onSearch: (params: Partial<SearchParams>) => void;
+  onRetry?: () => void;
 }
 
 const DEFAULT_PARAMS: Partial<SearchParams> = {
@@ -28,12 +29,12 @@ const DEFAULT_PARAMS: Partial<SearchParams> = {
   ccfta_check: false,
 };
 
-export function SearchRecommendations({ recommendations, loading, onSearch }: Props) {
+export function SearchRecommendations({ recommendations, loading, onSearch, onRetry }: Props) {
   if (loading) {
     return (
       <div>
         <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-          💡 Búsquedas recomendadas para tu perfil
+          💡 Cargando búsquedas recomendadas…
         </p>
         <div className="flex gap-3 overflow-x-auto pb-1">
           {[1, 2, 3, 4].map((i) => (
@@ -47,7 +48,24 @@ export function SearchRecommendations({ recommendations, loading, onSearch }: Pr
     );
   }
 
-  if (!recommendations.length) return null;
+  if (!recommendations.length) {
+    return (
+      <div className="flex items-center gap-3 rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3">
+        <span className="text-gray-400 text-base">💡</span>
+        <p className="text-xs text-gray-500 flex-1">
+          No se pudieron generar recomendaciones personalizadas para tu perfil.
+        </p>
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium underline underline-offset-2 flex-shrink-0"
+          >
+            Reintentar
+          </button>
+        )}
+      </div>
+    );
+  }
 
   const handleSelect = (rec: SearchRecommendation) => {
     onSearch({

@@ -165,12 +165,41 @@ Responde ÚNICAMENTE con JSON válido:
 
 
 def _build_profile_text(master_sections: dict) -> str:
-    """Short profile excerpt (summary + skills) for LLM context."""
-    parts = []
-    for section in ("summary", "skills", "experience"):
-        text = master_sections.get(section, {}).get("raw_text", "").strip()
-        if text:
-            parts.append(text[:200])
+    """
+    Short profile excerpt (summary + skills + experience) for LLM context.
+    Matches section keys case-insensitively and by partial substring so it works
+    regardless of how the PDF parser labelled each section
+    (e.g. 'Summary / Profile', 'Technical Skills', 'Work Experience').
+    """
+    # Priority order: summary-like → skills-like → experience-like
+    _WANT = [
+        ("summary", "profile", "about"),
+        ("skill",),
+        ("experience", "work", "employment", "history"),
+    ]
+
+    parts: list[str] = []
+    used_keys: set[str] = set()
+
+    for group in _WANT:
+        for key, val in master_sections.items():
+            key_lower = key.lower()
+            if key in used_keys:
+                continue
+            if any(kw in key_lower for kw in group):
+                text = (val or {}).get("raw_text", "").strip()
+                if text:
+                    parts.append(text[:200])
+                    used_keys.add(key)
+                    break  # one section per group
+
+    # Fallback: dump first 3 sections if nothing matched above
+    if not parts:
+        for key, val in list(master_sections.items())[:3]:
+            text = (val or {}).get("raw_text", "").strip()
+            if text:
+                parts.append(text[:200])
+
     return "\n\n".join(parts)[:_PROFILE_CHARS]
 
 

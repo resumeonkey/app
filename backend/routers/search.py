@@ -108,11 +108,13 @@ async def suggest_params(
     """
     master = db.query(MasterResume).filter(MasterResume.is_active == True).first()
     if not master or not master.sections:
-        return {"suggestions": {}}
+        return {"suggestions": {}, "recommendations": []}
 
     profile = _build_profile_text(master.sections)
     if not profile:
-        return {"suggestions": {}}
+        log.warning("suggest_params: could not extract profile text; sections=%s",
+                    list(master.sections.keys()))
+        return {"suggestions": {}, "recommendations": []}
 
     prompt = f"""Analiza este perfil de resume y genera:
 1. Los parámetros de búsqueda más apropiados (campo principal).
