@@ -16,7 +16,18 @@ from backend.services.llm_client import call_llm
 from backend.services.prompt_loader import load_prompt
 
 
-ADAPTABLE_SECTIONS = ["summary", "skills", "experience", "projects", "education"]
+# ── Section config ─────────────────────────────────────────────────────────────
+# Maps canonical_name → (key_substrings_to_match, prompt_template)
+# The key_substrings list is used case-insensitively against actual section keys.
+SECTION_CONFIG: dict[str, tuple[tuple[str, ...], str]] = {
+    "summary":         (("summary", "profile", "about", "objective"),  "adapt_summary"),
+    "skills":          (("skill", "technical", "competenc", "tool"),   "adapt_skills"),
+    "experience":      (("experience", "work", "employment", "career"), "adapt_experience"),
+    "education":       (("education", "degree", "academic", "study"),  "adapt_education"),
+    "projects":        (("project",),                                   "adapt_experience"),
+    "certifications":  (("certif", "licen", "credential", "award"),    "adapt_experience"),
+    "volunteer":       (("volunteer", "community", "civic"),            "adapt_experience"),
+}
 
 SYSTEM_RULE = """REGLA MAESTRA: Usa siempre el resume tipo canadiense ya cargado como plantilla maestra.
 Adapta SOLO el contenido necesario para la oferta. Nunca alteres la estructura,
@@ -27,6 +38,35 @@ IDIOMA OBLIGATORIO: Escribe SIEMPRE en el mismo idioma que el texto original del
 Si el resume original está en inglés → responde en inglés. Si está en español → español.
 NUNCA traduzcas el contenido aunque el resto del prompt esté en español."""
 
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+def _safe_json(raw: str) -> dict | list:
+    """Parse JSON after stripping markdown fences — same logic as job_search._parse_json_response."""
+    text = re.sub(r'^```(?:json)?\s*', '', raw.strip())
+    text = re.sub(r'\s*```$', '', text)
+    return json.loads(text.strip())
+
+
+def _resolve_sections(master_sections: dict) -> dict[str, str]:
+    """
+    Return {canonical_name: actual_key} for every section in master_sections
+    that matches one of our SECTION_CONFIG patterns.
+
+    Example: {"summary": "Summary / Profile", "skills": "Technical Skills", ...}
+    """
+    mapping: dict[str, str] = {}
+    for canonical, (keywords, _) in SECTION_CONFIG.items():
+        for actual_key in master_sections.keys():
+            key_lower = actual_key.lower()
+            if any(kw in key_lower for kw in keywords):
+                if canonical not in mapping:   # first match per canonical wins
+                    mapping[canonical] = actual_key
+                    break
+    return mapping
+
+
+# ── Public API ─────────────────────────────────────────────────────────────────
 
 async def run_adaptation(
     master_sections: dict,
@@ -42,34 +82,29 @@ async def run_adaptation(
     {
       "job_analysis": {...},
       "blocks_changed": [
-        {
-          "section": "summary",
-          "reason": "...",
-          "original": "...",
-          "adapted": "..."
-        },
+        {"section": "summary", "reason": "...", "original": "...", "adapted": "..."},
         ...
       ]
     }
     """
 
-    # Build the system rule enriched with candidate context.
-    # NOTE: user_context is only injected into Stage 2 + Stage 3 (adaptation).
-    # Stage 1 (job analysis) doesn't need candidate info — skipping it saves
-    # user_context tokens × 1 call, which matters when context is large.
     context_block = (
         f"\n\n--- CONTEXTO ADICIONAL DEL CANDIDATO ---\n{user_context.strip()}\n---"
         if user_context and user_context.strip()
         else ""
     )
-    system_base         = SYSTEM_RULE                   # Stage 1: no candidate context
-    system_with_context = SYSTEM_RULE + context_block   # Stage 2+3: full context
+    system_base         = SYSTEM_RULE
+    system_with_context = SYSTEM_RULE + context_block
 
-    # ── Stage 1: Analyze the job ──────────────────────────────────────────────
+    # ── Stage 1: Analyze the job ─────────────────────────────────────────────
     job_analysis = await _analyze_job(job_description, llm_provider, llm_model, system_base)
 
-    # ── Stage 2: Decide which sections to adapt ───────────────────────────────
+    # ── Resolve actual section keys ──────────────────────────────────────────
+    resolved = _resolve_sections(master_sections)  # {canonical: actual_key}
+
+    # ── Stage 2: Decide which sections to adapt ──────────────────────────────
     blocks_to_adapt = await _select_blocks(
+        resolved=resolved,
         master_sections=master_sections,
         job_analysis=job_analysis,
         user_instructions=user_instructions,
@@ -78,20 +113,25 @@ async def run_adaptation(
         system=system_with_context,
     )
 
-    # ── Stage 3: Rewrite each selected section ─────────────────────────────────
+    # ── Stage 3: Rewrite each selected section ───────────────────────────────
     blocks_changed = []
     for block in blocks_to_adapt:
-        section_name = block["section"]
-        if section_name not in master_sections:
+        canonical = block["section"]
+
+        # Resolve canonical → actual key in master_sections
+        actual_key = resolved.get(canonical)
+        if not actual_key:
             continue
 
-        original_text = master_sections[section_name].get("raw_text", "").strip()
+        original_text = master_sections[actual_key].get("raw_text", "").strip()
         if not original_text:
-            # Parser didn't extract this section — skip silently
             continue
 
-        adapted_text  = await _adapt_section(
-            section_name=section_name,
+        _, prompt_name = SECTION_CONFIG.get(canonical, (None, "adapt_experience"))
+
+        adapted_text = await _adapt_section(
+            section_name=canonical,
+            prompt_name=prompt_name,
             original_text=original_text,
             master_full_text=master_full_text,
             job_analysis=job_analysis,
@@ -103,7 +143,7 @@ async def run_adaptation(
         )
 
         blocks_changed.append({
-            "section":  section_name,
+            "section":  canonical,
             "reason":   block["reason"],
             "original": original_text,
             "adapted":  adapted_text,
@@ -117,7 +157,9 @@ async def run_adaptation(
 
 # ── Internal pipeline stages ──────────────────────────────────────────────────
 
-async def _analyze_job(job_description: str, provider: str, model: str, system: str = SYSTEM_RULE) -> dict:
+async def _analyze_job(
+    job_description: str, provider: str, model: str, system: str = SYSTEM_RULE
+) -> dict:
     prompt = load_prompt("analyze_job").format(job_description=job_description)
     raw = await call_llm(
         provider=provider, model=model,
@@ -126,12 +168,13 @@ async def _analyze_job(job_description: str, provider: str, model: str, system: 
         json_mode=True,
     )
     try:
-        return json.loads(raw)
+        return _safe_json(raw)
     except Exception:
         return {"raw": raw}
 
 
 async def _select_blocks(
+    resolved: dict[str, str],
     master_sections: dict,
     job_analysis: dict,
     user_instructions: str,
@@ -139,17 +182,25 @@ async def _select_blocks(
     model: str,
     system: str = SYSTEM_RULE,
 ) -> list[dict]:
-    available_sections = [s for s in master_sections.keys() if s in ADAPTABLE_SECTIONS]
-    # 100 chars per section is enough to understand its content for selection purposes
-    sections_summary   = "\n".join(
-        f"- {s}: {master_sections[s]['raw_text'][:100]}..." for s in available_sections
+    """
+    Ask the LLM which canonical sections to rewrite, using 100-char previews.
+    Returns [{"section": canonical_name, "reason": "..."}, ...]
+    """
+    if not resolved:
+        return []
+
+    # Build preview using actual key but label with canonical name
+    sections_summary = "\n".join(
+        f"- {canonical} ({actual_key}): "
+        f"{master_sections[actual_key]['raw_text'][:120].strip()}…"
+        for canonical, actual_key in resolved.items()
     )
 
     prompt = load_prompt("select_blocks").format(
         sections_summary=sections_summary,
         job_analysis=json.dumps(job_analysis, ensure_ascii=False, indent=2),
         user_instructions=user_instructions or "Ninguna instrucción adicional.",
-        available_sections=", ".join(available_sections),
+        available_sections=", ".join(resolved.keys()),
     )
 
     raw = await call_llm(
@@ -160,22 +211,26 @@ async def _select_blocks(
     )
 
     try:
-        data = json.loads(raw)
-        return data.get("blocks_to_adapt", [])
+        data = _safe_json(raw)
+        blocks = data.get("blocks_to_adapt", [])
+        # Validate: only return blocks whose section name is in resolved
+        return [b for b in blocks if isinstance(b, dict) and b.get("section") in resolved]
     except Exception:
-        # Fallback: always adapt summary and skills
-        return [
-            {"section": "summary", "reason": "Adaptar al rol específico"},
-            {"section": "skills",  "reason": "Destacar habilidades relevantes"},
-        ]
+        # Fallback: adapt whatever canonical sections we have for summary + skills
+        fallback = []
+        for canonical in ("summary", "skills", "experience"):
+            if canonical in resolved:
+                fallback.append({
+                    "section": canonical,
+                    "reason":  "Adaptar al rol específico" if canonical == "summary"
+                               else "Destacar habilidades relevantes" if canonical == "skills"
+                               else "Alinear experiencia con la oferta",
+                })
+        return fallback
 
 
 def _clean_llm_section_output(text: str) -> str:
-    """
-    Strip markdown and LLM meta-commentary from section output.
-    The prompts already prohibit these, but this is a second line of defense.
-    """
-    # Cut off everything after common "notes" patterns the LLM loves to add
+    """Strip markdown and LLM meta-commentary from section output."""
     notes_pattern = re.compile(
         r'\n+(?:#{1,3}\s*)?(?:notas?\s+de\s+adaptaci[oó]n|adaptation\s+notes?|'
         r'cambios?\s+realizados?|key\s+changes?|changes?\s+made|'
@@ -183,29 +238,14 @@ def _clean_llm_section_output(text: str) -> str:
         re.IGNORECASE | re.DOTALL,
     )
     text = notes_pattern.sub("", text)
-
-    # Remove markdown heading markers (### Title → Title)
     text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
-
-    # Remove bold/italic markers (**text** → text, *text* → text)
     text = re.sub(r'\*{1,3}(.+?)\*{1,3}', r'\1', text)
-
-    # Remove inline code backticks
     text = re.sub(r'`(.+?)`', r'\1', text)
-
     return text.strip()
 
 
 def _trim_job_analysis(job_analysis: dict) -> dict:
-    """
-    Keep only the fields that are actionable when rewriting a section.
-    Drops metadata fields (company_name, industry, education_requirements, etc.)
-    that are only useful for the selection decision, not for rewriting.
-    Saves ~35% of job_analysis token cost per adaptation call.
-
-    Falls back to the original dict if nothing matched (e.g. JSON parse
-    failed upstream and we only have {"raw": "..."}).
-    """
+    """Keep only actionable fields for section rewriting; drop metadata."""
     KEEP = {
         "job_title", "seniority_level",
         "required_skills", "preferred_skills",
@@ -218,6 +258,7 @@ def _trim_job_analysis(job_analysis: dict) -> dict:
 
 async def _adapt_section(
     section_name: str,
+    prompt_name: str,
     original_text: str,
     master_full_text: str,
     job_analysis: dict,
@@ -227,20 +268,13 @@ async def _adapt_section(
     model: str,
     system: str = SYSTEM_RULE,
 ) -> str:
-    prompt_name = (
-        f"adapt_{section_name}"
-        if section_name in ("summary", "skills", "education")
-        else "adapt_experience"
-    )
     prompt_template = load_prompt(prompt_name)
 
     prompt = prompt_template.format(
         original_text=original_text,
-        # Trimmed analysis: only actionable fields, not metadata
         job_analysis=json.dumps(_trim_job_analysis(job_analysis), ensure_ascii=False, indent=2),
         user_instructions=user_instructions or "Ninguna instrucción adicional.",
         reason=reason,
-        # 400 chars is enough orientation context; full text is already in original_text
         master_context=master_full_text[:400],
     )
 
