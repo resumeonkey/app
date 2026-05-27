@@ -349,6 +349,24 @@ async def extract_job_description(req: ExtractRequest, db: Session = Depends(get
     }
 
 
+@router.get("/debug-profile")
+async def debug_profile(db: Session = Depends(get_db)):
+    """
+    Debug endpoint: show what _build_profile_text() extracts from the active master.
+    GET /api/search/debug-profile
+    """
+    master = db.query(MasterResume).filter(MasterResume.is_active == True).first()
+    if not master:
+        return {"error": "No active master found"}
+    sections = master.sections or {}
+    profile = _build_profile_text(sections)
+    return {
+        "section_keys": list(sections.keys()),
+        "profile_chars": len(profile),
+        "profile_text": profile[:500],
+    }
+
+
 @router.get("/debug-source")
 async def debug_source(
     source: str = "jobbank",
