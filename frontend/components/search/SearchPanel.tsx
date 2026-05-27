@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
-import { suggestSearchParams, type SearchParams } from "@/lib/api";
+import { useState } from "react";
+import { type SearchParams } from "@/lib/api";
 
 const PROVINCES = [
   "Alberta", "British Columbia", "Manitoba", "New Brunswick",
@@ -60,26 +60,6 @@ export function SearchPanel({ onSearch, loading }: Props) {
   const [kwInput, setKwInput] = useState("");
   const [exKwInput, setExKwInput] = useState("");
   const [selectedLLM, setSelectedLLM] = useState(0);
-  const [suggesting, setSuggesting] = useState(false);
-
-  // Auto-fill from master profile on mount
-  useEffect(() => {
-    setSuggesting(true);
-    const llm = LLM_OPTIONS[0];
-    suggestSearchParams(llm.provider, llm.model)
-      .then(({ suggestions }) => {
-        if (suggestions.job_title) {
-          setParams((p) => ({
-            ...p,
-            job_title:        suggestions.job_title || p.job_title,
-            experience_level: suggestions.experience_level || p.experience_level,
-            industries:       suggestions.industries || p.industries,
-          }));
-        }
-      })
-      .catch(() => {})
-      .finally(() => setSuggesting(false));
-  }, []);
 
   const set = <K extends keyof SearchParams>(key: K, value: SearchParams[K]) =>
     setParams((p) => ({ ...p, [key]: value }));
@@ -193,9 +173,7 @@ export function SearchPanel({ onSearch, loading }: Props) {
     <div className="space-y-5">
       {/* ── Job title ─────────────────────────────────────────────────────── */}
       <div>
-        <label className="label">
-          Puesto que buscas {suggesting && <span className="text-indigo-400 text-xs ml-1">autocompletando…</span>}
-        </label>
+        <label className="label">Puesto que buscas</label>
         <input
           className="input"
           placeholder="Ej: Senior Software Engineer, Data Analyst, Project Manager…"

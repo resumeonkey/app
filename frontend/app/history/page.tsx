@@ -5,6 +5,13 @@ import { formatDistanceToNow, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import Link from "next/link";
 
+function jobFallbackTitle(a: Adaptation): string {
+  if (a.job_url) {
+    try { return new URL(a.job_url).hostname.replace("www.", ""); } catch { /* fallthrough */ }
+  }
+  return "Sin título";
+}
+
 const STATUS_COLORS = {
   pending:    "bg-gray-100 text-gray-500",
   processing: "bg-indigo-100 text-indigo-600",
@@ -50,13 +57,16 @@ export default function HistoryPage() {
             <div key={a.id} className="card p-4 flex items-center justify-between gap-4 flex-wrap">
               <div className="min-w-0">
                 <p className="font-semibold text-gray-800">
-                  {a.job_title || "Sin título"}
+                  {a.job_title || jobFallbackTitle(a)}
                   {a.company_name && (
                     <span className="ml-2 text-gray-400 font-normal">· {a.company_name}</span>
                   )}
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {formatDistanceToNow(parseISO(a.created_at), { addSuffix: true, locale: es })}
+                  {formatDistanceToNow(
+                    new Date(a.created_at.endsWith("Z") ? a.created_at : a.created_at + "Z"),
+                    { addSuffix: true, locale: es }
+                  )}
                   {a.sections_changed.length > 0 && (
                     <span className="ml-2">· {a.sections_changed.join(", ")} adaptado(s)</span>
                   )}

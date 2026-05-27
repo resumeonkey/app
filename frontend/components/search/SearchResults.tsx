@@ -92,9 +92,11 @@ function JobResultCard({
   const [adaptation, setAdaptation] = useState<Adaptation | null>(existingAdaptation);
   const [applied, setApplied] = useState<boolean>(!!existingAdaptation?.applied_at);
   const [togglingApplied, setTogglingApplied] = useState(false);
-  // Instructions panel — open by default for new cards (no existing adaptation)
-  const [showInstructions, setShowInstructions] = useState(!existingAdaptation);
+  // Instructions panel — closed until user clicks "Adaptar →"
+  const [showInstructions, setShowInstructions] = useState(false);
   const [instructions, setInstructions] = useState("");
+  // Two-step adapt: first click opens panel, second click (Confirmar) runs it
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false);
 
   const score = job.compatibility_score;
   const scoreColor =
@@ -202,17 +204,17 @@ function JobResultCard({
                     📄 Ver resume
                   </button>
 
-                  {/* Instructions toggle */}
+                  {/* Instructions toggle for re-adaptation */}
                   <button
                     className={`text-xs py-1 px-2 rounded-lg border font-medium transition-colors ${
                       showInstructions
                         ? "bg-amber-100 text-amber-700 border-amber-300"
                         : "btn-secondary"
                     }`}
-                    onClick={() => setShowInstructions(!showInstructions)}
+                    onClick={() => { setShowInstructions(!showInstructions); setAwaitingConfirm(false); }}
                     title="Agregar instrucciones antes de re-adaptar"
                   >
-                    {showInstructions ? "📝 Ocultar instrucciones" : "📝 + Instrucciones"}
+                    {showInstructions ? "📝 Ocultar" : "📝 + Instrucciones"}
                   </button>
 
                   {/* Re-adapt */}
@@ -240,37 +242,27 @@ function JobResultCard({
                 </>
               ) : (
                 <div className="flex gap-2">
-                  {/* Instructions toggle */}
-                  <button
-                    className={`text-xs py-1 px-2 rounded-lg border font-medium transition-colors ${
-                      showInstructions
-                        ? "bg-amber-100 text-amber-700 border-amber-300"
-                        : "btn-secondary"
-                    }`}
-                    onClick={() => setShowInstructions(!showInstructions)}
-                    title="Pegar análisis de tu agente IA u otras instrucciones"
-                  >
-                    {showInstructions ? "📝 Ocultar instrucciones" : "📝 + Instrucciones"}
-                  </button>
                   <button
                     className="btn-primary text-xs py-1 px-2"
-                    onClick={handleAdapt}
-                    disabled={adapting}
+                    onClick={() => { setShowInstructions(true); setAwaitingConfirm(true); }}
+                    disabled={adapting || awaitingConfirm}
                   >
-                    {adapting ? "…" : "Adaptar →"}
+                    Adaptar →
                   </button>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Instructions panel — shown when 📝 is toggled */}
+          {/* Instructions panel — shown when user clicks Adaptar → */}
           {showInstructions && (
             <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
               <p className="text-[11px] font-medium text-amber-700 mb-1.5">
-                📝 Instrucciones para la adaptación
+                📝 Instrucciones para la adaptación{" "}
+                <span className="font-normal text-amber-500">(opcional)</span>
               </p>
               <textarea
+                autoFocus
                 value={instructions}
                 onChange={(e) => setInstructions(e.target.value)}
                 placeholder={
@@ -285,9 +277,36 @@ function JobResultCard({
                            p-2 resize-y focus:outline-none focus:border-amber-500
                            placeholder:text-gray-400 placeholder:font-sans"
               />
-              <p className="text-[10px] text-amber-600 mt-1">
-                El LLM usará esto como guía prioritaria al reescribir las secciones de tu resume.
-              </p>
+              {/* Only show confirm buttons on first-time adapt (not re-adapt toggle) */}
+              {awaitingConfirm && (
+                <div className="flex items-center gap-2 mt-2">
+                  <button
+                    className="btn-primary text-xs py-1.5 px-3"
+                    onClick={() => { setAwaitingConfirm(false); setShowInstructions(false); handleAdapt(); }}
+                    disabled={adapting}
+                  >
+                    {adapting ? "Adaptando…" : "✓ Confirmar y adaptar"}
+                  </button>
+                  <button
+                    className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2"
+                    onClick={() => { setInstructions(""); setAwaitingConfirm(false); setShowInstructions(false); handleAdapt(); }}
+                    disabled={adapting}
+                  >
+                    Saltar instrucciones
+                  </button>
+                  <button
+                    className="text-xs text-gray-400 hover:text-gray-600 ml-auto"
+                    onClick={() => { setAwaitingConfirm(false); setShowInstructions(false); }}
+                  >
+                    ✕ Cancelar
+                  </button>
+                </div>
+              )}
+              {!awaitingConfirm && (
+                <p className="text-[10px] text-amber-600 mt-1">
+                  El LLM usará esto como guía prioritaria al reescribir las secciones de tu resume.
+                </p>
+              )}
             </div>
           )}
 
