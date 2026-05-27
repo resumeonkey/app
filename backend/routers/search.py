@@ -121,7 +121,7 @@ async def suggest_params(
 2. Entre 4 y 5 roles alternativos que el candidato podría buscar, con motivo específico.
 
 ## Perfil
-{profile[:800]}
+{profile[:1500]}
 
 Responde ÚNICAMENTE con JSON válido:
 {{
@@ -169,11 +169,15 @@ Reglas para recommendations:
             temperature=0.3,
         )
         data = json.loads(raw)
+        recs = data.get("recommendations", [])
+        log.info("suggest_params: got %d recommendations (profile_chars=%d)",
+                 len(recs), len(profile))
         return {
             "suggestions": {k: v for k, v in data.items() if k != "recommendations"},
-            "recommendations": data.get("recommendations", []),
+            "recommendations": recs,
         }
-    except Exception:
+    except Exception as exc:
+        log.error("suggest_params: LLM call failed — %s", exc, exc_info=True)
         return {"suggestions": {}, "recommendations": []}
 
 

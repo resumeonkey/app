@@ -47,7 +47,7 @@ def _parse_json_response(raw: str) -> dict:
 
 _HTTP_TIMEOUT = 30          # seconds per Jina request
 _MAX_JOB_CHARS = 8_000      # cap on extracted job text forwarded to LLM
-_PROFILE_CHARS = 500        # profile excerpt sent to LLM for query generation
+_PROFILE_CHARS = 1500       # profile excerpt sent to LLM for query generation
 _SCORE_JOB_CHARS = 700      # job text sent per job in single-job scoring (reduced)
 _BATCH_PROFILE_CHARS = 220  # profile excerpt in batch scoring (very compact)
 _BATCH_SNIPPET_CHARS = 130  # snippet chars per job in batch mode
@@ -189,7 +189,7 @@ def _build_profile_text(master_sections: dict) -> str:
             if any(kw in key_lower for kw in group):
                 text = (val or {}).get("raw_text", "").strip()
                 if text:
-                    parts.append(text[:200])
+                    parts.append(text[:500])
                     used_keys.add(key)
                     break  # one section per group
 
@@ -198,7 +198,7 @@ def _build_profile_text(master_sections: dict) -> str:
         for key, val in list(master_sections.items())[:3]:
             text = (val or {}).get("raw_text", "").strip()
             if text:
-                parts.append(text[:200])
+                parts.append(text[:500])
 
     return "\n\n".join(parts)[:_PROFILE_CHARS]
 
