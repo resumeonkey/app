@@ -34,7 +34,16 @@ def build_adapted_docx(
     for block in blocks_changed:
         section_name = block["section"]
         adapted_text = block["adapted"]
+
+        # Look up by exact key first; fall back to case-insensitive partial match.
+        # This makes the builder robust whether blocks_changed uses canonical names
+        # ("experience") or actual document heading text ("Work Experience").
         section_info = master_sections.get(section_name)
+        if section_info is None:
+            for key, info in master_sections.items():
+                if section_name.lower() in key.lower() or key.lower() in section_name.lower():
+                    section_info = info
+                    break
 
         if not section_info:
             continue
@@ -62,17 +71,32 @@ def _replace_section_content(doc: Document, para_indices: list[int], new_text: s
     if not valid_indices:
         return
 
+    # Safety cap: LLM sometimes expands content far beyond the original.
+    # Allow at most 50% more lines than the original slot count to prevent
+    # the adapted section from overrunning into adjacent sections.
+    max_lines = len(valid_indices) + max(5, len(valid_indices) // 2)
+    if len(new_lines) > max_lines:
+        new_lines = new_lines[:max_lines]
+
     # We'll map new lines onto the existing paragraph slots.
     # If more new lines than slots, insert extra paragraphs after the last slot.
     # If fewer new lines, clear extra paragraphs (set to empty).
+
+    # Paragraphs to remove when adapted text is shorter than original.
+    # Collect them first; remove AFTER the loop (modifying the doc mid-loop is unsafe).
+    paragraphs_to_remove: list = []
 
     for slot_num, para_idx in enumerate(valid_indices):
         para = paras[para_idx]
         if slot_num < len(new_lines):
             _set_paragraph_text(para, new_lines[slot_num])
         else:
-            # Extra original paragraph — clear its text
-            _set_paragraph_text(para, "")
+            # More original slots than new lines — remove excess paragraphs
+            # so they don't leave blank lines in the document.
+            paragraphs_to_remove.append(para)
+
+    for para in paragraphs_to_remove:
+        _remove_paragraph(para)
 
     # If more new lines than original paragraphs, insert after the last valid index
     if len(new_lines) > len(valid_indices):
@@ -81,6 +105,18 @@ def _replace_section_content(doc: Document, para_indices: list[int], new_text: s
         for line in reversed(extra_lines):
             new_para = _insert_paragraph_after(last_para, line)
             _copy_style(last_para, new_para)
+
+
+def _remove_paragraph(para) -> None:
+    """
+    Physically remove a paragraph from the document XML.
+    Used when the adapted text is shorter than the original, so surplus
+    original paragraphs don't produce blank lines in the output.
+    """
+    p = para._p
+    parent = p.getparent()
+    if parent is not None:
+        parent.remove(p)
 
 
 def _set_paragraph_text(para, text: str):

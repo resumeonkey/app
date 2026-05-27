@@ -39,6 +39,20 @@ Reescribe el summary para que:
 - NO cambies el estilo de escritura (ej: si el original usa primera persona implícita, mantenerlo)
 - NO alargues ni acortes dramáticamente (±10% máximo)
 
+## REGLA DE DISPONIBILIDAD GEOGRÁFICA
+Si la oferta menciona explícitamente: "relocation", "travel", "willing to relocate",
+"travel required", "on-site", u otras frases de presencia física fuera de la ciudad base →
+Agrega al FINAL del summary, como oración separada:
+"Currently based in British Columbia and open to relocation and travel opportunities
+across Canada and internationally."
+Si la oferta NO menciona nada de esto, NO agregues esa frase.
+
+## REGLA DE ENFOQUE CLIENTE/USUARIO
+Si la oferta requiere atención a clientes, usuarios, onboarding, training, demos o
+implementación en sitio → reformula el summary para destacar habilidades de comunicación,
+presentación y orientación al cliente que ya estén en el original.
+Usa la terminología específica de la oferta (ej: si dice "customer onboarding", usa esas palabras).
+
 ## IDIOMA — REGLA ABSOLUTA
 Escribe el texto adaptado en el MISMO IDIOMA que el "Summary/Profile original" de arriba.
 Si el original está en inglés → inglés. Si está en español → español.

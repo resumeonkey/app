@@ -33,7 +33,18 @@ Optimiza la sección de skills para esta oferta:
 ## Reglas estrictas
 - SOLO puedes usar skills que ya existen en el resume original
 - NO agregues skills nuevas aunque la oferta las pida
-- Mantén el mismo formato de presentación (bullets, categorías, etc.)
+- Mantén el mismo formato de presentación (bullets, categorías, tabla, etc.)
+
+## REGLAS ANTI-TRUNCACIÓN (CRÍTICAS)
+- NUNCA cortes un nombre de habilidad a mitad de palabra o frase.
+  Si en el original dice "Agile Methodology", en el output debe decir "Agile Methodology",
+  no "Agile M" ni "Agile Q" ni ninguna versión incompleta.
+- El output debe tener EXACTAMENTE la misma cantidad de skills que el original — ni más ni menos.
+- Si las skills están en una tabla de dos columnas, mantén el mismo número de filas.
+  No comprimas dos celdas en una ni partas una skill entre dos celdas.
+- NO afirmes automatización avanzada que no esté explícita: "Script Automation" del
+  original → reformula como "Basic Automation Scripting" o "Scripting/Automation",
+  nunca como "Advanced Automation" o "CI/CD Automation".
 
 ## IDIOMA — REGLA ABSOLUTA
 Escribe en el MISMO IDIOMA que "Skills actuales en el resume maestro" de arriba.
