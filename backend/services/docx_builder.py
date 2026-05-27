@@ -58,13 +58,42 @@ def build_adapted_docx(
     return output_path
 
 
+def _all_paragraphs(doc) -> list:
+    """
+    Return all Paragraph objects in document order, including table cells.
+    Must match the ordering used by resume_parser._iter_all_paragraphs() so
+    that stored para_indices correctly identify the right paragraphs here.
+    """
+    from docx.text.paragraph import Paragraph as DocxParagraph
+    from docx.table import Table as DocxTable
+
+    result = []
+    for child in doc.element.body:
+        local_tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+        if local_tag == 'p':
+            result.append(DocxParagraph(child, doc))
+        elif local_tag == 'tbl':
+            tbl = DocxTable(child, doc)
+            for row in tbl.rows:
+                seen_tc_ids: set = set()
+                for cell in row.cells:
+                    tc_id = id(cell._tc)
+                    if tc_id in seen_tc_ids:
+                        continue
+                    seen_tc_ids.add(tc_id)
+                    for p in cell.paragraphs:
+                        result.append(p)
+    return result
+
+
 def _replace_section_content(doc: Document, para_indices: list[int], new_text: str):
     """
     Replace the text in the paragraphs at para_indices with new_text lines.
     Preserves the formatting (bold, italic, font) of the first run of each paragraph.
+    Works for both body paragraphs and table cell paragraphs.
     """
     new_lines = [line for line in new_text.split("\n") if line.strip()]
-    paras     = doc.paragraphs
+    paras     = _all_paragraphs(doc)  # includes table cells — matches parser ordering
 
     # Validate indices
     valid_indices = [i for i in para_indices if i < len(paras)]
@@ -112,10 +141,19 @@ def _remove_paragraph(para) -> None:
     Physically remove a paragraph from the document XML.
     Used when the adapted text is shorter than the original, so surplus
     original paragraphs don't produce blank lines in the output.
+
+    For table cell paragraphs: cannot remove the paragraph (Word requires at
+    least one paragraph per cell), so just clear its text instead.
     """
     p = para._p
     parent = p.getparent()
-    if parent is not None:
+    if parent is None:
+        return
+    parent_local = parent.tag.split('}')[-1] if '}' in parent.tag else parent.tag
+    if parent_local == 'tc':
+        # Inside a table cell — clear text rather than remove the element
+        _set_paragraph_text(para, "")
+    else:
         parent.remove(p)
 
 

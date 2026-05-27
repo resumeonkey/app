@@ -230,7 +230,7 @@ async def _select_blocks(
 
 
 def _clean_llm_section_output(text: str) -> str:
-    """Strip markdown and LLM meta-commentary from section output."""
+    """Strip markdown, LLM meta-commentary, and duplicate lines from section output."""
     notes_pattern = re.compile(
         r'\n+(?:#{1,3}\s*)?(?:notas?\s+de\s+adaptaci[oó]n|adaptation\s+notes?|'
         r'cambios?\s+realizados?|key\s+changes?|changes?\s+made|'
@@ -241,6 +241,20 @@ def _clean_llm_section_output(text: str) -> str:
     text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
     text = re.sub(r'\*{1,3}(.+?)\*{1,3}', r'\1', text)
     text = re.sub(r'`(.+?)`', r'\1', text)
+
+    # Remove exact duplicate lines (LLM sometimes repeats the same bullet twice)
+    lines = text.split('\n')
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for line in lines:
+        key = line.strip().lower()
+        if key and key in seen:
+            continue   # skip duplicate non-empty line
+        if key:
+            seen.add(key)
+        deduped.append(line)
+    text = '\n'.join(deduped)
+
     return text.strip()
 
 

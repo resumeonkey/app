@@ -54,12 +54,40 @@ SECTION_PATTERNS = {
 }
 
 
+def _iter_all_paragraphs(doc) -> list:
+    """
+    Return all Paragraph objects in document order, traversing into table cells.
+    doc.paragraphs only sees body-level paragraphs and misses table cells entirely,
+    which causes skills tables to appear as empty sections.
+    """
+    from docx.text.paragraph import Paragraph as DocxParagraph
+    from docx.table import Table as DocxTable
+
+    result = []
+    for child in doc.element.body:
+        local_tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+        if local_tag == 'p':
+            result.append(DocxParagraph(child, doc))
+        elif local_tag == 'tbl':
+            tbl = DocxTable(child, doc)
+            for row in tbl.rows:
+                seen_tc_ids: set = set()
+                for cell in row.cells:
+                    tc_id = id(cell._tc)
+                    if tc_id in seen_tc_ids:
+                        continue  # skip merged/duplicate cells
+                    seen_tc_ids.add(tc_id)
+                    for p in cell.paragraphs:
+                        result.append(p)
+    return result
+
+
 def parse_docx(file_path: str) -> dict[str, Any]:
     from docx import Document
     doc = Document(file_path)
 
     paragraphs = []
-    for i, para in enumerate(doc.paragraphs):
+    for i, para in enumerate(_iter_all_paragraphs(doc)):
         text = para.text.strip()
         style = para.style.name if para.style else ""
         paragraphs.append({"index": i, "text": text, "style": style, "empty": not text})
