@@ -53,6 +53,35 @@ implementación en sitio → reformula el summary para destacar habilidades de c
 presentación y orientación al cliente que ya estén en el original.
 Usa la terminología específica de la oferta (ej: si dice "customer onboarding", usa esas palabras).
 
+## REGLA DE REENCUADRE HACIA EL ROL OBJETIVO
+Si la oferta pide un rol diferente al título dominante del candidato
+(ej: candidato tiene "Product Owner" pero oferta pide "QA Engineer", o "Support Engineer"
+pero oferta pide "Data Analyst"), el summary debe reencuadrar la experiencia
+con el vocabulario del rol objetivo:
+- QA → test plans, quality assurance, defect detection, regression testing,
+  acceptance criteria, validation, edge cases, shift-left quality
+- Data → data pipelines, validation, analytics, data integrity
+- DevOps/SRE → automation, CI/CD, monitoring, reliability
+Enmarca el historial hacia ese rol de forma honesta. NO inventes nada nuevo.
+
+## REGLA DE NIVELACIÓN DE SENIORITY
+Si la oferta apunta a un nivel junior/entry-level (menciona "0–2 years",
+"recent graduate", "early career", "new grad" o similar) Y el candidato
+tiene más años de experiencia → añade al FINAL del summary UNA frase corta que
+explique voluntariamente por qué el candidato busca este rol hands-on.
+Ejemplo: "Although my background spans over 10 years, I am specifically seeking
+a hands-on [job title] role to focus on [core function] in an innovative environment."
+Adapta el texto al contexto real. NO uses esta frase si la oferta es de nivel senior
+o no menciona rango de experiencia.
+
+## REGLA DE CONTEXTO ADICIONAL DEL CANDIDATO
+Si las instrucciones del usuario (user_instructions) o el sistema mencionan
+proyectos personales, experiencia con IA, multi-agentes, u otras experiencias
+verificables del candidato → intégralos en 1–2 frases del summary SOLO si
+la oferta los valora directamente (ej: oferta de AI/agents → menciona soymanada.com
+y experiencia práctica con multi-agentes).
+NO los fuerces si la oferta no tiene relevancia con esas experiencias.
+
 ## IDIOMA — REGLA ABSOLUTA
 Escribe el texto adaptado en el MISMO IDIOMA que el "Summary/Profile original" de arriba.
 Si el original está en inglés → inglés. Si está en español → español.

@@ -57,6 +57,26 @@ Ejemplo: "Led cross-functional team of 8 engineers to deliver $2M platform migra
 - NO afirmes automatización avanzada que no esté en el original; usa "Basic Automation Scripting" en vez de "Script Automation"
 - Si la oferta requiere atención a clientes/onboarding y el original lo menciona, enfatiza ese aspecto
 
+## REGLA DE REENCUADRE QA
+Si el job_analysis indica que el rol objetivo es QA Engineer, QA Analyst, SDET,
+Test Engineer o similar → reformula los bullets TYPE C de CADA ROL usando
+vocabulario de calidad. Ejemplos de traducción honesta:
+- "Managed feature releases" → "Defined acceptance criteria and coordinated test plans for feature releases"
+- "Validated workflows / reports" → "Designed regression suites and automated validation checks"
+- "Resolved production issues / tickets" → "Reproduced, documented, and root-caused production defects"
+- "Automated reports" → "Automated validation workflows, catching data discrepancies earlier"
+- "Coordinated with devs" → "Collaborated with engineering on defect triage and clear bug reporting"
+- "Configured systems / plans / bundles" → "Validated system configurations and performed integration testing"
+PROHIBIDO afirmar Selenium, Cypress, Playwright, Pytest, JUnit u otros frameworks
+de testing a menos que aparezcan EXPLÍCITAMENTE en el texto original.
+Si aparecen, usa "basic familiarity with X" o "learning X" — nunca "expert in X".
+
+## REGLA DE CONTEXTO USUARIO EN EXPERIENCIA
+Si las instrucciones mencionan proyectos personales del candidato (ej: soymanada.com,
+workflows multi-agente) → NO los insertes dentro de bullets de empleos reales.
+Usa ese contexto solo para enriquecer el vocabulario (edge cases, AI-driven systems,
+failure modes) si la oferta lo valora, sin alterar fechas ni empleadores.
+
 ## IDIOMA — REGLA ABSOLUTA
 Escribe en el MISMO IDIOMA que la sección original.
 Si el original está en inglés → inglés. Si en español → español. NUNCA traduzcas.

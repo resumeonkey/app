@@ -46,6 +46,26 @@ Optimiza la sección de skills para esta oferta:
   original → reformula como "Basic Automation Scripting" o "Scripting/Automation",
   nunca como "Advanced Automation" o "CI/CD Automation".
 
+## REGLA DE HONESTIDAD DE FRAMEWORKS
+NUNCA afirmes experiencia profunda en herramientas de testing que no aparecen
+en el resume original:
+- Selenium, Cypress, Playwright, Pytest, JUnit, TestRail, Robot Framework, etc.
+Si la oferta los pide y el original NO los menciona → NO los agregues.
+Si el original menciona "scripting" o "automation" genérica → usa la versión
+honesta con las herramientas que sí aparecen (ej: "Test Scripting (SQL, PowerShell)").
+
+## REGLA DE SKILLS DEL CONTEXTO USUARIO
+Si las instrucciones del usuario mencionan experiencia adicional verificable del candidato
+(ej: "AI multi-agent workflows", "prompt engineering", proyectos de IA) →
+PUEDES reformular o renombrar UNA skill existente para reflejar esa experiencia,
+pero SOLO si:
+1. El usuario la menciona explícitamente como experiencia real
+2. La oferta valora esa habilidad directamente
+3. La describes con nivel real y honesto (básico, hands-on, proyecto personal)
+Ejemplo válido: "AI Multi-Agent Workflows (Claude, project-level)"
+Ejemplo inválido: "Advanced AI Engineering" o "Machine Learning"
+NO agregues skills completamente nuevas — solo reformula existentes.
+
 ## IDIOMA — REGLA ABSOLUTA
 Escribe en el MISMO IDIOMA que "Skills actuales en el resume maestro" de arriba.
 Si el original está en inglés → inglés. Si está en español → español.
