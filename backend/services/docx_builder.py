@@ -27,6 +27,23 @@ from typing import Any
 
 from lxml import etree
 
+# Canonical section keywords — used to detect when the LLM accidentally echoes
+# a section heading as the first line of its adapted output.
+_SECTION_HEADING_WORDS: frozenset[str] = frozenset({
+    "summary", "profile", "professional summary", "professional profile",
+    "career summary", "career profile", "about me", "objective",
+    "skills", "technical skills", "core competencies", "key skills",
+    "core capabilities", "areas of expertise", "expertise",
+    "experience", "work experience", "professional experience",
+    "work history", "employment", "employment history", "career history",
+    "education", "academic", "academic background",
+    "projects", "key projects", "selected projects", "notable projects",
+    "certifications", "certification", "licenses", "license", "credentials",
+    "professional development", "training",
+    "languages", "language skills",
+    "volunteer", "volunteering", "community",
+})
+
 # Word namespace
 _WNS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _XML_NS = "http://www.w3.org/XML/1998/namespace"
@@ -78,6 +95,11 @@ def build_adapted_docx(
                 continue
             if i < len(adpt_lines):
                 adpt = adpt_lines[i].lstrip("•-– ").strip()
+                # Guard: if the LLM echoed back a bare section heading as the
+                # first (or any) adapted line, skip it.  This prevents the
+                # heading paragraph in the document from being written twice.
+                if adpt.lower() in _SECTION_HEADING_WORDS:
+                    continue
                 replacements[key] = (adpt, section_name)
             else:
                 # LLM produced fewer lines — mark original paragraph for removal
@@ -171,8 +193,12 @@ def _set_para_text(p_elem, new_text: str, section_name: str = "") -> None:
     is_job_title = bool(_JOB_TITLE_RE.search(clean))
 
     # ── Collect first-run formatting ──────────────────────────────────────────
+    # Only look at DIRECT-child <w:r> elements.
+    # The recursive f".//{_w('r')}" search also finds runs nested inside
+    # <w:pPr><w:rPr> (paragraph-property runs), which carry different and
+    # incorrect formatting — using them corrupts the visible text style.
     first_rpr = None
-    all_runs = list(p_elem.findall(f".//{_w('r')}"))
+    all_runs = [c for c in p_elem if c.tag == _w("r")]
     if all_runs:
         rpr = all_runs[0].find(_w("rPr"))
         if rpr is not None:
