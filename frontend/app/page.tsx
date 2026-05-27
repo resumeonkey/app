@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { getActiveMaster, runJobSearch, suggestSearchParams, type MasterDetail, type Adaptation, type SearchParams, type SearchResponse, type SearchRecommendation } from "@/lib/api";
+import { getActiveMaster, listAdaptations, runJobSearch, suggestSearchParams, type MasterDetail, type Adaptation, type SearchParams, type SearchResponse, type SearchRecommendation } from "@/lib/api";
 import { SearchRecommendations } from "@/components/search/SearchRecommendations";
 import { AdaptationHistory } from "@/components/history/AdaptationHistory";
 // job_url → Adaptation map for this session
@@ -35,20 +35,31 @@ export default function HomePage() {
   const [recsLoading, setRecsLoading]             = useState(false);
 
   useEffect(() => {
-    getActiveMaster()
-      .then((m) => {
-        setMaster(m);
-        // Load personalized recommendations once master is known
-        if (m) {
-          setRecsLoading(true);
-          suggestSearchParams()
-            .then(({ recommendations: recs }) => setRecommendations(recs ?? []))
-            .catch(() => setRecommendations([]))
-            .finally(() => setRecsLoading(false));
+    // Load master + adaptations history + recommendations in parallel
+    Promise.all([
+      getActiveMaster().catch(() => null),
+      listAdaptations().catch(() => [] as Adaptation[]),
+    ]).then(([m, adaptations]) => {
+      setMaster(m);
+
+      // Seed history from DB (only entries that have a job_url)
+      if (adaptations.length > 0) {
+        const map: AdaptedJobsMap = {};
+        for (const a of adaptations) {
+          if (a.job_url) map[a.job_url] = a;
         }
-      })
-      .catch(() => setMaster(null))
-      .finally(() => setLoading(false));
+        setAdaptedJobs(map);
+      }
+
+      // Load personalized recommendations once master is known
+      if (m) {
+        setRecsLoading(true);
+        suggestSearchParams()
+          .then(({ recommendations: recs }) => setRecommendations(recs ?? []))
+          .catch(() => setRecommendations([]))
+          .finally(() => setRecsLoading(false));
+      }
+    }).finally(() => setLoading(false));
   }, []);
 
   const handleMasterUploaded = (m: MasterDetail) => {
@@ -68,6 +79,13 @@ export default function HomePage() {
   const handleViewFromHistory = (a: Adaptation) => {
     setAdaptId(a.id);
     setView("result");
+  };
+
+  // Called by AdaptationHistory when applied status is toggled
+  const handleUpdateAdaptation = (a: Adaptation) => {
+    if (a.job_url) {
+      setAdaptedJobs(prev => ({ ...prev, [a.job_url!]: a }));
+    }
   };
 
   const handleSearch = async (params: SearchParams) => {
@@ -132,6 +150,7 @@ export default function HomePage() {
         <AdaptationHistory
           adaptedJobs={adaptedJobs}
           onView={handleViewFromHistory}
+          onUpdate={handleUpdateAdaptation}
         />
       )}
 

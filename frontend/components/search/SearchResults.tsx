@@ -92,8 +92,8 @@ function JobResultCard({
   const [adaptation, setAdaptation] = useState<Adaptation | null>(existingAdaptation);
   const [applied, setApplied] = useState<boolean>(!!existingAdaptation?.applied_at);
   const [togglingApplied, setTogglingApplied] = useState(false);
-  // Instructions panel
-  const [showInstructions, setShowInstructions] = useState(false);
+  // Instructions panel — open by default for new cards (no existing adaptation)
+  const [showInstructions, setShowInstructions] = useState(!existingAdaptation);
   const [instructions, setInstructions] = useState("");
 
   const score = job.compatibility_score;
@@ -212,7 +212,7 @@ function JobResultCard({
                     onClick={() => setShowInstructions(!showInstructions)}
                     title="Agregar instrucciones antes de re-adaptar"
                   >
-                    📝 {showInstructions ? "Ocultar" : "Instrucciones"}
+                    {showInstructions ? "📝 Ocultar instrucciones" : "📝 + Instrucciones"}
                   </button>
 
                   {/* Re-adapt */}
@@ -250,7 +250,7 @@ function JobResultCard({
                     onClick={() => setShowInstructions(!showInstructions)}
                     title="Pegar análisis de tu agente IA u otras instrucciones"
                   >
-                    📝 {showInstructions ? "Ocultar" : "Instrucciones"}
+                    {showInstructions ? "📝 Ocultar instrucciones" : "📝 + Instrucciones"}
                   </button>
                   <button
                     className="btn-primary text-xs py-1 px-2"
