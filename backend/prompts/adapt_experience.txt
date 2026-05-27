@@ -1,6 +1,6 @@
-Ajusta bullets de experiencia del resume canadiense para esta oferta específica.
+Adapta los bullets de experiencia del resume canadiense para esta oferta específica.
 
-REGLA MAESTRA: Solo puedes reformular, reordenar o renfatizar bullets existentes.
+REGLA MAESTRA: Solo puedes reformular, reordenar o reenfatizar bullets existentes.
 NO inventar logros, fechas, empresas, ni responsabilidades que no estén en el original.
 
 ## Sección de experiencia original
@@ -22,63 +22,47 @@ NO inventar logros, fechas, empresas, ni responsabilidades que no estén en el o
 ## Instrucciones adicionales del usuario
 {user_instructions}
 
-## REGLA DE LÍNEAS — CRÍTICA (violación rompe el formato Word)
-El documento Word mapea cada línea de tu output a un párrafo físico por posición.
-Si agregas o quitas UNA sola línea, todos los estilos posteriores quedan corridos.
+## REGLA CRÍTICA DE LÍNEAS (violación rompe el formato Word)
+El documento Word asigna cada línea de tu output a un párrafo físico por posición.
+Si agregas o quitas UNA sola línea, todos los estilos siguientes quedan corridos y el documento se destruye.
 
 Por eso:
-1. Cuenta las líneas del texto original arriba (incluyendo encabezados y líneas en blanco).
-2. Tu output DEBE TENER EXACTAMENTE LA MISMA CANTIDAD DE LÍNEAS.
+1. Cuenta las líneas del texto original (incluyendo encabezados y líneas vacías).
+2. Tu output debe tener EXACTAMENTE LA MISMA CANTIDAD DE LÍNEAS.
+3. Cada línea de tu output reemplaza la línea del original en la MISMA POSICIÓN.
 
-Para cada línea del original, aplica esta regla:
-- Línea que empieza con "•", "-" o "–" → es un bullet. Puedes reformular su contenido.
-- Línea que NO empieza con "•", "-" o "–" → es un encabezado (título de rol, empresa, fechas).
-  CÓPIALA EXACTAMENTE tal como aparece. Sin cambios. Sin dividirla en dos líneas.
-  Sin agregar una línea de "Empresa, País" si no estaba en el original.
-  Sin convertirla en bullet.
+## TIPOS DE LÍNEA — QUÉ HACER CON CADA UNA
 
-## Tu tarea con los bullets
-1. Reordena bullets dentro de cada rol para priorizar los más relevantes para esta oferta
-2. Reformula (no inventes) bullets para que incluyan keywords de la oferta cuando encajen naturalmente
-3. Si un bullet existente describe algo relevante pero no usa la terminología de la oferta, actualiza el vocabulario
-4. Mantén el formato de logros canadiense: verbo de acción + contexto + resultado cuantificado
+Hay tres tipos de líneas en el original:
 
-## Formato canadiense esperado para bullets
-• [Verbo de acción fuerte] + [qué hiciste] + [resultado medible cuando exista]
+TYPE A — Línea de título de rol (contiene fechas y/o "|"):
+  Ejemplo: "Product Owner | May 2021 – Jan 2025"
+  → CÓPIALA EXACTAMENTE. Cero cambios. Cero variaciones.
+
+TYPE B — Línea de empresa/ubicación (corta, contiene coma):
+  Ejemplo: "Entel, Chile" o "Accenture, Chile"
+  → CÓPIALA EXACTAMENTE. NO la omitas. NO la dividas.
+
+TYPE C — Línea de bullet/logro (describe qué hiciste):
+  Ejemplo: "Configured telecom plans, bundles..."
+  → AQUÍ SÍ puedes adaptar/reformular para alinear con la oferta.
+
+## FORMATO DE BULLETS CANADIENSE
+[Verbo de acción fuerte] + [qué hiciste] + [resultado medible si existe]
 Ejemplo: "Led cross-functional team of 8 engineers to deliver $2M platform migration 3 weeks ahead of schedule"
 
-## Reglas estrictas
-- NO agregues bullets nuevos
-- NO cambies empresas, títulos de rol ni fechas
-- NO inventes métricas o resultados que no estén en el original
-- Si decides no cambiar nada en un rol, devuelve ese rol exactamente como estaba
-
-## REGLAS ANTI-CORRUPCIÓN (CRÍTICAS — violación destruye el documento)
-- PROHIBIDO incluir contenido de educación: universidades, títulos, diplomas, carreras,
-  cursos, GPA, fechas de estudio o cualquier institución educativa. Eso va en otra sección.
-- PROHIBIDO agregar líneas en blanco entre bullets — Word ya gestiona el interlineado.
-  Si el original no tenía línea en blanco entre dos bullets, el output tampoco debe tenerla.
-- PROHIBIDO crear párrafos independientes en negrita fuera de la lista de bullets.
-  Los encabezados de rol/empresa ya existen en el documento; NO los reproduzcas como texto.
-- PROHIBIDO superar en más del 20% el número de líneas del original — si el original tiene
-  30 líneas, el output no puede tener más de ~36. Comprime si hace falta.
-- NO afirmes automatización avanzada que no esté explícita en el original. Si el original
-  dice "Script Automation" usa "Basic Automation Scripting" o "Scripting/Automation".
-- Si la oferta requiere atención a clientes/usuarios/capacitación y el original la menciona,
-  reformula bullets para destacar ese aspecto usando la terminología de la oferta.
+## REGLAS ANTI-CORRUPCIÓN
+- PROHIBIDO incluir contenido educativo (títulos, universidades, diplomas, cursos) en esta sección
+- PROHIBIDO agregar líneas en blanco que no existían en el original
+- NO afirmes automatización avanzada que no esté en el original; usa "Basic Automation Scripting" en vez de "Script Automation"
+- Si la oferta requiere atención a clientes/onboarding y el original lo menciona, enfatiza ese aspecto
 
 ## IDIOMA — REGLA ABSOLUTA
-Escribe en el MISMO IDIOMA que la "Sección de experiencia original" de arriba.
-Si el original está en inglés → inglés. Si está en español → español.
-NUNCA traduzcas, aunque este prompt esté en español.
+Escribe en el MISMO IDIOMA que la sección original.
+Si el original está en inglés → inglés. Si en español → español. NUNCA traduzcas.
 
-## FORMATO DE RESPUESTA — CRÍTICO
-Devuelve ÚNICAMENTE el texto de la sección experience adaptado, listo para insertar en Word.
-PROHIBIDO incluir:
-- Asteriscos (**texto**) ni almohadillas (#, ##, ###) — cero markdown
-- Secciones de "Notas de adaptación", "Cambios realizados", "Explicaciones" o similares
-- Títulos, etiquetas, comentarios de ningún tipo
-- Líneas vacías adicionales que no estuvieran en el texto original
-- Cualquier texto que no sea parte real del contenido de los bullets de experience
-
+## FORMATO DE RESPUESTA
+Devuelve ÚNICAMENTE el texto adaptado, listo para insertar en Word.
+PROHIBIDO: asteriscos (**), almohadillas (###), "Notas de adaptación", explicaciones, comentarios.
+PROHIBIDO: líneas vacías adicionales que no estaban en el original.
 Si no hay cambios necesarios, devuelve la sección exactamente como estaba.
