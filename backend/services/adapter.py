@@ -10,10 +10,20 @@ Rule enforced in every prompt:
 "Use the master Canadian resume as the only template.
  Adapt content only. Never alter structure, format, or Canadian style."
 """
+import asyncio
 import json
 import re
 from backend.services.llm_client import call_llm
 from backend.services.prompt_loader import load_prompt
+
+# Job-title line detector (same pattern as docx_builder._JOB_TITLE_RE).
+# A line is a job-title anchor when it contains "| <month>" so we can split
+# the experience block into per-job chunks without index tracking.
+_JOB_TITLE_SPLIT_RE = re.compile(
+    r'\|\s*(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|'
+    r'jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)',
+    re.IGNORECASE,
+)
 
 
 # ── Section config ─────────────────────────────────────────────────────────────
@@ -129,18 +139,33 @@ async def run_adaptation(
 
         _, prompt_name = SECTION_CONFIG.get(canonical, (None, "adapt_experience"))
 
-        adapted_text = await _adapt_section(
-            section_name=canonical,
-            prompt_name=prompt_name,
-            original_text=original_text,
-            master_full_text=master_full_text,
-            job_analysis=job_analysis,
-            user_instructions=user_instructions,
-            reason=block["reason"],
-            provider=llm_provider,
-            model=llm_model,
-            system=system_with_context,
-        )
+        # Experience: adapt one job at a time to prevent cross-job bullet
+        # redistribution (a single LLM call over all jobs lets the model move
+        # bullets between roles while keeping the total count the same).
+        if canonical in ("experience", "projects", "volunteer"):
+            adapted_text = await _adapt_experience_per_job(
+                raw_text=original_text,
+                job_analysis=job_analysis,
+                user_instructions=user_instructions,
+                reason=block["reason"],
+                master_full_text=master_full_text,
+                provider=llm_provider,
+                model=llm_model,
+                system=system_with_context,
+            )
+        else:
+            adapted_text = await _adapt_section(
+                section_name=canonical,
+                prompt_name=prompt_name,
+                original_text=original_text,
+                master_full_text=master_full_text,
+                job_analysis=job_analysis,
+                user_instructions=user_instructions,
+                reason=block["reason"],
+                provider=llm_provider,
+                model=llm_model,
+                system=system_with_context,
+            )
 
         blocks_changed.append({
             "section":  canonical,
@@ -268,6 +293,87 @@ def _trim_job_analysis(job_analysis: dict) -> dict:
     }
     trimmed = {k: v for k, v in job_analysis.items() if k in KEEP}
     return trimmed if trimmed else job_analysis
+
+
+def _split_by_job_titles(text: str) -> list[str]:
+    """
+    Split a multi-job experience text into per-job chunks.
+    A new chunk starts whenever a line matches the job-title pattern
+    (contains "| <month>").  Returns one string per job, preserving
+    the original line count within each chunk.
+    """
+    lines = text.split("\n")
+    chunks: list[list[str]] = []
+    current: list[str] = []
+
+    for line in lines:
+        if _JOB_TITLE_SPLIT_RE.search(line) and current:
+            chunks.append(current)
+            current = [line]
+        else:
+            current.append(line)
+
+    if current:
+        chunks.append(current)
+
+    return ["\n".join(chunk) for chunk in chunks if any(l.strip() for l in chunk)]
+
+
+async def _adapt_experience_per_job(
+    raw_text: str,
+    job_analysis: dict,
+    user_instructions: str,
+    reason: str,
+    master_full_text: str,
+    provider: str,
+    model: str,
+    system: str = SYSTEM_RULE,
+) -> str:
+    """
+    Adapt the experience section one job at a time (in parallel).
+
+    By passing each job entry to the LLM separately, we eliminate the
+    cross-job bullet redistribution problem: the model can only touch the
+    bullets that belong to the job it is currently seeing.
+    """
+    chunks = _split_by_job_titles(raw_text)
+
+    if len(chunks) <= 1:
+        # No job-title separators found — fall back to a single call.
+        return await _adapt_section(
+            section_name="experience",
+            prompt_name="adapt_experience",
+            original_text=raw_text,
+            master_full_text=master_full_text,
+            job_analysis=job_analysis,
+            user_instructions=user_instructions,
+            reason=reason,
+            provider=provider,
+            model=model,
+            system=system,
+        )
+
+    # Adapt all jobs in parallel — each LLM call sees only its own lines.
+    tasks = [
+        _adapt_section(
+            section_name="experience",
+            prompt_name="adapt_experience",
+            original_text=chunk,
+            master_full_text=master_full_text,
+            job_analysis=job_analysis,
+            user_instructions=user_instructions,
+            reason=reason,
+            provider=provider,
+            model=model,
+            system=system,
+        )
+        for chunk in chunks
+    ]
+    adapted_chunks = await asyncio.gather(*tasks)
+
+    # Re-join adapted chunks — the builder matches by text so order is irrelevant,
+    # but keeping document order makes the stored adapted text human-readable.
+    return "\n".join(adapted_chunks)
 
 
 async def _adapt_section(
