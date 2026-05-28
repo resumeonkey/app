@@ -100,6 +100,12 @@ def build_adapted_docx(
                 # heading paragraph in the document from being written twice.
                 if adpt.lower() in _SECTION_HEADING_WORDS:
                     continue
+                # Skip identity replacements: if the adapted text is the same
+                # as the original (after normalisation), leave the paragraph
+                # untouched so its original multi-run formatting (e.g. partial
+                # bold on cert name vs. non-bold "| Org | Year") is preserved.
+                if _norm(adpt) == key:
+                    continue
                 replacements[key] = (adpt, section_name)
             else:
                 # LLM produced fewer lines — mark original paragraph for removal

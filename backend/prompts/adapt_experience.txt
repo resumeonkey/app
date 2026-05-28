@@ -31,6 +31,15 @@ Por eso:
 2. Tu output debe tener EXACTAMENTE LA MISMA CANTIDAD DE LÍNEAS.
 3. Cada línea de tu output reemplaza la línea del original en la MISMA POSICIÓN.
 
+⚠ REGLA POR TRABAJO — CRÍTICA:
+Cada trabajo tiene un número FIJO e INVARIABLE de bullets.
+Antes de escribir, anota cuántos bullets tiene cada trabajo en el original:
+  - Trabajo A: N bullets → tu output debe tener EXACTAMENTE N bullets para el Trabajo A.
+  - Trabajo B: M bullets → tu output debe tener EXACTAMENTE M bullets para el Trabajo B.
+PROHIBIDO agregar bullets a un trabajo quitándolos de otro.
+PROHIBIDO redistribuir bullets entre trabajos.
+Cada trabajo ocupa una "zona fija" de líneas que no puede cambiar de tamaño.
+
 ## TIPOS DE LÍNEA — QUÉ HACER CON CADA UNA
 
 Hay tres tipos de líneas en el original:

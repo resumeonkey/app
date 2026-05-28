@@ -25,7 +25,7 @@ SECTION_CONFIG: dict[str, tuple[tuple[str, ...], str]] = {
     "experience":      (("experience", "work", "employment", "career"), "adapt_experience"),
     "education":       (("education", "degree", "academic", "study"),  "adapt_education"),
     "projects":        (("project",),                                   "adapt_experience"),
-    "certifications":  (("certif", "licen", "credential", "award"),    "adapt_experience"),
+    "certifications":  (("certif", "licen", "credential", "award"),    "adapt_certifications"),
     "volunteer":       (("volunteer", "community", "civic"),            "adapt_experience"),
 }
 

@@ -1,0 +1,38 @@
+Reordena las certificaciones del resume canadiense para esta oferta específica.
+
+## Sección de certificaciones original
+---
+{original_text}
+---
+
+## Análisis de la oferta
+```json
+{job_analysis}
+```
+
+## Razón para adaptar esta sección
+{reason}
+
+## Instrucciones adicionales del usuario
+{user_instructions}
+
+## TU ÚNICA TAREA: REORDENAR POR RELEVANCIA
+
+Cuenta las líneas del original: debes devolver EXACTAMENTE el mismo número de líneas.
+
+Reglas:
+1. Coloca primero las certificaciones más relevantes para el rol objetivo.
+2. Mantén TODAS las certificaciones — NUNCA elimines ni agregues ninguna.
+3. NUNCA dupliques una certificación. Cada línea debe ser única.
+4. Copia cada línea EXACTAMENTE como aparece en el original (texto idéntico).
+   - Si cambias el texto aunque sea una letra, el formato Word se rompe.
+5. Si no hay reordenamiento útil, devuelve las líneas en el mismo orden.
+
+## IDIOMA — REGLA ABSOLUTA
+Devuelve el texto en el MISMO IDIOMA que el original. NUNCA traduzcas.
+
+## FORMATO DE RESPUESTA
+Devuelve ÚNICAMENTE las líneas de certificaciones, una por línea.
+PROHIBIDO: asteriscos, almohadillas, viñetas, numeración, notas, comentarios.
+PROHIBIDO: líneas en blanco adicionales que no estaban en el original.
+PROHIBIDO: duplicar cualquier certificación.
