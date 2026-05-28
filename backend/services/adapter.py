@@ -278,7 +278,18 @@ def _clean_llm_section_output(text: str) -> str:
         if key:
             seen.add(key)
         deduped.append(line)
-    text = '\n'.join(deduped)
+
+    # Filter ALL-CAPS LLM commentary lines (e.g. "EXPERIENCE SECTION — ADAPTED FOR …")
+    # A line is commentary when it is longer than 20 chars and contains only
+    # uppercase letters, digits, whitespace, and punctuation ( - — / & | : . , )
+    _ALLCAPS_RE = re.compile(r'^[A-Z0-9\s\-—/&|:.,]+$')
+    filtered: list[str] = []
+    for line in deduped:
+        stripped = line.strip()
+        if len(stripped) > 20 and _ALLCAPS_RE.match(stripped):
+            continue  # discard LLM meta-commentary
+        filtered.append(line)
+    text = '\n'.join(filtered)
 
     return text.strip()
 
@@ -371,9 +382,68 @@ async def _adapt_experience_per_job(
     ]
     adapted_chunks = await asyncio.gather(*tasks)
 
+    # ── Post-process each adapted chunk against its original ──────────────────
+    # The LLM sometimes:
+    #   • Changes dates or splits the TYPE-A title line into two lines
+    #   • Hallucinated a second job-title line in bullet positions
+    #   • Emits the company/location as a standalone bullet right after the title
+    #   • Produces more lines than the original (line-count enforcement)
+    result_chunks: list[str] = []
+    for orig_chunk, adpt_text in zip(chunks, adapted_chunks):
+        orig_lines = [l for l in orig_chunk.split("\n") if l.strip()]
+        adpt_lines = [l.strip() for l in adpt_text.split("\n") if l.strip()]
+
+        if not orig_lines:
+            result_chunks.append(adpt_text)
+            continue
+
+        # 1. Always restore the original job-title line verbatim (position 0).
+        #    This prevents any date change, title rewrite, or TYPE-A split.
+        if adpt_lines:
+            adpt_lines[0] = orig_lines[0]
+        else:
+            adpt_lines = list(orig_lines)
+
+        # 2. Filter lines the LLM should not have generated (positions 1+).
+        #    Determine whether the original chunk has a TYPE-B company line at
+        #    position 1 (short standalone "Company, Country" with no pipe).
+        #    If it DOES, the LLM is allowed to keep it; otherwise, drop it.
+        orig_has_company_at_1 = (
+            len(orig_lines) > 1
+            and len(orig_lines[1]) < 50
+            and "," in orig_lines[1]
+            and "|" not in orig_lines[1]
+            and "http" not in orig_lines[1].lower()
+        )
+        clean: list[str] = [adpt_lines[0]]
+        for i, line in enumerate(adpt_lines[1:], start=1):
+            # (a) Hallucinated job-title lines in bullet positions
+            if _JOB_TITLE_SPLIT_RE.search(line):
+                continue
+            # (b) Split company/location line injected by the LLM when the
+            #     original title had the company already on the same line.
+            #     Only drop it when the original did NOT have such a line here.
+            if (
+                i == 1
+                and not orig_has_company_at_1
+                and len(line) < 50
+                and "," in line
+                and "|" not in line
+                and "http" not in line.lower()
+            ):
+                continue
+            clean.append(line)
+        adpt_lines = clean
+
+        # 3. Enforce line count: never produce more lines than the original.
+        if len(adpt_lines) > len(orig_lines):
+            adpt_lines = adpt_lines[: len(orig_lines)]
+
+        result_chunks.append("\n".join(adpt_lines))
+
     # Re-join adapted chunks — the builder matches by text so order is irrelevant,
     # but keeping document order makes the stored adapted text human-readable.
-    return "\n".join(adapted_chunks)
+    return "\n".join(result_chunks)
 
 
 async def _adapt_section(
