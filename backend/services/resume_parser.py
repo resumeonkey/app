@@ -67,7 +67,46 @@ def parse_docx(file_path: str) -> dict[str, Any]:
         # a systematic off-by-one overflow that corrupts every subsequent section.
         text = para.text.strip().replace("\n", " ")
         style = para.style.name if para.style else ""
-        paragraphs.append({"index": i, "text": text, "style": style, "empty": not text})
+
+        # ── Per-run format metadata ──────────────────────────────────────────
+        # We capture exactly: which runs are bold and what their text is.
+        # This is the source-of-truth for format profiles used by docx_builder
+        # to reconstruct multi-run paragraphs with their original formatting.
+        runs_meta: list[dict] = []
+        for run in para.runs:
+            run_text = run.text.replace("\n", " ")
+            # run.bold can be: True (explicitly bold), False (explicitly not bold),
+            # None (inherits from style). We treat None as False for safety.
+            runs_meta.append({
+                "text":    run_text,
+                "bold":    bool(run.bold),     # True only if explicitly set
+                "italic":  bool(run.italic),
+                # font.size is in EMUs (914400 = 72pt). None = inherited.
+                "size_pt": round(run.font.size / 12700, 1) if run.font.size else None,
+            })
+
+        has_bold     = any(r["bold"] for r in runs_meta)
+        partial_bold = has_bold and not all(r["bold"] for r in runs_meta)
+        # Bullet (numPr) detection via lxml so we don't import OxmlElement
+        _pPr = para._p.pPr
+        has_numpr = (
+            _pPr is not None
+            and _pPr.find("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}numPr") is not None
+        )
+
+        paragraphs.append({
+            "index":        i,
+            "text":         text,
+            "style":        style,
+            "empty":        not text,
+            # Format metadata — stored with the section and used by docx_builder
+            # to map new text back onto the original run structure.
+            "runs":         runs_meta,
+            "run_count":    len(runs_meta),
+            "has_bold":     has_bold,
+            "partial_bold": partial_bold,
+            "has_numpr":    has_numpr,
+        })
 
     return _build_section_map(paragraphs)
 
@@ -170,15 +209,31 @@ def _build_section_map(paragraphs: list[dict]) -> dict[str, Any]:
         content_paras = section_paras[1:] if section_paras else []
         new_text     = "\n".join(p["text"] for p in content_paras)
         new_indices  = [p["index"] for p in content_paras]
+        # Per-line format profile: one entry per content paragraph, in order.
+        # Each entry mirrors the python-docx run metadata captured in parse_docx.
+        # docx_builder can use this as the authoritative format spec for each line.
+        new_formats  = [
+            {
+                "text":         p["text"],
+                "runs":         p.get("runs", []),
+                "run_count":    p.get("run_count", 1),
+                "has_bold":     p.get("has_bold", False),
+                "partial_bold": p.get("partial_bold", False),
+                "has_numpr":    p.get("has_numpr", False),
+            }
+            for p in content_paras
+        ]
 
         if section_name in sections:
             # Merge into existing entry
-            sections[section_name]["raw_text"]     += "\n" + new_text
-            sections[section_name]["para_indices"] += new_indices
+            sections[section_name]["raw_text"]      += "\n" + new_text
+            sections[section_name]["para_indices"]  += new_indices
+            sections[section_name]["lines_format"]  += new_formats
         else:
             sections[section_name] = {
                 "raw_text":     new_text,
                 "para_indices": new_indices,
+                "lines_format": new_formats,
                 "heading_index": start_idx,
             }
 
@@ -199,6 +254,17 @@ def _build_section_map(paragraphs: list[dict]) -> dict[str, Any]:
             sections["summary"] = {
                 "raw_text":     "\n".join(p["text"] for p in pre_content),
                 "para_indices": [p["index"] for p in pre_content],
+                "lines_format": [
+                    {
+                        "text":         p["text"],
+                        "runs":         p.get("runs", []),
+                        "run_count":    p.get("run_count", 1),
+                        "has_bold":     p.get("has_bold", False),
+                        "partial_bold": p.get("partial_bold", False),
+                        "has_numpr":    p.get("has_numpr", False),
+                    }
+                    for p in pre_content
+                ],
                 "heading_index": -1,
             }
 
