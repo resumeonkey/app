@@ -346,7 +346,15 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             "english_required":    score.get("english_required", "unknown"),
         })
 
-    final.sort(key=lambda x: x["compatibility_score"], reverse=True)
+    # Sort: non-barrier jobs first, then by score descending within each group.
+    # This guarantees english_barrier=True jobs always appear below non-barrier
+    # ones regardless of whether the LLM applied the point deduction consistently.
+    final.sort(
+        key=lambda x: (
+            1 if (x.get("english_barrier") and params.english_level not in ("any", "fluent", "professional")) else 0,
+            -x["compatibility_score"],
+        )
+    )
     return {
         "results":      final,
         "queries_used": queries,
