@@ -207,8 +207,17 @@ def delete_master(master_id: str, db: Session = Depends(get_db)):
     master = db.query(MasterResume).filter(MasterResume.id == master_id).first()
     if not master:
         raise HTTPException(404, "Master not found")
+    # Delete from storage — wrapped so a missing/failed file doesn't block the DB delete.
+    # An unhandled exception here would cause FastAPI to return a 500 without CORS headers,
+    # which the browser sees as "Network Error" rather than a proper error response.
     if master.file_path:
-        storage.delete_file(master.file_path)
+        try:
+            storage.delete_file(master.file_path)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning(
+                "delete_master: could not delete file %s — %s", master.file_path, exc
+            )
     db.delete(master)
     db.commit()
 
