@@ -35,6 +35,7 @@ from backend.services.job_search import (
     _parse_workopolis_results,
     _parse_eluta_results,
     _CCFTA_ELIGIBLE_TITLES,
+    _is_language_keyword,
 )
 
 log = logging.getLogger(__name__)
@@ -199,6 +200,22 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
     master_sections = master.sections or {}
 
     # ── Step 1: Queries ───────────────────────────────────────────────────────
+    # Auto-detect language keywords typed in the job_title field.
+    # e.g. user typed "Spanish" → they want jobs requiring Spanish, not jobs
+    # whose title contains the word "Spanish".  Auto-enable bilingual_spanish.
+    effective_bilingual = params.bilingual_spanish
+    if params.job_title and _is_language_keyword(params.job_title):
+        title_lower = params.job_title.strip().lower()
+        if title_lower in ("spanish", "español", "espanol", "bilingue", "bilingüe"):
+            effective_bilingual = True
+        # In all language-keyword cases, the job_title field routes to language hints
+        # inside generate_search_queries — no need to override params here.
+
+    # Also auto-enable when "spanish" is in the languages list
+    if any(l.strip().lower() in ("spanish", "español", "espanol")
+           for l in params.languages):
+        effective_bilingual = True
+
     if params.custom_query.strip():
         queries = [params.custom_query.strip()]
     else:
@@ -207,7 +224,7 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             params=params.model_dump(),
             provider=params.llm_provider,
             model=params.llm_model,
-            bilingual_spanish=params.bilingual_spanish,
+            bilingual_spanish=effective_bilingual,
         )
 
     if not queries:
@@ -283,7 +300,7 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
         provider=params.llm_provider,
         model=params.llm_model,
         ccfta_check=params.ccfta_check,
-        bilingual_spanish=params.bilingual_spanish,
+        bilingual_spanish=effective_bilingual,
     )
 
     # ── Step 4: Merge + sort ─────────────────────────────────────────────────

@@ -98,6 +98,23 @@ _JOBBANK_PROVINCE_CODES = {
 
 # ── Query generation ──────────────────────────────────────────────────────────
 
+# Language keywords that should never be treated as job titles.
+# When the user types one of these in "Puesto que buscas", we route it to the
+# language/bilingual filter instead of using it as a keyword query.
+_LANGUAGE_KEYWORDS: frozenset[str] = frozenset({
+    "spanish", "español", "espanol", "bilingue", "bilingüe",
+    "french", "français", "francais",
+    "portuguese", "portugues", "português",
+    "mandarin", "cantonese", "arabic", "korean", "japanese",
+    "bilingual", "multilingual", "multilinguë",
+})
+
+
+def _is_language_keyword(text: str) -> bool:
+    """Return True if text is a language name rather than a job title."""
+    return text.strip().lower() in _LANGUAGE_KEYWORDS
+
+
 async def generate_search_queries(
     master_sections: dict,
     params: dict,
@@ -109,34 +126,75 @@ async def generate_search_queries(
     Use LLM to generate 2–4 keyword search queries from the candidate profile
     and user-specified parameters. The location/remote filters are handled
     separately via LinkedIn URL parameters, so queries here are keywords only.
+
+    Language detection:
+    If the user typed a language name (e.g. "Spanish") as the job title, we
+    treat it as a language requirement, infer the actual job role from the
+    profile, and generate bilingual queries automatically.
     """
     profile_text = _build_profile_text(master_sections)
-    job_title    = params.get("job_title", "").strip()
+    raw_job_title = params.get("job_title", "").strip()
 
-    bilingual_hint = (
-        '\n- El candidato es hispanohablante nativo. Incluir una query con "bilingual Spanish" '
-        'o "bilingüe" si aplica al puesto.'
-    ) if bilingual_spanish else ""
+    # ── Detect language-as-job-title ─────────────────────────────────────────
+    # e.g. user typed "Spanish" meaning "jobs that require Spanish"
+    language_from_title = ""
+    effective_job_title = raw_job_title
+    if raw_job_title and _is_language_keyword(raw_job_title):
+        language_from_title = raw_job_title
+        effective_job_title = ""   # let the LLM infer the real job role from profile
 
-    prompt = f"""Eres un experto en búsqueda de empleo.
+    # ── Build language context block ──────────────────────────────────────────
+    languages = [l.strip() for l in params.get("languages", ["english"]) if l.strip()]
+    has_spanish = (
+        bilingual_spanish
+        or language_from_title.lower() in ("spanish", "español", "espanol")
+        or any(l.lower() in ("spanish", "español", "espanol") for l in languages)
+    )
+
+    language_hint = ""
+    if has_spanish:
+        language_hint = (
+            '\n- IMPORTANTE: El candidato busca ofertas que requieran o valoren español. '
+            'Incluir AL MENOS UNA query que contenga "bilingual Spanish English" o '
+            '"bilingue español inglés" según el rol inferido del perfil. '
+            'Si el puesto no fue especificado, inferirlo del perfil del candidato.'
+        )
+    elif language_from_title:
+        language_hint = (
+            f'\n- El candidato busca ofertas que requieran {language_from_title}. '
+            f'Incluir "bilingual {language_from_title}" en al menos una query.'
+        )
+    elif len(languages) > 1:
+        other_langs = [l for l in languages if l.lower() != "english"]
+        if other_langs:
+            language_hint = (
+                f'\n- Idiomas adicionales del candidato: {", ".join(other_langs)}. '
+                f'Si aplica al puesto, incluir una query con "bilingual {other_langs[0]}".'
+            )
+
+    prompt = f"""Eres un experto en búsqueda de empleo en Canadá.
 
 ## Perfil del candidato (extracto)
 {profile_text}
 
 ## Puesto que busca el usuario
-{job_title or '(no especificado, infiere del perfil)'}
+{effective_job_title or '(no especificado — infiere del perfil del candidato)'}
 
 ## Parámetros adicionales
 - Industrias: {', '.join(params.get('industries', [])) or 'cualquiera'}
 - Nivel: {', '.join(params.get('experience_level', [])) or 'cualquiera'}
 - Keywords adicionales: {', '.join(params.get('include_keywords', [])) or 'ninguno'}
-- Excluir: {', '.join(params.get('exclude_keywords', [])) or 'ninguno'}{bilingual_hint}
+- Excluir: {', '.join(params.get('exclude_keywords', [])) or 'ninguno'}{language_hint}
 
 ## Tu tarea
-Genera 2–4 variaciones de búsqueda de keywords para LinkedIn Jobs.
-Las queries deben ser SOLO palabras clave del puesto/skills (sin ciudad ni país, eso se filtra aparte).
+Genera 2–4 variaciones de búsqueda de keywords para LinkedIn Jobs y Job Bank Canada.
+Las queries deben ser SOLO palabras clave del puesto/skills (sin ciudad ni país).
 
-Ejemplos correctos: "QA Engineer Automation", "Software Developer Python React", "Data Analyst SQL"
+Ejemplos correctos:
+  "QA Engineer Automation"
+  "bilingual Spanish English customer support Canada"
+  "Software Developer Python React"
+
 Ejemplos INCORRECTOS: "QA Engineer Vancouver Canada" (no incluir ubicación)
 
 Responde ÚNICAMENTE con JSON válido:
@@ -146,7 +204,7 @@ Responde ÚNICAMENTE con JSON válido:
         raw = await call_llm(
             provider=provider,
             model=model,
-            system="Eres un especialista en reclutamiento y búsqueda de empleo.",
+            system="Eres un especialista en reclutamiento y búsqueda de empleo en Canadá.",
             user=prompt,
             json_mode=True,
             temperature=0.3,
@@ -158,9 +216,12 @@ Responde ÚNICAMENTE con JSON válido:
     except Exception as e:
         log.warning("generate_search_queries failed: %s", e)
 
-    # Fallback: use job_title directly
-    if job_title:
-        return [job_title]
+    # Fallback
+    if has_spanish:
+        role = effective_job_title or "bilingual"
+        return [f"bilingual Spanish English {role}".strip(), f"bilingue español {role}".strip()]
+    if effective_job_title:
+        return [effective_job_title]
     return ["software developer"]
 
 
