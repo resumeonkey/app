@@ -51,6 +51,7 @@ class MasterDetail(MasterSummary):
 
 class MasterPreferencesUpdate(BaseModel):
     english_level: Optional[str] = None   # "any"|"basic"|"conversational"|"professional"|"fluent"
+    profile_tags:  Optional[str] = None   # comma-separated expertise tags, e.g. "QA, SQL, Product Owner"
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -152,6 +153,10 @@ def update_preferences(
         if body.english_level not in valid:
             raise HTTPException(400, f"english_level must be one of: {', '.join(sorted(valid))}")
         master.english_level = body.english_level
+    if body.profile_tags is not None:
+        # Normalize: trim each tag, remove empties, rejoin with ", "
+        tags = [t.strip() for t in body.profile_tags.split(",") if t.strip()]
+        master.profile_tags = ", ".join(tags) if tags else None
     db.commit()
     db.refresh(master)
     return _to_summary(master)
@@ -189,6 +194,7 @@ def _to_summary(m: MasterResume) -> dict:
         "created_at": m.created_at, "notes": m.notes,
         "sections_detected": list((m.sections or {}).keys()),
         "english_level": m.english_level or "any",
+        "profile_tags":  m.profile_tags or "",
     }
 
 def _to_detail(m: MasterResume) -> dict:

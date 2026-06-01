@@ -208,11 +208,14 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
     master_sections = master.sections or {}
 
     # ── Resolve english_level: param > master profile > "any" ─────────────────
-    # If the user didn't set a level in this search (still "any"), fall back to
-    # whatever is saved on their master resume profile.
     resolved_english_level = params.english_level
     if resolved_english_level == "any" and master.english_level and master.english_level != "any":
         resolved_english_level = master.english_level
+
+    # ── Resolve profile_tags from master profile ──────────────────────────────
+    # Candidate's explicit expertise tags (e.g. "QA, SQL, Product Owner, Telecom")
+    # override the LLM's inference of the candidate profile from the resume text.
+    resolved_profile_tags = (master.profile_tags or "").strip()
 
     # ── Step 1: Queries ───────────────────────────────────────────────────────
     # Auto-detect language keywords typed in the job_title field.
@@ -241,6 +244,7 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             model=params.llm_model,
             bilingual_spanish=effective_bilingual,
             english_level=resolved_english_level,
+            profile_tags=resolved_profile_tags,
         )
 
     if not queries:
@@ -318,6 +322,7 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
         ccfta_check=params.ccfta_check,
         bilingual_spanish=effective_bilingual,
         english_level=resolved_english_level,
+        profile_tags=resolved_profile_tags,
     )
 
     # ── Step 4: Merge + sort ─────────────────────────────────────────────────
@@ -396,6 +401,7 @@ async def extract_job_description(req: ExtractRequest, db: Session = Depends(get
                 master_sections=master.sections,
                 provider=req.llm_provider,
                 model=req.llm_model,
+                profile_tags=(master.profile_tags or ""),
             )
         except Exception:
             pass

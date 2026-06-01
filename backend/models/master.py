@@ -34,3 +34,8 @@ class MasterResume(Base):
     # Candidate profile preferences (persist across searches)
     english_level     = Column(String, default="any", nullable=True)
     # "any" | "basic" | "conversational" | "professional" | "fluent"
+
+    # Comma-separated expertise tags set by the candidate.
+    # Used as explicit primary-skill signals in query generation and scoring.
+    # Example: "QA, Testing, SQL, Product Owner, Implementation, Telecom, APIs"
+    profile_tags      = Column(Text, nullable=True)

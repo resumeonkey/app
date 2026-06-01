@@ -122,6 +122,7 @@ async def generate_search_queries(
     model: str,
     bilingual_spanish: bool = False,
     english_level: str = "any",
+    profile_tags: str = "",
 ) -> list[str]:
     """
     Use LLM to generate 2–4 keyword search queries from the candidate profile
@@ -133,7 +134,7 @@ async def generate_search_queries(
     treat it as a language requirement, infer the actual job role from the
     profile, and generate bilingual queries automatically.
     """
-    profile_text = _build_profile_text(master_sections)
+    profile_text = _build_profile_text(master_sections, profile_tags=profile_tags)
     raw_job_title = params.get("job_title", "").strip()
 
     # ── Detect language-as-job-title ─────────────────────────────────────────
@@ -284,18 +285,23 @@ Responde ÚNICAMENTE con JSON válido:
     return ["software developer"]
 
 
-def _build_profile_text(master_sections: dict) -> str:
+def _build_profile_text(master_sections: dict, profile_tags: str = "") -> str:
     """
-    Short profile excerpt (summary + skills + experience) for LLM context.
-    Matches section keys case-insensitively and by partial substring so it works
-    regardless of how the PDF parser labelled each section
-    (e.g. 'Summary / Profile', 'Technical Skills', 'Work Experience').
+    Build a profile excerpt for LLM consumption.
+
+    Extraction order (skills before summary) ensures tech signals like
+    "QA, SQL, APIs, Product Owner" are visible before generic summary text.
+
+    If the candidate set explicit profile_tags (comma-separated expertise),
+    those appear as the very first line and override any profile inference.
+    Example header:
+      CANDIDATE PRIMARY EXPERTISE: QA/Testing | SQL | Product Owner | APIs | Telecom
     """
-    # Priority order: summary-like → skills-like → experience-like
+    # Skills-first order: tech signals before generic summary
     _WANT = [
-        ("summary", "profile", "about"),
-        ("skill",),
+        ("skill", "technical", "competenc", "tool"),   # skills first
         ("experience", "work", "employment", "history"),
+        ("summary", "profile", "about"),               # summary last
     ]
 
     parts: list[str] = []
@@ -309,7 +315,7 @@ def _build_profile_text(master_sections: dict) -> str:
             if any(kw in key_lower for kw in group):
                 text = (val or {}).get("raw_text", "").strip()
                 if text:
-                    parts.append(text[:500])
+                    parts.append(text[:400])
                     used_keys.add(key)
                     break  # one section per group
 
@@ -318,9 +324,20 @@ def _build_profile_text(master_sections: dict) -> str:
         for key, val in list(master_sections.items())[:3]:
             text = (val or {}).get("raw_text", "").strip()
             if text:
-                parts.append(text[:500])
+                parts.append(text[:400])
 
-    return "\n\n".join(parts)[:_PROFILE_CHARS]
+    combined = "\n\n".join(parts)
+
+    # Explicit tags override: prepend as a structured header so the LLM
+    # immediately knows the candidate's PRIMARY expertise before reading
+    # the resume text (which may use generic language like "operations manager").
+    if profile_tags and profile_tags.strip():
+        tags = [t.strip() for t in profile_tags.split(",") if t.strip()]
+        if tags:
+            header = "CANDIDATE PRIMARY EXPERTISE: " + " | ".join(tags)
+            combined = header + "\n\n" + combined
+
+    return combined[:_PROFILE_CHARS]
 
 
 # ── LinkedIn search via Jina Reader ──────────────────────────────────────────
@@ -966,6 +983,7 @@ async def batch_score_jobs(
     ccfta_check: bool = False,
     bilingual_spanish: bool = False,
     english_level: str = "any",
+    profile_tags: str = "",
 ) -> list[dict]:
     """
     Score ALL jobs in a SINGLE LLM call — ~88% fewer tokens than per-job scoring.
@@ -981,7 +999,7 @@ async def batch_score_jobs(
     # Auto-downgrade to lighter model for scoring (Groq 8B has 5× more daily tokens)
     score_model = _scoring_model(provider, model)
 
-    profile = _build_profile_text(master_sections)[:_BATCH_PROFILE_CHARS]
+    profile = _build_profile_text(master_sections, profile_tags=profile_tags)[:_BATCH_PROFILE_CHARS]
 
     # Build compact 1-line summary per job (title + company + location + snippet)
     job_lines = []
@@ -1150,6 +1168,7 @@ Return ONLY this JSON (one entry per job, same index order):
                 ccfta_check=ccfta_check,
                 bilingual_spanish=bilingual_spanish,
                 english_level=english_level,
+                profile_tags=profile_tags,
             )
             for r in raw_jobs
         ]
@@ -1164,13 +1183,14 @@ async def score_job(
     ccfta_check: bool = False,
     bilingual_spanish: bool = False,
     english_level: str = "any",
+    profile_tags: str = "",
 ) -> dict:
     """
     Score a SINGLE job–candidate pair using LLM.
     Used for the /extract endpoint (full job description available).
     For search results, use batch_score_jobs() instead to save tokens.
     """
-    profile_text = _build_profile_text(master_sections)
+    profile_text = _build_profile_text(master_sections, profile_tags=profile_tags)
     job_excerpt  = job_text[:_SCORE_JOB_CHARS]
 
     ccfta_block = (

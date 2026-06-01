@@ -39,6 +39,7 @@ def _migrate_add_columns():
         ("adaptations",       "job_url",        "TEXT"),
         ("adaptations",       "applied_at",     "TIMESTAMP WITH TIME ZONE"),
         ("master_resumes",    "english_level",  "TEXT DEFAULT 'any'"),
+        ("master_resumes",    "profile_tags",   "TEXT"),
     ]
     with engine.connect() as conn:
         for table, col, defn in migrations:
