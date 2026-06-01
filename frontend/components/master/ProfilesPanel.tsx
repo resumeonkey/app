@@ -156,12 +156,14 @@ function TagsField({
 interface ProfileCardProps {
   profile: MasterSummary;
   isActive: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
   onActivate: () => void;
   onDelete: () => void;
   onUpdated: (m: MasterSummary) => void;
 }
 
-function ProfileCard({ profile, isActive, onActivate, onDelete, onUpdated }: ProfileCardProps) {
+function ProfileCard({ profile, isActive, selected, onToggleSelect, onActivate, onDelete, onUpdated }: ProfileCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -230,6 +232,14 @@ function ProfileCard({ profile, isActive, onActivate, onDelete, onUpdated }: Pro
     }`}>
       {/* Card header */}
       <div className="flex items-center gap-3 px-4 py-3">
+        {/* Checkbox for bulk selection */}
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggleSelect}
+          onClick={(e) => e.stopPropagation()}
+          className="w-3.5 h-3.5 accent-indigo-600 flex-shrink-0 cursor-pointer"
+        />
         {/* Active indicator */}
         <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? "bg-green-500" : "bg-gray-300"}`} />
 
@@ -393,9 +403,34 @@ interface Props {
 export function ProfilesPanel({
   master, masters, onAddProfile, onProfileActivated, onProfileDeleted, onProfileUpdated,
 }: Props) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [confirmBulk, setConfirmBulk] = useState(false);
+
   const handleActivate = async (id: string) => {
     await activateMaster(id);
     onProfileActivated(id);
+  };
+
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  const allSelected = masters.length > 0 && selected.size === masters.length;
+  const toggleAll = () =>
+    setSelected(allSelected ? new Set() : new Set(masters.map((m) => m.id)));
+
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    const ids = Array.from(selected);
+    await Promise.allSettled(ids.map((id) => deleteMaster(id)));
+    ids.forEach((id) => onProfileDeleted(id));
+    setSelected(new Set());
+    setBulkDeleting(false);
+    setConfirmBulk(false);
   };
 
   return (
@@ -408,11 +443,36 @@ export function ProfilesPanel({
             Cada perfil tiene su propio resume y configuración de búsqueda.
           </p>
         </div>
-        <button
-          onClick={onAddProfile}
-          className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1">
-          + Nuevo perfil
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Bulk delete bar — appears when items are selected */}
+          {selected.size > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">{selected.size} seleccionado{selected.size > 1 ? "s" : ""}</span>
+              {!confirmBulk ? (
+                <button
+                  onClick={() => setConfirmBulk(true)}
+                  className="text-xs px-2.5 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-all">
+                  🗑 Eliminar selección
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-red-600 font-medium">¿Eliminar {selected.size}?</span>
+                  <button onClick={handleBulkDelete} disabled={bulkDeleting}
+                    className="text-xs px-2 py-0.5 rounded bg-red-500 text-white hover:bg-red-600 disabled:opacity-50">
+                    {bulkDeleting ? "…" : "Sí"}
+                  </button>
+                  <button onClick={() => setConfirmBulk(false)}
+                    className="text-xs text-gray-400 hover:text-gray-600">No</button>
+                </div>
+              )}
+            </div>
+          )}
+          <button
+            onClick={onAddProfile}
+            className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1">
+            + Nuevo perfil
+          </button>
+        </div>
       </div>
 
       {masters.length === 0 ? (
@@ -424,18 +484,32 @@ export function ProfilesPanel({
           </button>
         </div>
       ) : (
-        <div className="space-y-2">
-          {masters.map((p) => (
-            <ProfileCard
-              key={p.id}
-              profile={p}
-              isActive={p.id === master?.id}
-              onActivate={() => handleActivate(p.id)}
-              onDelete={() => onProfileDeleted(p.id)}
-              onUpdated={onProfileUpdated}
-            />
-          ))}
-        </div>
+        <>
+          {/* Select all row */}
+          {masters.length > 1 && (
+            <div className="flex items-center gap-2 mb-2 px-1">
+              <input type="checkbox" checked={allSelected} onChange={toggleAll}
+                className="w-3.5 h-3.5 accent-indigo-600 cursor-pointer" />
+              <span className="text-[11px] text-gray-400">
+                {allSelected ? "Deseleccionar todos" : "Seleccionar todos"}
+              </span>
+            </div>
+          )}
+          <div className="space-y-2">
+            {masters.map((p) => (
+              <ProfileCard
+                key={p.id}
+                profile={p}
+                isActive={p.id === master?.id}
+                selected={selected.has(p.id)}
+                onToggleSelect={() => toggleSelect(p.id)}
+                onActivate={() => handleActivate(p.id)}
+                onDelete={() => { onProfileDeleted(p.id); setSelected((s) => { const n = new Set(s); n.delete(p.id); return n; }); }}
+                onUpdated={onProfileUpdated}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
