@@ -61,11 +61,15 @@ export function MasterStatus({ master, onReplace, onMasterUpdated }: Props) {
     }
   };
 
+  const TAGS_MAX = 250;   // max characters — this is a keywords field, not a text area
+
   // Tags: auto-save 800ms after the user stops typing
   const handleTagsChange = (value: string) => {
-    setTagsInput(value);
+    // Hard cap: never accept more than TAGS_MAX chars
+    const capped = value.slice(0, TAGS_MAX);
+    setTagsInput(capped);
     if (saveTagsTimer.current) clearTimeout(saveTagsTimer.current);
-    saveTagsTimer.current = setTimeout(() => saveTags(value), 800);
+    saveTagsTimer.current = setTimeout(() => saveTags(capped), 800);
   };
 
   const saveTags = async (value: string) => {
@@ -158,14 +162,21 @@ export function MasterStatus({ master, onReplace, onMasterUpdated }: Props) {
           para encontrar los roles correctos y calcular la compatibilidad real.
         </p>
 
-        {/* Text input */}
+        {/* Text input — hard limit: keywords only, not paragraphs */}
         <input
           type="text"
           value={tagsInput}
           onChange={(e) => handleTagsChange(e.target.value)}
+          maxLength={TAGS_MAX}
           placeholder="QA, Testing, SQL, Product Owner, Implementation, Telecom, APIs…"
-          className="input w-full text-sm"
+          className={`input w-full text-sm ${tagsInput.length >= TAGS_MAX ? "border-amber-400 ring-1 ring-amber-300" : ""}`}
         />
+        <div className="flex justify-between items-center mt-0.5">
+          <span className="text-[10px] text-gray-300">Solo palabras clave separadas por coma</span>
+          <span className={`text-[10px] tabular-nums ${tagsInput.length >= TAGS_MAX ? "text-amber-500 font-medium" : "text-gray-300"}`}>
+            {tagsInput.length}/{TAGS_MAX}
+          </span>
+        </div>
 
         {/* Current tags as chips */}
         {currentTags.length > 0 && (

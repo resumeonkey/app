@@ -154,9 +154,12 @@ def update_preferences(
             raise HTTPException(400, f"english_level must be one of: {', '.join(sorted(valid))}")
         master.english_level = body.english_level
     if body.profile_tags is not None:
-        # Normalize: trim each tag, remove empties, rejoin with ", "
-        tags = [t.strip() for t in body.profile_tags.split(",") if t.strip()]
-        master.profile_tags = ", ".join(tags) if tags else None
+        # Normalize: trim each tag, remove empties, cap individual tag length,
+        # and enforce a total character limit — this is a keywords field, not free text.
+        raw = body.profile_tags[:500]   # hard server-side cap before splitting
+        tags = [t.strip()[:40] for t in raw.split(",") if t.strip()][:20]  # max 20 tags, 40 chars each
+        joined = ", ".join(tags)
+        master.profile_tags = joined[:250] if joined else None  # final safety cap
     db.commit()
     db.refresh(master)
     return _to_summary(master)
