@@ -13,8 +13,9 @@ import {
   type SearchResponse,
   type SearchRecommendation,
 } from "@/lib/api";
+// MasterStatus kept for reference — replaced by ProfilesPanel
 import { MasterUpload } from "@/components/master/MasterUpload";
-import { MasterStatus } from "@/components/master/MasterStatus";
+import { ProfilesPanel } from "@/components/master/ProfilesPanel";
 import { JobForm } from "@/components/job/JobForm";
 import { AdaptationResult } from "@/components/result/AdaptationResult";
 import { ContextPanel } from "@/components/context/ContextPanel";
@@ -88,8 +89,35 @@ export default function HomePage() {
 
   const handleMasterUploaded = (m: MasterDetail) => {
     setMaster(m);
+    // Refresh the profiles list after upload
+    listMasters().catch((): MasterSummary[] => []).then(setMasters);
     setView("adapt");
     loadRecommendations();
+  };
+
+  const handleProfileActivated = async (id: string) => {
+    const [newActive, allMasters] = await Promise.all([
+      getActiveMaster().catch(() => null),
+      listMasters().catch((): MasterSummary[] => []),
+    ]);
+    setMaster(newActive);
+    setMasters(allMasters);
+    if (newActive) loadRecommendations();
+  };
+
+  const handleProfileDeleted = (id: string) => {
+    setMasters((prev) => prev.filter((m) => m.id !== id));
+    // If the deleted profile was active, clear master
+    if (master?.id === id) {
+      getActiveMaster().catch(() => null).then(setMaster);
+    }
+  };
+
+  const handleProfileUpdated = (updated: MasterSummary) => {
+    setMasters((prev) => prev.map((m) => m.id === updated.id ? { ...m, ...updated } : m));
+    if (master?.id === updated.id) {
+      setMaster((prev) => prev ? { ...prev, ...updated } : prev);
+    }
   };
 
   const handleAdaptationCreated = (a: Adaptation) => {
@@ -144,16 +172,16 @@ export default function HomePage() {
         </p>
       </div>
 
-      {/* ── Master section ───────────────────────────────────────────────────── */}
+      {/* ── Profiles / Master section ───────────────────────────────────────── */}
       {view !== "result" && (
         <>
-          {!master || view === "upload_master" ? (
+          {view === "upload_master" ? (
             <div className="card p-6">
               <h2 className="text-base font-semibold text-gray-700 mb-1">
-                {master ? "🔄 Reemplazar resume maestro" : "1. Carga tu resume maestro canadiense"}
+                {master ? "➕ Agregar nuevo perfil" : "1. Carga tu primer resume"}
               </h2>
               <p className="text-sm text-gray-400 mb-5">
-                Este documento es la fuente única de verdad. Todas las adaptaciones se generan a partir de él.
+                Cada perfil tiene su propio resume y configuración de búsqueda (roles objetivo, exclusiones, industrias).
               </p>
               <MasterUpload onUploaded={handleMasterUploaded} />
               {master && (
@@ -163,10 +191,13 @@ export default function HomePage() {
               )}
             </div>
           ) : (
-            <MasterStatus
+            <ProfilesPanel
               master={master}
-              onReplace={() => setView("upload_master")}
-              onMasterUpdated={(updated) => setMaster((prev) => prev ? { ...prev, ...updated } : prev)}
+              masters={masters}
+              onAddProfile={() => setView("upload_master")}
+              onProfileActivated={handleProfileActivated}
+              onProfileDeleted={handleProfileDeleted}
+              onProfileUpdated={handleProfileUpdated}
             />
           )}
         </>
