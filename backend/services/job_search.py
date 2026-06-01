@@ -121,6 +121,7 @@ async def generate_search_queries(
     provider: str,
     model: str,
     bilingual_spanish: bool = False,
+    english_level: str = "any",
 ) -> list[str]:
     """
     Use LLM to generate 2–4 keyword search queries from the candidate profile
@@ -172,6 +173,29 @@ async def generate_search_queries(
                 f'Si aplica al puesto, incluir una query con "bilingual {other_langs[0]}".'
             )
 
+    # ── English level hint ────────────────────────────────────────────────────
+    # "basic" / "conversational" → avoid roles that require fluent/native English;
+    # steer toward teams where Spanish is used or English demands are lower.
+    _ENGLISH_LEVEL_QUERY_HINTS: dict[str, str] = {
+        "basic": (
+            '\n- NIVEL DE INGLÉS BÁSICO (A2-B1): Evitar roles que requieran redacción '
+            'técnica en inglés o "excellent written English". Priorizar: equipos '
+            'hispanohablantes, empresas latinoamericanas en Canadá, roles operativos '
+            'o técnicos donde el inglés es secundario. Agregar una query con '
+            '"no English required" o "Spanish speaking team" si aplica.'
+        ),
+        "conversational": (
+            '\n- NIVEL DE INGLÉS CONVERSACIONAL (B1-B2): Buscar roles donde el inglés '
+            'sea funcional pero no el foco principal. Evitar roles de redacción, '
+            'comunicación ejecutiva o atención al cliente de alta complejidad. '
+            'Incluir "entry level" o "bilingual" cuando sea coherente con el puesto.'
+        ),
+        "professional": "",   # no restriction — standard queries
+        "fluent":        "",   # no restriction — full range
+        "any":           "",   # no restriction
+    }
+    english_hint = _ENGLISH_LEVEL_QUERY_HINTS.get(english_level.lower(), "")
+
     prompt = f"""Eres un experto en búsqueda de empleo en Canadá.
 
 ## Perfil del candidato (extracto)
@@ -184,7 +208,7 @@ async def generate_search_queries(
 - Industrias: {', '.join(params.get('industries', [])) or 'cualquiera'}
 - Nivel: {', '.join(params.get('experience_level', [])) or 'cualquiera'}
 - Keywords adicionales: {', '.join(params.get('include_keywords', [])) or 'ninguno'}
-- Excluir: {', '.join(params.get('exclude_keywords', [])) or 'ninguno'}{language_hint}
+- Excluir: {', '.join(params.get('exclude_keywords', [])) or 'ninguno'}{language_hint}{english_hint}
 
 ## Tu tarea
 Genera 2–4 variaciones de búsqueda de keywords para LinkedIn Jobs y Job Bank Canada.
@@ -890,6 +914,8 @@ def _fallback_score(raw: dict | None = None) -> dict:
         "ccfta_eligible":      False,
         "immigration_support": "no",
         "bilingual_advantage": False,
+        "english_barrier":     False,
+        "english_required":    "unknown",
     }
 
 
@@ -900,6 +926,7 @@ async def batch_score_jobs(
     model: str,
     ccfta_check: bool = False,
     bilingual_spanish: bool = False,
+    english_level: str = "any",
 ) -> list[dict]:
     """
     Score ALL jobs in a SINGLE LLM call — ~88% fewer tokens than per-job scoring.
@@ -934,6 +961,31 @@ async def batch_score_jobs(
         "\nbilingual=true if job values/requires Spanish or bilingual."
     ) if bilingual_spanish else ""
 
+    # English level scoring note
+    _ENGLISH_SCORE_NOTES: dict[str, str] = {
+        "basic": (
+            "\nenglish_level=basic (A2-B1). english_required: 'none'|'basic'|'conversational'|'professional'|'fluent'. "
+            "english_barrier=true if job clearly requires conversational or higher. "
+            "Deduct 25 pts from score if english_barrier=true."
+        ),
+        "conversational": (
+            "\nenglish_level=conversational (B1-B2). english_required: 'none'|'basic'|'conversational'|'professional'|'fluent'. "
+            "english_barrier=true if job clearly requires professional or fluent English. "
+            "Deduct 15 pts from score if english_barrier=true."
+        ),
+        "professional": (
+            "\nenglish_level=professional (B2-C1). english_required: 'none'|'basic'|'conversational'|'professional'|'fluent'. "
+            "english_barrier=false for most roles. "
+            "english_barrier=true only if job explicitly demands native-level English writing."
+        ),
+        "fluent": (
+            "\nenglish_level=fluent (C1-C2). english_required: 'none'|'basic'|'conversational'|'professional'|'fluent'. "
+            "english_barrier=false for all standard roles."
+        ),
+        "any": "",
+    }
+    english_note = _ENGLISH_SCORE_NOTES.get(english_level.lower(), "")
+
     prompt = f"""Score candidate-job compatibility for each job below. Return a JSON object.
 
 Candidate (brief):
@@ -943,11 +995,11 @@ Jobs (index. Title @ Company — Location | snippet):
 {jobs_text}
 
 Scoring: 90-100=all requirements met, 70-89=most, 50-69=partial, 30-49=significant gaps, 0-29=low fit.
-immigration: "yes"=explicit sponsorship/LMIA/permit, "mentioned"=vague, "no"=none.{ccfta_note}{bilingual_note}
+immigration: "yes"=explicit sponsorship/LMIA/permit, "mentioned"=vague, "no"=none.{ccfta_note}{bilingual_note}{english_note}
 
 Return ONLY this JSON (one entry per job, same index order):
 {{"results":[
-  {{"i":0,"score":75,"matched":["skill1","skill2"],"missing":["skill3"],"summary":"brief reason max 90 chars","ccfta":false,"immigration":"no","bilingual":false}},
+  {{"i":0,"score":75,"matched":["skill1","skill2"],"missing":["skill3"],"summary":"brief reason max 90 chars","ccfta":false,"immigration":"no","bilingual":false,"english_barrier":false,"english_required":"professional"}},
   ...
 ]}}"""
 
@@ -990,6 +1042,8 @@ Return ONLY this JSON (one entry per job, same index order):
                 "ccfta_eligible":      bool(entry.get("ccfta", False)),
                 "immigration_support": str(entry.get("immigration", "no")),
                 "bilingual_advantage": bool(entry.get("bilingual", False)),
+                "english_barrier":     bool(entry.get("english_barrier", False)),
+                "english_required":    str(entry.get("english_required", "unknown")),
             })
 
         log.info(
@@ -1015,6 +1069,7 @@ Return ONLY this JSON (one entry per job, same index order):
                 model=model,
                 ccfta_check=ccfta_check,
                 bilingual_spanish=bilingual_spanish,
+                english_level=english_level,
             )
             for r in raw_jobs
         ]
@@ -1028,6 +1083,7 @@ async def score_job(
     model: str,
     ccfta_check: bool = False,
     bilingual_spanish: bool = False,
+    english_level: str = "any",
 ) -> dict:
     """
     Score a SINGLE job–candidate pair using LLM.
@@ -1046,6 +1102,34 @@ async def score_job(
         "\nbilingual_advantage: true if job values/requires Spanish or bilingual."
     ) if bilingual_spanish else ""
 
+    # English level block for single-job scoring
+    _ENGLISH_SINGLE_NOTES: dict[str, str] = {
+        "basic": (
+            "\nCandidate English level: basic (A2-B1). "
+            "english_required: which level the job needs ('none'|'basic'|'conversational'|'professional'|'fluent'). "
+            "english_barrier=true if job needs conversational or higher. "
+            "Deduct 25 pts if english_barrier=true."
+        ),
+        "conversational": (
+            "\nCandidate English level: conversational (B1-B2). "
+            "english_required: which level the job needs. "
+            "english_barrier=true if job needs professional or fluent English. "
+            "Deduct 15 pts if english_barrier=true."
+        ),
+        "professional": (
+            "\nCandidate English level: professional (B2-C1). "
+            "english_required: which level the job needs. "
+            "english_barrier=true only if job explicitly demands native-level writing."
+        ),
+        "fluent": (
+            "\nCandidate English level: fluent (C1-C2). "
+            "english_required: which level the job needs. "
+            "english_barrier=false for all standard roles."
+        ),
+        "any": "",
+    }
+    english_block = _ENGLISH_SINGLE_NOTES.get(english_level.lower(), "")
+
     prompt = f"""Score candidate-job compatibility. Return only JSON.
 
 Candidate:
@@ -1053,7 +1137,7 @@ Candidate:
 
 Job:
 {job_excerpt}
-{ccfta_block}{bilingual_block}
+{ccfta_block}{bilingual_block}{english_block}
 JSON:
 {{
   "compatibility_score": 75,
@@ -1067,7 +1151,9 @@ JSON:
   "score_summary": "one sentence max 90 chars",
   "ccfta_eligible": false,
   "immigration_support": "no",
-  "bilingual_advantage": false
+  "bilingual_advantage": false,
+  "english_barrier": false,
+  "english_required": "professional"
 }}
 
 Scoring: 90-100=all met, 70-89=most, 50-69=partial, 30-49=gaps, 0-29=low fit.
@@ -1096,6 +1182,8 @@ immigration: "yes"=explicit sponsor/LMIA/permit, "mentioned"=vague, "no"=none.""
             "ccfta_eligible":      bool(data.get("ccfta_eligible", False)),
             "immigration_support": str(data.get("immigration_support", "no")),
             "bilingual_advantage": bool(data.get("bilingual_advantage", False)),
+            "english_barrier":     bool(data.get("english_barrier", False)),
+            "english_required":    str(data.get("english_required", "unknown")),
         }
     except Exception as e:
         log.warning("score_job failed (provider=%s model=%s): %s", provider, model, e)

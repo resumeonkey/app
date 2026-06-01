@@ -89,6 +89,14 @@ class SearchParams(BaseModel):
     bilingual_spanish: bool = False # Boost "bilingüe español" en queries
     ccfta_check: bool = False       # Evaluar elegibilidad bajo Tratado Chile-Canadá
 
+    # Nivel de inglés del candidato — afecta queries Y scoring
+    # "any"           → sin filtro (comportamiento actual)
+    # "basic"         → A2-B1: puede leer/escribir oraciones simples
+    # "conversational"→ B1-B2: puede comunicarse con algo de esfuerzo
+    # "professional"  → B2-C1: inglés de negocios completo
+    # "fluent"        → C1-C2: nivel nativo o casi nativo
+    english_level: str = "any"
+
 
 class ExtractRequest(BaseModel):
     url: str
@@ -225,6 +233,7 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             provider=params.llm_provider,
             model=params.llm_model,
             bilingual_spanish=effective_bilingual,
+            english_level=params.english_level,
         )
 
     if not queries:
@@ -301,6 +310,7 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
         model=params.llm_model,
         ccfta_check=params.ccfta_check,
         bilingual_spanish=effective_bilingual,
+        english_level=params.english_level,
     )
 
     # ── Step 4: Merge + sort ─────────────────────────────────────────────────
@@ -331,10 +341,17 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             "ccfta_eligible":      score.get("ccfta_eligible", False) or fast_ccfta,
             "immigration_support": score.get("immigration_support", "no"),
             "bilingual_advantage": score.get("bilingual_advantage", False),
+            # English level fields
+            "english_barrier":     score.get("english_barrier", False),
+            "english_required":    score.get("english_required", "unknown"),
         })
 
     final.sort(key=lambda x: x["compatibility_score"], reverse=True)
-    return {"results": final, "queries_used": queries}
+    return {
+        "results":      final,
+        "queries_used": queries,
+        "english_level_used": params.english_level,
+    }
 
 
 @router.post("/extract")
