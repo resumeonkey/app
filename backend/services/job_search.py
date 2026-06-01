@@ -1215,7 +1215,7 @@ JSON:
   "confidence": "high",
   "blockers": ["Seniority gap: Senior Manager vs analyst profile"],
   "why_relevant": ["Bilingual Spanish/English", "Process improvement experience"]
-}}
+}}"""
 
     try:
         raw = await call_llm(
