@@ -43,3 +43,5 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+*.tsbuildinfo
+extract_resume_paragraphs.py
