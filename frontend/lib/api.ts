@@ -161,6 +161,8 @@ export interface SearchParams {
   lmia_only: boolean;
   bilingual_spanish: boolean;
   ccfta_check: boolean;
+  // Nivel de inglés del candidato
+  english_level: "any" | "basic" | "conversational" | "professional" | "fluent";
 }
 
 export interface JobResult {
@@ -182,6 +184,9 @@ export interface JobResult {
   ccfta_eligible: boolean;
   immigration_support: "yes" | "mentioned" | "no";
   bilingual_advantage: boolean;
+  // English level fields
+  english_barrier: boolean;
+  english_required: "none" | "basic" | "conversational" | "professional" | "fluent" | "unknown";
 }
 
 export interface SearchResponse {

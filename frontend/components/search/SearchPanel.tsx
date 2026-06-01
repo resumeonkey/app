@@ -47,6 +47,7 @@ const DEFAULT_PARAMS: SearchParams = {
   lmia_only: false,
   bilingual_spanish: false,
   ccfta_check: false,
+  english_level: "any",
 };
 
 interface Props {
@@ -553,6 +554,41 @@ export function SearchPanel({ onSearch, loading }: Props) {
               </p>
             </div>
           </label>
+        </div>
+
+        {/* English level selector */}
+        <div className="pt-1">
+          <label className="block text-xs font-semibold text-indigo-700 mb-2">
+            🗣️ Mi nivel de inglés
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {([
+              { val: "any",           label: "Sin filtro" },
+              { val: "basic",         label: "Básico · A2–B1" },
+              { val: "conversational",label: "Conversacional · B1–B2" },
+              { val: "professional",  label: "Profesional · B2–C1" },
+              { val: "fluent",        label: "Fluido · C1–C2" },
+            ] as { val: SearchParams["english_level"]; label: string }[]).map(({ val, label }) => (
+              <button
+                key={val}
+                onClick={() => set("english_level", val)}
+                className={`px-3 py-1 rounded-full text-xs border transition-all ${
+                  params.english_level === val
+                    ? "bg-indigo-100 border-indigo-400 text-indigo-700 font-medium"
+                    : "border-gray-200 text-gray-500 hover:border-indigo-300"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {params.english_level !== "any" && params.english_level !== "professional" && params.english_level !== "fluent" && (
+            <p className="text-[11px] text-indigo-500 mt-1.5">
+              {params.english_level === "basic"
+                ? "Los trabajos que requieren inglés conversacional o más aparecerán al final con una advertencia."
+                : "Los trabajos que requieren inglés profesional o fluido aparecerán al final con una advertencia."}
+            </p>
+          )}
         </div>
       </div>
 

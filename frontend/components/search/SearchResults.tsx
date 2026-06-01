@@ -369,6 +369,15 @@ function JobResultCard({
                 🗣️ Bilingüe+
               </span>
             )}
+            {/* English barrier warning */}
+            {job.english_barrier && (
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-200 font-medium"
+                title={`Este puesto requiere inglés ${job.english_required ?? "avanzado"}`}
+              >
+                🇬🇧 Inglés {job.english_required ?? "avanzado"} requerido
+              </span>
+            )}
           </div>
 
           {/* Score summary */}
