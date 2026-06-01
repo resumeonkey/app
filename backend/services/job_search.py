@@ -49,8 +49,8 @@ _HTTP_TIMEOUT = 30          # seconds per Jina request
 _MAX_JOB_CHARS = 8_000      # cap on extracted job text forwarded to LLM
 _PROFILE_CHARS = 1500       # profile excerpt sent to LLM for query generation
 _SCORE_JOB_CHARS = 700      # job text sent per job in single-job scoring (reduced)
-_BATCH_PROFILE_CHARS = 220  # profile excerpt in batch scoring (very compact)
-_BATCH_SNIPPET_CHARS = 130  # snippet chars per job in batch mode
+_BATCH_PROFILE_CHARS = 500  # profile excerpt in batch scoring (raised for seniority detection)
+_BATCH_SNIPPET_CHARS = 220  # snippet chars per job in batch mode (raised for requirement detection)
 
 # Lighter models for scoring (vs generation). Saves tokens on rate-limited tiers.
 _SCORE_MODEL_MAP: dict[str, str] = {
@@ -988,13 +988,26 @@ async def batch_score_jobs(
 
     prompt = f"""Score candidate-job compatibility for each job below. Return a JSON object.
 
-Candidate (brief):
+Candidate profile:
 {profile}
 
 Jobs (index. Title @ Company — Location | snippet):
 {jobs_text}
 
-Scoring: 90-100=all requirements met, 70-89=most, 50-69=partial, 30-49=significant gaps, 0-29=low fit.
+SCORING RULES — read carefully:
+- 90-100 = candidate meets nearly ALL hard requirements (years of experience, industry, seniority level, core skills)
+- 70-89  = candidate meets MOST hard requirements with minor gaps
+- 50-69  = candidate meets SOME requirements but has notable gaps in experience level or industry
+- 30-49  = significant gaps: wrong industry, wrong seniority, or missing critical years of experience
+- 0-29   = low fit: fundamentally different career track
+
+CRITICAL CALIBRATION — these factors independently cap the score:
+- Job requires "Senior Manager" / "Director" / "VP" / "Head of" AND candidate's profile shows analyst/specialist/coordinator/engineer roles → cap at 55 max.
+- Job requires "10+ years" in a specific industry AND candidate lacks that specific industry → cap at 50 max.
+- Job requires domain expertise (banking, healthcare, legal) that candidate clearly lacks → cap at 55 max.
+- Being bilingual IS a plus, but it CANNOT compensate for missing industry experience, seniority, or years.
+  If a bilingual job has all the above caps apply, do NOT raise the score above the cap just for bilingual match.
+
 immigration: "yes"=explicit sponsorship/LMIA/permit, "mentioned"=vague, "no"=none.{ccfta_note}{bilingual_note}{english_note}
 
 Return ONLY this JSON (one entry per job, same index order):
