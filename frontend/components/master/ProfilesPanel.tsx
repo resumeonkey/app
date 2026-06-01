@@ -257,6 +257,27 @@ function ProfileCard({ profile, isActive, onActivate, onDelete, onUpdated }: Pro
             className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1">
             {expanded ? "▲" : "▼"}
           </button>
+          {/* Delete — always visible, two-click confirmation */}
+          {!confirmDelete ? (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="text-gray-300 hover:text-red-400 transition-colors text-xl leading-none px-1"
+              title="Eliminar perfil">
+              ×
+            </button>
+          ) : (
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-red-500">¿Eliminar?</span>
+              <button onClick={handleDelete} disabled={deleting}
+                className="text-[10px] px-1.5 py-0.5 rounded bg-red-500 text-white hover:bg-red-600 disabled:opacity-50">
+                {deleting ? "…" : "Sí"}
+              </button>
+              <button onClick={() => setConfirmDelete(false)}
+                className="text-[10px] text-gray-400 hover:text-gray-600">
+                No
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -337,26 +358,6 @@ function ProfileCard({ profile, isActive, onActivate, onDelete, onUpdated }: Pro
             </div>
           </div>
 
-          {/* Delete */}
-          <div className="pt-2 border-t border-gray-100">
-            {!confirmDelete ? (
-              <button onClick={() => setConfirmDelete(true)}
-                className="text-xs text-red-400 hover:text-red-600 transition-colors">
-                Eliminar perfil
-              </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-red-600">¿Eliminar este perfil?</p>
-                <button onClick={handleDelete} disabled={deleting}
-                  className="text-xs px-2 py-0.5 rounded bg-red-500 text-white hover:bg-red-600 disabled:opacity-50">
-                  {deleting ? "…" : "Sí, eliminar"}
-                </button>
-                <button onClick={() => setConfirmDelete(false)} className="text-xs text-gray-400 hover:text-gray-600">
-                  Cancelar
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       )}
     </div>
