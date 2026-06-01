@@ -166,6 +166,7 @@ function ProfileCard({ profile, isActive, onActivate, onDelete, onUpdated }: Pro
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   // Local state mirrors DB (syncs on save)
   const [name, setName]       = useState(profile.profile_name ?? "");
@@ -205,8 +206,17 @@ function ProfileCard({ profile, isActive, onActivate, onDelete, onUpdated }: Pro
 
   const handleDelete = async () => {
     setDeleting(true);
-    try { await deleteMaster(profile.id); onDelete(); }
-    finally { setDeleting(false); setConfirmDelete(false); }
+    setDeleteError("");
+    try {
+      await deleteMaster(profile.id);
+      onDelete();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } }; message?: string })
+        ?.response?.data?.detail ?? (e as { message?: string })?.message ?? "Error al eliminar";
+      setDeleteError(msg);
+      setDeleting(false);
+      // keep confirmDelete open so user sees the error
+    }
   };
 
   const displayName = name || profile.original_filename;
@@ -260,22 +270,27 @@ function ProfileCard({ profile, isActive, onActivate, onDelete, onUpdated }: Pro
           {/* Delete — always visible, two-click confirmation */}
           {!confirmDelete ? (
             <button
-              onClick={() => setConfirmDelete(true)}
+              onClick={() => { setConfirmDelete(true); setDeleteError(""); }}
               className="text-gray-300 hover:text-red-400 transition-colors text-xl leading-none px-1"
               title="Eliminar perfil">
               ×
             </button>
           ) : (
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] text-red-500">¿Eliminar?</span>
-              <button onClick={handleDelete} disabled={deleting}
-                className="text-[10px] px-1.5 py-0.5 rounded bg-red-500 text-white hover:bg-red-600 disabled:opacity-50">
-                {deleting ? "…" : "Sí"}
-              </button>
-              <button onClick={() => setConfirmDelete(false)}
-                className="text-[10px] text-gray-400 hover:text-gray-600">
-                No
-              </button>
+            <div className="flex flex-col items-end gap-0.5">
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-red-500">¿Eliminar?</span>
+                <button onClick={handleDelete} disabled={deleting}
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-red-500 text-white hover:bg-red-600 disabled:opacity-50">
+                  {deleting ? "…" : "Sí"}
+                </button>
+                <button onClick={() => { setConfirmDelete(false); setDeleteError(""); }}
+                  className="text-[10px] text-gray-400 hover:text-gray-600">
+                  No
+                </button>
+              </div>
+              {deleteError && (
+                <span className="text-[9px] text-red-400 max-w-[140px] text-right">{deleteError}</span>
+              )}
             </div>
           )}
         </div>
