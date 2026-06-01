@@ -916,6 +916,10 @@ def _fallback_score(raw: dict | None = None) -> dict:
         "bilingual_advantage": False,
         "english_barrier":     False,
         "english_required":    "unknown",
+        # Structured assessment fields
+        "confidence":          "low",
+        "blockers":            [],
+        "why_relevant":        [],
     }
 
 
@@ -1010,9 +1014,25 @@ CRITICAL CALIBRATION — these factors independently cap the score:
 
 immigration: "yes"=explicit sponsorship/LMIA/permit, "mentioned"=vague, "no"=none.{ccfta_note}{bilingual_note}{english_note}
 
+confidence field: assess how much job-requirement info you actually had.
+  "high"   = snippet included years of experience, mandatory skills, seniority level
+  "medium" = snippet had some requirements but was incomplete
+  "low"    = you only had the job title and company — no visible requirements
+
+blockers: list up to 3 hard blockers (things that would prevent advancing in the hiring process).
+  Examples: "Seniority gap: Senior Manager vs analyst profile",
+            "Industry gap: 10+ years banking required",
+            "Domain gap: mandatory retail banking operations expertise"
+  Empty list [] if no major blockers.
+
+why_relevant: list 2-3 genuine reasons the candidate IS worth noting for this role.
+  Examples: "Bilingual Spanish/English", "Process improvement experience",
+            "Stakeholder coordination background"
+  Be honest — only include real strengths, not forced connections.
+
 Return ONLY this JSON (one entry per job, same index order):
 {{"results":[
-  {{"i":0,"score":75,"matched":["skill1","skill2"],"missing":["skill3"],"summary":"brief reason max 90 chars","ccfta":false,"immigration":"no","bilingual":false,"english_barrier":false,"english_required":"professional"}},
+  {{"i":0,"score":48,"matched":["skill1"],"missing":["skill2","skill3"],"summary":"brief reason max 90 chars","ccfta":false,"immigration":"no","bilingual":true,"english_barrier":false,"english_required":"professional","confidence":"low","blockers":["Seniority gap","Industry gap: banking"],"why_relevant":["Bilingual Spanish/English","Process improvement"]}},
   ...
 ]}}"""
 
@@ -1057,6 +1077,9 @@ Return ONLY this JSON (one entry per job, same index order):
                 "bilingual_advantage": bool(entry.get("bilingual", False)),
                 "english_barrier":     bool(entry.get("english_barrier", False)),
                 "english_required":    str(entry.get("english_required", "unknown")),
+                "confidence":          str(entry.get("confidence", "medium")),
+                "blockers":            entry.get("blockers", []) if isinstance(entry.get("blockers"), list) else [],
+                "why_relevant":        entry.get("why_relevant", []) if isinstance(entry.get("why_relevant"), list) else [],
             })
 
         log.info(
@@ -1151,9 +1174,31 @@ Candidate:
 Job:
 {job_excerpt}
 {ccfta_block}{bilingual_block}{english_block}
+
+SCORING RULES:
+- 90-100 = candidate meets nearly ALL hard requirements (years, industry, seniority, core skills)
+- 70-89  = meets MOST hard requirements with minor gaps
+- 50-69  = meets SOME requirements, notable gaps in level or industry
+- 30-49  = significant gaps: wrong industry, wrong seniority, or missing critical years
+- 0-29   = fundamentally different career track
+
+CAPS (these override the base score):
+- Job says "Senior Manager/Director/VP" AND candidate shows analyst/specialist/engineer roles → cap 55
+- Job requires 10+ years in a specific domain AND candidate lacks that domain → cap 50
+- Core domain expertise required (banking, healthcare, legal) AND candidate lacks it → cap 55
+- Bilingual match is a PLUS (max +10 pts) but CANNOT override seniority or domain caps
+
+confidence: how much requirement detail was in the job text.
+  "high"=seen years/seniority/mandatory skills, "medium"=partial, "low"=only title/company visible
+
+blockers: up to 3 hard blockers preventing hiring (e.g. "Seniority gap: Director vs. analyst profile")
+why_relevant: up to 3 genuine strengths the candidate has for this role
+
+immigration: "yes"=explicit sponsor/LMIA/permit, "mentioned"=vague, "no"=none.
+
 JSON:
 {{
-  "compatibility_score": 75,
+  "compatibility_score": 48,
   "job_title": "exact title",
   "company": "company or empty",
   "location": "city/province or Remote",
@@ -1166,11 +1211,11 @@ JSON:
   "immigration_support": "no",
   "bilingual_advantage": false,
   "english_barrier": false,
-  "english_required": "professional"
+  "english_required": "professional",
+  "confidence": "high",
+  "blockers": ["Seniority gap: Senior Manager vs analyst profile"],
+  "why_relevant": ["Bilingual Spanish/English", "Process improvement experience"]
 }}
-
-Scoring: 90-100=all met, 70-89=most, 50-69=partial, 30-49=gaps, 0-29=low fit.
-immigration: "yes"=explicit sponsor/LMIA/permit, "mentioned"=vague, "no"=none."""
 
     try:
         raw = await call_llm(
@@ -1197,6 +1242,9 @@ immigration: "yes"=explicit sponsor/LMIA/permit, "mentioned"=vague, "no"=none.""
             "bilingual_advantage": bool(data.get("bilingual_advantage", False)),
             "english_barrier":     bool(data.get("english_barrier", False)),
             "english_required":    str(data.get("english_required", "unknown")),
+            "confidence":          str(data.get("confidence", "high")),
+            "blockers":            data.get("blockers", []) if isinstance(data.get("blockers"), list) else [],
+            "why_relevant":        data.get("why_relevant", []) if isinstance(data.get("why_relevant"), list) else [],
         }
     except Exception as e:
         log.warning("score_job failed (provider=%s model=%s): %s", provider, model, e)

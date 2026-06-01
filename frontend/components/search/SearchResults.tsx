@@ -167,9 +167,21 @@ function JobResultCard({
     }`}>
       <div className="flex items-start gap-3">
         {/* Score badge */}
-        <div className={`flex-shrink-0 w-14 h-14 rounded-xl border-2 flex flex-col items-center justify-center ${scoreColor}`}>
-          <span className="text-lg font-bold leading-none">{score}</span>
-          <span className="text-[9px] leading-none mt-0.5">%</span>
+        <div className="flex-shrink-0 flex flex-col items-center gap-1">
+          <div className={`w-14 h-14 rounded-xl border-2 flex flex-col items-center justify-center ${scoreColor}`}>
+            <span className="text-lg font-bold leading-none">{score}</span>
+            <span className="text-[9px] leading-none mt-0.5">%</span>
+          </div>
+          {/* Confidence indicator under score */}
+          <span className={`text-[9px] font-medium px-1 rounded ${
+            job.confidence === "high"   ? "text-green-600" :
+            job.confidence === "medium" ? "text-amber-500" :
+                                          "text-gray-400"
+          }`}>
+            {job.confidence === "high" ? "● alta conf." :
+             job.confidence === "medium" ? "● media conf." :
+                                           "○ baja conf."}
+          </span>
         </div>
 
         {/* Main content */}
@@ -306,6 +318,48 @@ function JobResultCard({
                 <p className="text-[10px] text-amber-600 mt-1">
                   El LLM usará esto como guía prioritaria al reescribir las secciones de tu resume.
                 </p>
+              )}
+            </div>
+          )}
+
+          {/* Confidence + blockers + why_relevant — structured assessment */}
+          {(job.blockers?.length > 0 || job.why_relevant?.length > 0) && (
+            <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 space-y-1.5">
+              {/* Confidence indicator */}
+              {job.confidence === "low" && (
+                <p className="text-[10px] text-amber-600 font-medium">
+                  ⚠️ Confianza baja — solo título disponible, sin descripción completa
+                </p>
+              )}
+              {/* Blockers */}
+              {job.blockers?.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold text-red-600 uppercase tracking-wide mb-0.5">
+                    🚫 Brechas principales
+                  </p>
+                  <ul className="space-y-0.5">
+                    {job.blockers.map((b, i) => (
+                      <li key={i} className="text-[11px] text-red-700 flex gap-1">
+                        <span className="opacity-50">•</span>{b}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {/* Why relevant */}
+              {job.why_relevant?.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold text-green-700 uppercase tracking-wide mb-0.5">
+                    ✅ Por qué aplica
+                  </p>
+                  <ul className="space-y-0.5">
+                    {job.why_relevant.map((w, i) => (
+                      <li key={i} className="text-[11px] text-green-800 flex gap-1">
+                        <span className="opacity-50">•</span>{w}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
           )}

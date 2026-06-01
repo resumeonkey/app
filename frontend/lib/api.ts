@@ -193,6 +193,10 @@ export interface JobResult {
   // English level fields
   english_barrier: boolean;
   english_required: "none" | "basic" | "conversational" | "professional" | "fluent" | "unknown";
+  // Structured assessment
+  confidence: "low" | "medium" | "high";
+  blockers: string[];
+  why_relevant: string[];
 }
 
 export interface SearchResponse {

@@ -351,6 +351,10 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             # English level fields
             "english_barrier":     score.get("english_barrier", False),
             "english_required":    score.get("english_required", "unknown"),
+            # Structured assessment
+            "confidence":          score.get("confidence", "low"),
+            "blockers":            score.get("blockers", []),
+            "why_relevant":        score.get("why_relevant", []),
         })
 
     # Sort: non-barrier jobs first, then by score descending within each group.
