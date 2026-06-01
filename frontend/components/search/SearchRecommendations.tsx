@@ -33,6 +33,7 @@ const DEFAULT_PARAMS: SearchParams = {
   lmia_only: false,
   bilingual_spanish: false,
   ccfta_check: false,
+  english_level: "any",
 };
 
 export function SearchRecommendations({ recommendations, loading, onSearch, onRetry }: Props) {
