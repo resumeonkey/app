@@ -204,20 +204,31 @@ def activate_master(master_id: str, db: Session = Depends(get_db)):
 
 @router.delete("/{master_id}", status_code=204)
 def delete_master(master_id: str, db: Session = Depends(get_db)):
+    import logging
+    log = logging.getLogger(__name__)
+
     master = db.query(MasterResume).filter(MasterResume.id == master_id).first()
     if not master:
         raise HTTPException(404, "Master not found")
-    # Delete from storage — wrapped so a missing/failed file doesn't block the DB delete.
-    # An unhandled exception here would cause FastAPI to return a 500 without CORS headers,
-    # which the browser sees as "Network Error" rather than a proper error response.
+
+    # 1. Delete linked adaptations first to avoid FK constraint violation.
+    #    (adaptations.master_id → master_resumes.id, no CASCADE defined)
+    try:
+        from backend.models.adaptation import Adaptation
+        db.query(Adaptation).filter(Adaptation.master_id == master_id).delete(
+            synchronize_session=False
+        )
+    except Exception as exc:
+        log.warning("delete_master: could not delete adaptations for %s — %s", master_id, exc)
+
+    # 2. Delete file from storage — non-critical, log if it fails.
     if master.file_path:
         try:
             storage.delete_file(master.file_path)
         except Exception as exc:
-            import logging
-            logging.getLogger(__name__).warning(
-                "delete_master: could not delete file %s — %s", master.file_path, exc
-            )
+            log.warning("delete_master: could not delete file %s — %s", master.file_path, exc)
+
+    # 3. Delete the master record.
     db.delete(master)
     db.commit()
 

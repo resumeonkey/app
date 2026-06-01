@@ -1,7 +1,9 @@
 import os
+import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.config import get_settings
@@ -37,6 +39,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Global exception handler — ensures CORS headers are present on 500s ───────
+# Without this, unhandled exceptions return 500 WITHOUT Access-Control-Allow-Origin,
+# which the browser blocks as a CORS error ("Network Error") instead of showing
+# the actual HTTP 500 status.
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logging.getLogger(__name__).exception("Unhandled exception: %s", exc)
+    origin = request.headers.get("origin", "")
+    headers = {}
+    if origin:
+        allowed = [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
+        if "*" in allowed or origin in allowed:
+            headers["Access-Control-Allow-Origin"] = origin
+            headers["Access-Control-Allow-Credentials"] = "true"
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+        headers=headers,
+    )
 
 app.include_router(master.router,       prefix="/api/master",       tags=["master"])
 app.include_router(adaptations.router,  prefix="/api/adaptations",  tags=["adaptations"])
