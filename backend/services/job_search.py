@@ -196,6 +196,39 @@ async def generate_search_queries(
     }
     english_hint = _ENGLISH_LEVEL_QUERY_HINTS.get(english_level.lower(), "")
 
+    # ── Domain contamination guard ────────────────────────────────────────────
+    # Detect if the candidate's profile is technology/IT-focused.
+    # If so, any coordinator/specialist/manager queries MUST carry an IT/tech
+    # qualifier to prevent construction, civil, trades, and facilities results
+    # from flooding the results on generalist job boards like Job Bank.
+    _TECH_SIGNALS = {
+        "qa", "quality assurance", "testing", "software", "developer", "engineer",
+        "product owner", "implementation", "sql", "api", "postman", "technical support",
+        "systems analyst", "business analyst", "application", "configuration",
+        "scrum", "agile", "jira", "confluence", "data", "automation",
+    }
+    profile_lower = profile_text.lower()
+    tech_signal_count = sum(1 for kw in _TECH_SIGNALS if kw in profile_lower)
+    is_tech_profile = tech_signal_count >= 3
+
+    _GENERIC_COORD_WORDS = {"coordinator", "manager", "specialist", "administrator", "officer"}
+    title_lower = (effective_job_title or "").lower()
+    query_is_generic_coord = any(w in title_lower for w in _GENERIC_COORD_WORDS)
+
+    domain_hint = ""
+    if is_tech_profile and query_is_generic_coord:
+        domain_hint = (
+            "\n- CRITICAL: El candidato tiene perfil de TI/tecnología (QA, software, sistemas, APIs). "
+            "Para TODOS los roles de coordinación, especialista, manager o analista en las queries, "
+            "AÑADIR calificador tecnológico: 'IT', 'Software', 'Technology', 'Systems', 'Technical' o similar. "
+            "EJEMPLO: 'Project Coordinator' → 'Project Coordinator IT' o 'Technical Project Coordinator'. "
+            "PROHIBIDO generar queries genéricas sin calificador que puedan atraer resultados de: "
+            "construcción, obras civiles, sitios de obra, instalaciones físicas, MEP, safety, "
+            "minería, bienes raíces, facilities, o trades. "
+            "Priorizar queries de los roles técnicos del perfil: QA, Systems Analyst, "
+            "Implementation Specialist, Business Analyst, Technical Support, Product Owner."
+        )
+
     prompt = f"""Eres un experto en búsqueda de empleo en Canadá.
 
 ## Perfil del candidato (extracto)
@@ -208,18 +241,20 @@ async def generate_search_queries(
 - Industrias: {', '.join(params.get('industries', [])) or 'cualquiera'}
 - Nivel: {', '.join(params.get('experience_level', [])) or 'cualquiera'}
 - Keywords adicionales: {', '.join(params.get('include_keywords', [])) or 'ninguno'}
-- Excluir: {', '.join(params.get('exclude_keywords', [])) or 'ninguno'}{language_hint}{english_hint}
+- Excluir: {', '.join(params.get('exclude_keywords', [])) or 'ninguno'}{language_hint}{english_hint}{domain_hint}
 
 ## Tu tarea
 Genera 2–4 variaciones de búsqueda de keywords para LinkedIn Jobs y Job Bank Canada.
 Las queries deben ser SOLO palabras clave del puesto/skills (sin ciudad ni país).
 
 Ejemplos correctos:
-  "QA Engineer Automation"
-  "bilingual Spanish English customer support Canada"
-  "Software Developer Python React"
+  "QA Analyst automation testing"
+  "Implementation Specialist software"
+  "Technical Project Coordinator IT systems"
 
-Ejemplos INCORRECTOS: "QA Engineer Vancouver Canada" (no incluir ubicación)
+Ejemplos INCORRECTOS:
+  "Project Coordinator" (demasiado genérico, atrae construcción)
+  "QA Engineer Vancouver Canada" (no incluir ubicación)
 
 Responde ÚNICAMENTE con JSON válido:
 {{"queries": ["keyword query 1", "keyword query 2"]}}"""
@@ -1012,6 +1047,15 @@ CRITICAL CALIBRATION — these factors independently cap the score:
 - Being bilingual IS a plus, but it CANNOT compensate for missing industry experience, seniority, or years.
   If a bilingual job has all the above caps apply, do NOT raise the score above the cap just for bilingual match.
 
+PHYSICAL/TRADES DOMAIN CAP — applies when job is in a physical/on-site domain:
+- Job title/description shows: construction, civil engineering, MEP, site coordinator, field safety,
+  property/facilities management, mining, trades, superintendent, site supervisor, building operations
+  AND candidate profile shows: IT, software, QA, telecom, product owner, systems, technical support
+  → MANDATORY blocker: "Domain gap: construction/trades expertise required"
+  → Cap score at 40 max. Cross-industry "coordination experience" does NOT count for physical domains.
+- "10+ years operations coordination" from a tech/telecom background is NOT equivalent to
+  10+ years construction coordination. Do NOT list it as why_relevant for these roles.
+
 immigration: "yes"=explicit sponsorship/LMIA/permit, "mentioned"=vague, "no"=none.{ccfta_note}{bilingual_note}{english_note}
 
 confidence field: assess how much job-requirement info you actually had.
@@ -1187,6 +1231,13 @@ CAPS (these override the base score):
 - Job requires 10+ years in a specific domain AND candidate lacks that domain → cap 50
 - Core domain expertise required (banking, healthcare, legal) AND candidate lacks it → cap 55
 - Bilingual match is a PLUS (max +10 pts) but CANNOT override seniority or domain caps
+
+PHYSICAL/TRADES DOMAIN CAP:
+- Job is in construction, civil, MEP, site supervision, field safety, facilities, mining, property management
+  AND candidate is from IT/software/telecom/QA/product management background
+  → MANDATORY blocker "Domain gap: construction/trades expertise required" → cap score at 40 max.
+- Generic coordination experience from tech/telecom background does NOT transfer to physical/trades domains.
+  Do NOT list "10+ years operations coordination" as why_relevant for construction roles.
 
 confidence: how much requirement detail was in the job text.
   "high"=seen years/seniority/mandatory skills, "medium"=partial, "low"=only title/company visible
