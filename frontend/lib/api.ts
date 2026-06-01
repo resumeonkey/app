@@ -14,6 +14,7 @@ export interface MasterSummary {
   created_at: string;
   notes: string | null;
   sections_detected: string[];
+  english_level: "any" | "basic" | "conversational" | "professional" | "fluent";
 }
 
 export interface MasterDetail extends MasterSummary {
@@ -72,6 +73,11 @@ export const activateMaster = (id: string) =>
   api.patch<MasterSummary>(`/api/master/${id}/activate`).then((r) => r.data);
 
 export const deleteMaster = (id: string) => api.delete(`/api/master/${id}`);
+
+export const updateMasterPreferences = (
+  id: string,
+  prefs: { english_level?: MasterSummary["english_level"] }
+) => api.patch<MasterSummary>(`/api/master/${id}/preferences`, prefs).then((r) => r.data);
 
 // ── Adaptations ────────────────────────────────────────────────────────────────
 

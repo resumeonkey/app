@@ -1,5 +1,6 @@
 "use client";
-import { type MasterDetail } from "@/lib/api";
+import { useState } from "react";
+import { type MasterDetail, type MasterSummary, updateMasterPreferences } from "@/lib/api";
 
 const SECTION_LABELS: Record<string, string> = {
   summary: "Summary/Profile",
@@ -11,13 +12,40 @@ const SECTION_LABELS: Record<string, string> = {
   languages: "Languages",
 };
 
+const ENGLISH_LEVELS: { val: MasterSummary["english_level"]; label: string; desc: string }[] = [
+  { val: "any",            label: "Sin definir",         desc: "No aplica filtro de inglés" },
+  { val: "basic",          label: "Básico · A2–B1",      desc: "Lee y escribe oraciones simples" },
+  { val: "conversational", label: "Conversacional · B1–B2", desc: "Puede comunicarse con esfuerzo" },
+  { val: "professional",   label: "Profesional · B2–C1", desc: "Inglés de negocios completo" },
+  { val: "fluent",         label: "Fluido · C1–C2",      desc: "Nivel nativo o casi nativo" },
+];
+
 interface Props {
   master: MasterDetail;
   onReplace: () => void;
+  onMasterUpdated?: (m: MasterSummary) => void;
 }
 
-export function MasterStatus({ master, onReplace }: Props) {
+export function MasterStatus({ master, onReplace, onMasterUpdated }: Props) {
   const sections = Object.keys(master.sections || {});
+  const [englishLevel, setEnglishLevel] = useState<MasterSummary["english_level"]>(
+    master.english_level ?? "any"
+  );
+  const [saving, setSaving] = useState(false);
+
+  const handleEnglishLevelChange = async (val: MasterSummary["english_level"]) => {
+    setEnglishLevel(val);
+    setSaving(true);
+    try {
+      const updated = await updateMasterPreferences(master.id, { english_level: val });
+      onMasterUpdated?.(updated);
+    } catch {
+      // revert on failure
+      setEnglishLevel(englishLevel);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="card p-5 border-l-4 border-l-green-500">
@@ -61,6 +89,38 @@ export function MasterStatus({ master, onReplace }: Props) {
           </p>
         </div>
       )}
+
+      {/* ── English level — candidate profile preference ────────────────────── */}
+      <div className="mt-5 border-t border-gray-100 pt-4">
+        <div className="flex items-center gap-2 mb-2">
+          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">
+            🗣️ Mi nivel de inglés
+          </p>
+          {saving && <span className="text-[10px] text-indigo-400">Guardando…</span>}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {ENGLISH_LEVELS.map(({ val, label, desc }) => (
+            <button
+              key={val}
+              title={desc}
+              onClick={() => handleEnglishLevelChange(val)}
+              disabled={saving}
+              className={`px-3 py-1 rounded-full text-xs border transition-all ${
+                englishLevel === val
+                  ? "bg-indigo-100 border-indigo-400 text-indigo-700 font-medium"
+                  : "border-gray-200 text-gray-500 hover:border-indigo-300"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {englishLevel !== "any" && (
+          <p className="text-[11px] text-gray-400 mt-1.5">
+            Las búsquedas usarán este nivel por defecto — puedes cambiarlo en cada búsqueda individual.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

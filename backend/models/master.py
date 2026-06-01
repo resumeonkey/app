@@ -30,3 +30,7 @@ class MasterResume(Base):
     # State
     is_active         = Column(Boolean, default=True)    # only one active at a time
     notes             = Column(Text, nullable=True)      # optional user notes about this master
+
+    # Candidate profile preferences (persist across searches)
+    english_level     = Column(String, default="any", nullable=True)
+    # "any" | "basic" | "conversational" | "professional" | "fluent"

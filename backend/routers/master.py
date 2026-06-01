@@ -38,6 +38,7 @@ class MasterSummary(BaseModel):
     created_at: datetime
     notes: Optional[str]
     sections_detected: list[str]
+    english_level: Optional[str]
 
     class Config:
         from_attributes = True
@@ -46,6 +47,10 @@ class MasterSummary(BaseModel):
 class MasterDetail(MasterSummary):
     full_text: Optional[str]
     sections: Optional[dict]
+
+
+class MasterPreferencesUpdate(BaseModel):
+    english_level: Optional[str] = None   # "any"|"basic"|"conversational"|"professional"|"fluent"
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -132,6 +137,26 @@ async def upload_master(
     return _to_detail(master)
 
 
+@router.patch("/{master_id}/preferences", response_model=MasterSummary)
+def update_preferences(
+    master_id: str,
+    body: MasterPreferencesUpdate,
+    db: Session = Depends(get_db),
+):
+    """Update candidate profile preferences (english_level, etc.)."""
+    master = db.query(MasterResume).filter(MasterResume.id == master_id).first()
+    if not master:
+        raise HTTPException(404, "Master not found")
+    if body.english_level is not None:
+        valid = {"any", "basic", "conversational", "professional", "fluent"}
+        if body.english_level not in valid:
+            raise HTTPException(400, f"english_level must be one of: {', '.join(sorted(valid))}")
+        master.english_level = body.english_level
+    db.commit()
+    db.refresh(master)
+    return _to_summary(master)
+
+
 @router.patch("/{master_id}/activate", response_model=MasterSummary)
 def activate_master(master_id: str, db: Session = Depends(get_db)):
     master = db.query(MasterResume).filter(MasterResume.id == master_id).first()
@@ -163,6 +188,7 @@ def _to_summary(m: MasterResume) -> dict:
         "candidate_name": m.candidate_name, "is_active": m.is_active,
         "created_at": m.created_at, "notes": m.notes,
         "sections_detected": list((m.sections or {}).keys()),
+        "english_level": m.english_level or "any",
     }
 
 def _to_detail(m: MasterResume) -> dict:

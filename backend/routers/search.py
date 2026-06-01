@@ -207,6 +207,13 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
 
     master_sections = master.sections or {}
 
+    # ── Resolve english_level: param > master profile > "any" ─────────────────
+    # If the user didn't set a level in this search (still "any"), fall back to
+    # whatever is saved on their master resume profile.
+    resolved_english_level = params.english_level
+    if resolved_english_level == "any" and master.english_level and master.english_level != "any":
+        resolved_english_level = master.english_level
+
     # ── Step 1: Queries ───────────────────────────────────────────────────────
     # Auto-detect language keywords typed in the job_title field.
     # e.g. user typed "Spanish" → they want jobs requiring Spanish, not jobs
@@ -233,7 +240,7 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             provider=params.llm_provider,
             model=params.llm_model,
             bilingual_spanish=effective_bilingual,
-            english_level=params.english_level,
+            english_level=resolved_english_level,
         )
 
     if not queries:
@@ -310,7 +317,7 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
         model=params.llm_model,
         ccfta_check=params.ccfta_check,
         bilingual_spanish=effective_bilingual,
-        english_level=params.english_level,
+        english_level=resolved_english_level,
     )
 
     # ── Step 4: Merge + sort ─────────────────────────────────────────────────

@@ -35,9 +35,10 @@ def _migrate_add_columns():
     Safe to run on every startup (checks information_schema first).
     """
     migrations = [
-        # table,        column,       definition
-        ("adaptations", "job_url",    "TEXT"),
-        ("adaptations", "applied_at", "TIMESTAMP WITH TIME ZONE"),
+        # table,              column,          definition
+        ("adaptations",       "job_url",        "TEXT"),
+        ("adaptations",       "applied_at",     "TIMESTAMP WITH TIME ZONE"),
+        ("master_resumes",    "english_level",  "TEXT DEFAULT 'any'"),
     ]
     with engine.connect() as conn:
         for table, col, defn in migrations:

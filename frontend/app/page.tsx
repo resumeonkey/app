@@ -158,7 +158,11 @@ export default function HomePage() {
               )}
             </div>
           ) : (
-            <MasterStatus master={master} onReplace={() => setView("upload_master")} />
+            <MasterStatus
+              master={master}
+              onReplace={() => setView("upload_master")}
+              onMasterUpdated={(updated) => setMaster((prev) => prev ? { ...prev, ...updated } : prev)}
+            />
           )}
         </>
       )}
