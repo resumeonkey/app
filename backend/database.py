@@ -38,8 +38,13 @@ def _migrate_add_columns():
         # table,              column,          definition
         ("adaptations",       "job_url",        "TEXT"),
         ("adaptations",       "applied_at",     "TIMESTAMP WITH TIME ZONE"),
-        ("master_resumes",    "english_level",  "TEXT DEFAULT 'any'"),
-        ("master_resumes",    "profile_tags",   "TEXT"),
+        ("master_resumes",    "english_level",      "TEXT DEFAULT 'any'"),
+        ("master_resumes",    "profile_tags",       "TEXT"),
+        ("master_resumes",    "profile_name",       "TEXT"),
+        ("master_resumes",    "target_roles",       "TEXT"),
+        ("master_resumes",    "excluded_roles",     "TEXT"),
+        ("master_resumes",    "industry_experience","TEXT"),
+        ("master_resumes",    "target_industries",  "TEXT"),
     ]
     with engine.connect() as conn:
         for table, col, defn in migrations:

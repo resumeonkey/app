@@ -123,6 +123,9 @@ async def generate_search_queries(
     bilingual_spanish: bool = False,
     english_level: str = "any",
     profile_tags: str = "",
+    target_roles: str = "",
+    excluded_roles: str = "",
+    target_industries: str = "",
 ) -> list[str]:
     """
     Use LLM to generate 2–4 keyword search queries from the candidate profile
@@ -197,37 +200,36 @@ async def generate_search_queries(
     }
     english_hint = _ENGLISH_LEVEL_QUERY_HINTS.get(english_level.lower(), "")
 
-    # ── Domain contamination guard ────────────────────────────────────────────
-    # Detect if the candidate's profile is technology/IT-focused.
-    # If so, any coordinator/specialist/manager queries MUST carry an IT/tech
-    # qualifier to prevent construction, civil, trades, and facilities results
-    # from flooding the results on generalist job boards like Job Bank.
-    _TECH_SIGNALS = {
-        "qa", "quality assurance", "testing", "software", "developer", "engineer",
-        "product owner", "implementation", "sql", "api", "postman", "technical support",
-        "systems analyst", "business analyst", "application", "configuration",
-        "scrum", "agile", "jira", "confluence", "data", "automation",
-    }
-    profile_lower = profile_text.lower()
-    tech_signal_count = sum(1 for kw in _TECH_SIGNALS if kw in profile_lower)
-    is_tech_profile = tech_signal_count >= 3
+    # ── Generic profile-driven hints (work for ANY career track) ──────────────
+    # These come from the user's own search profile, not hardcoded assumptions.
+    target_roles_list   = [r.strip() for r in (target_roles or "").split(",") if r.strip()]
+    excluded_roles_list = [r.strip() for r in (excluded_roles or "").split(",") if r.strip()]
+    target_inds_list    = [i.strip() for i in (target_industries or "").split(",") if i.strip()]
 
-    _GENERIC_COORD_WORDS = {"coordinator", "manager", "specialist", "administrator", "officer"}
-    title_lower = (effective_job_title or "").lower()
-    query_is_generic_coord = any(w in title_lower for w in _GENERIC_COORD_WORDS)
+    target_roles_hint = ""
+    if target_roles_list:
+        target_roles_hint = (
+            "\n- ROLES OBJETIVO (prioridad alta): el candidato quiere específicamente estos puestos: "
+            f"{', '.join(target_roles_list[:12])}. "
+            "Genera queries basadas PRINCIPALMENTE en estos títulos y sus variantes cercanas. "
+            "NO te desvíes hacia roles genéricos que no estén en esta lista."
+        )
 
-    domain_hint = ""
-    if is_tech_profile and query_is_generic_coord:
-        domain_hint = (
-            "\n- CRITICAL: El candidato tiene perfil de TI/tecnología (QA, software, sistemas, APIs). "
-            "Para TODOS los roles de coordinación, especialista, manager o analista en las queries, "
-            "AÑADIR calificador tecnológico: 'IT', 'Software', 'Technology', 'Systems', 'Technical' o similar. "
-            "EJEMPLO: 'Project Coordinator' → 'Project Coordinator IT' o 'Technical Project Coordinator'. "
-            "PROHIBIDO generar queries genéricas sin calificador que puedan atraer resultados de: "
-            "construcción, obras civiles, sitios de obra, instalaciones físicas, MEP, safety, "
-            "minería, bienes raíces, facilities, o trades. "
-            "Priorizar queries de los roles técnicos del perfil: QA, Systems Analyst, "
-            "Implementation Specialist, Business Analyst, Technical Support, Product Owner."
+    excluded_hint = ""
+    if excluded_roles_list:
+        excluded_hint = (
+            "\n- ROLES/TÉRMINOS EXCLUIDOS (prohibido): NUNCA generes queries que puedan atraer estos: "
+            f"{', '.join(excluded_roles_list[:20])}. "
+            "Si un rol objetivo comparte palabra con un término excluido (ej: 'Project Coordinator' vs "
+            "'Construction Project Coordinator'), añade un calificador que evite el dominio excluido."
+        )
+
+    target_inds_hint = ""
+    if target_inds_list:
+        target_inds_hint = (
+            "\n- INDUSTRIAS OBJETIVO: el candidato prefiere estas industrias: "
+            f"{', '.join(target_inds_list[:10])}. "
+            "Cuando sea natural, incluye una palabra de industria en alguna query."
         )
 
     prompt = f"""Eres un experto en búsqueda de empleo en Canadá.
@@ -236,25 +238,26 @@ async def generate_search_queries(
 {profile_text}
 
 ## Puesto que busca el usuario
-{effective_job_title or '(no especificado — infiere del perfil del candidato)'}
+{effective_job_title or '(no especificado — usa los ROLES OBJETIVO o infiere del perfil)'}
 
 ## Parámetros adicionales
 - Industrias: {', '.join(params.get('industries', [])) or 'cualquiera'}
 - Nivel: {', '.join(params.get('experience_level', [])) or 'cualquiera'}
 - Keywords adicionales: {', '.join(params.get('include_keywords', [])) or 'ninguno'}
-- Excluir: {', '.join(params.get('exclude_keywords', [])) or 'ninguno'}{language_hint}{english_hint}{domain_hint}
+- Excluir: {', '.join(params.get('exclude_keywords', [])) or 'ninguno'}{target_roles_hint}{excluded_hint}{target_inds_hint}{language_hint}{english_hint}
 
 ## Tu tarea
 Genera 2–4 variaciones de búsqueda de keywords para LinkedIn Jobs y Job Bank Canada.
 Las queries deben ser SOLO palabras clave del puesto/skills (sin ciudad ni país).
+Si hay ROLES OBJETIVO definidos, basa las queries en ellos.
 
-Ejemplos correctos:
+Ejemplos de formato correcto:
   "QA Analyst automation testing"
   "Implementation Specialist software"
-  "Technical Project Coordinator IT systems"
+  "Hotel Operations Manager hospitality"
 
 Ejemplos INCORRECTOS:
-  "Project Coordinator" (demasiado genérico, atrae construcción)
+  "Coordinator" (demasiado genérico)
   "QA Engineer Vancouver Canada" (no incluir ubicación)
 
 Responde ÚNICAMENTE con JSON válido:
@@ -949,6 +952,58 @@ def _clean_extracted_text(text: str) -> str:
     return text.strip()[:_MAX_JOB_CHARS]
 
 
+# ── Excluded-role hard filter ───────────────────────────────────────────────
+
+def filter_excluded_roles(
+    jobs: list[dict],
+    excluded_roles: str,
+) -> tuple[list[dict], list[dict]]:
+    """
+    Split jobs into (kept, excluded) based on the user's excluded_roles list.
+
+    A job is excluded when its TITLE contains an excluded term as a whole
+    word/phrase (case-insensitive). This is a cheap deterministic pre-filter
+    that runs BEFORE the LLM scoring call — far more reliable than asking the
+    model to ignore unwanted roles.
+
+    Matching rules:
+    - Multi-word excluded terms (e.g. "Construction Project Coordinator") match
+      as a substring of the title.
+    - Single-word terms (e.g. "Electrician", "MEP") match as a whole word only,
+      so "MEP" does not match "comprehensive" and "civil" does not match "civility".
+    """
+    terms = [t.strip().lower() for t in (excluded_roles or "").split(",") if t.strip()]
+    if not terms:
+        return jobs, []
+
+    kept: list[dict] = []
+    excluded: list[dict] = []
+
+    for job in jobs:
+        title = (job.get("title", "") or "").lower()
+        hit = None
+        for term in terms:
+            if not term:
+                continue
+            if " " in term:
+                # multi-word: substring match
+                if term in title:
+                    hit = term
+                    break
+            else:
+                # single word: whole-word match
+                if re.search(rf'\b{re.escape(term)}\b', title):
+                    hit = term
+                    break
+        if hit:
+            job = {**job, "_excluded_by": hit}
+            excluded.append(job)
+        else:
+            kept.append(job)
+
+    return kept, excluded
+
+
 # ── LLM scoring ───────────────────────────────────────────────────────────────
 
 def _fallback_score(raw: dict | None = None) -> dict:
@@ -984,6 +1039,8 @@ async def batch_score_jobs(
     bilingual_spanish: bool = False,
     english_level: str = "any",
     profile_tags: str = "",
+    industry_experience: str = "",
+    target_industries: str = "",
 ) -> list[dict]:
     """
     Score ALL jobs in a SINGLE LLM call — ~88% fewer tokens than per-job scoring.
@@ -1043,10 +1100,32 @@ async def batch_score_jobs(
     }
     english_note = _ENGLISH_SCORE_NOTES.get(english_level.lower(), "")
 
+    # Industry context from the user's search profile (generic — any career track)
+    industry_note = ""
+    exp_list = [i.strip() for i in (industry_experience or "").split(",") if i.strip()]
+    tgt_list = [i.strip() for i in (target_industries or "").split(",") if i.strip()]
+    if exp_list or tgt_list:
+        parts = []
+        if exp_list:
+            parts.append(
+                "Candidate HAS real experience in these industries: "
+                + ", ".join(exp_list[:10])
+                + ". A job in one of these industries should NOT trigger an industry/domain gap blocker."
+            )
+        if tgt_list:
+            parts.append(
+                "Candidate is TARGETING these industries: " + ", ".join(tgt_list[:10]) + "."
+            )
+        parts.append(
+            "If a job is in an industry the candidate has NO experience in AND that industry "
+            "requires specialized domain knowledge, add an 'Industry gap' blocker and cap score at 60."
+        )
+        industry_note = "\n\nINDUSTRY CONTEXT:\n" + " ".join(parts)
+
     prompt = f"""Score candidate-job compatibility for each job below. Return a JSON object.
 
 Candidate profile:
-{profile}
+{profile}{industry_note}
 
 Jobs (index. Title @ Company — Location | snippet):
 {jobs_text}
@@ -1169,6 +1248,8 @@ Return ONLY this JSON (one entry per job, same index order):
                 bilingual_spanish=bilingual_spanish,
                 english_level=english_level,
                 profile_tags=profile_tags,
+                industry_experience=industry_experience,
+                target_industries=target_industries,
             )
             for r in raw_jobs
         ]
@@ -1184,6 +1265,8 @@ async def score_job(
     bilingual_spanish: bool = False,
     english_level: str = "any",
     profile_tags: str = "",
+    industry_experience: str = "",
+    target_industries: str = "",
 ) -> dict:
     """
     Score a SINGLE job–candidate pair using LLM.
@@ -1230,6 +1313,21 @@ async def score_job(
     }
     english_block = _ENGLISH_SINGLE_NOTES.get(english_level.lower(), "")
 
+    # Industry context from search profile
+    industry_block = ""
+    _exp = [i.strip() for i in (industry_experience or "").split(",") if i.strip()]
+    _tgt = [i.strip() for i in (target_industries or "").split(",") if i.strip()]
+    if _exp or _tgt:
+        _b = []
+        if _exp:
+            _b.append(
+                "Candidate HAS experience in: " + ", ".join(_exp[:10])
+                + " (do NOT flag industry gap for these)."
+            )
+        if _tgt:
+            _b.append("Candidate targets: " + ", ".join(_tgt[:10]) + ".")
+        industry_block = "\nINDUSTRY CONTEXT: " + " ".join(_b)
+
     prompt = f"""Score candidate-job compatibility. Return only JSON.
 
 Candidate:
@@ -1237,7 +1335,7 @@ Candidate:
 
 Job:
 {job_excerpt}
-{ccfta_block}{bilingual_block}{english_block}
+{ccfta_block}{bilingual_block}{english_block}{industry_block}
 
 SCORING RULES:
 - 90-100 = candidate meets nearly ALL hard requirements (years, industry, seniority, core skills)

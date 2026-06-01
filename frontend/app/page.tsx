@@ -2,10 +2,12 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   getActiveMaster,
+  listMasters,
   listAdaptations,
   runJobSearch,
   suggestSearchParams,
   type MasterDetail,
+  type MasterSummary,
   type Adaptation,
   type SearchParams,
   type SearchResponse,
@@ -27,6 +29,7 @@ type AdaptedJobsMap = Record<string, Adaptation>;
 
 export default function HomePage() {
   const [master, setMaster]         = useState<MasterDetail | null>(null);
+  const [masters, setMasters]       = useState<MasterSummary[]>([]);
   const [loading, setLoading]       = useState(true);
   const [view, setView]             = useState<AppView>("adapt");
   const [adaptationId, setAdaptId]  = useState<string | null>(null);
@@ -63,8 +66,10 @@ export default function HomePage() {
     Promise.all([
       getActiveMaster().catch(() => null),
       listAdaptations().catch((): Adaptation[] => []),
-    ]).then(([m, adaptations]) => {
+      listMasters().catch((): MasterSummary[] => []),
+    ]).then(([m, adaptations, allMasters]) => {
       setMaster(m);
+      setMasters(allMasters);
 
       // Seed history from DB (only entries that carry a job_url)
       if (adaptations.length > 0) {
@@ -226,7 +231,17 @@ export default function HomePage() {
                 onRetry={recsLoaded ? loadRecommendations : undefined}
               />
 
-              <SearchPanel onSearch={handleSearch} loading={searchLoading} />
+              <SearchPanel
+                onSearch={handleSearch}
+                loading={searchLoading}
+                masters={masters.map((m) => ({
+                  id: m.id,
+                  profile_name: m.profile_name,
+                  original_filename: m.original_filename,
+                  is_active: m.is_active,
+                }))}
+                activeMasterId={master?.id ?? null}
+              />
 
               {searchError && (
                 <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">

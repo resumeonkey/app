@@ -23,6 +23,7 @@ const LLM_OPTIONS = [
 ];
 
 const DEFAULT_PARAMS: SearchParams = {
+  master_id: null,
   job_title: "",
   custom_query: "",
   country: "Canada",
@@ -50,13 +51,25 @@ const DEFAULT_PARAMS: SearchParams = {
   english_level: "any",
 };
 
+interface MasterOption {
+  id: string;
+  profile_name: string;
+  original_filename: string;
+  is_active: boolean;
+}
+
 interface Props {
   onSearch: (params: SearchParams) => void;
   loading: boolean;
+  masters?: MasterOption[];          // available profiles to search with
+  activeMasterId?: string | null;    // currently active master id
 }
 
-export function SearchPanel({ onSearch, loading }: Props) {
-  const [params, setParams] = useState<SearchParams>(DEFAULT_PARAMS);
+export function SearchPanel({ onSearch, loading, masters = [], activeMasterId = null }: Props) {
+  const [params, setParams] = useState<SearchParams>({
+    ...DEFAULT_PARAMS,
+    master_id: activeMasterId,
+  });
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [kwInput, setKwInput] = useState("");
   const [exKwInput, setExKwInput] = useState("");
@@ -172,6 +185,36 @@ export function SearchPanel({ onSearch, loading }: Props) {
 
   return (
     <div className="space-y-5">
+      {/* ── Profile selector (only when 2+ profiles exist) ─────────────────── */}
+      {masters.length > 1 && (
+        <div>
+          <label className="label">Buscar con el perfil</label>
+          <div className="flex flex-wrap gap-2">
+            {masters.map((m) => {
+              const selected = (params.master_id ?? activeMasterId) === m.id;
+              const name = m.profile_name || m.original_filename;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => set("master_id", m.id)}
+                  className={`px-3 py-1.5 rounded-lg border text-xs transition-all ${
+                    selected
+                      ? "border-indigo-500 bg-indigo-50 text-indigo-700 font-medium"
+                      : "border-gray-200 text-gray-500 hover:border-indigo-300"
+                  }`}
+                  title={m.original_filename}
+                >
+                  {name}{m.is_active && <span className="ml-1 text-[9px] opacity-60">(activo)</span>}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[11px] text-gray-400 mt-1">
+            Cada perfil usa sus propios roles objetivo, exclusiones e industrias.
+          </p>
+        </div>
+      )}
+
       {/* ── Job title ─────────────────────────────────────────────────────── */}
       <div>
         <label className="label">Puesto que buscas</label>

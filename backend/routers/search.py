@@ -36,6 +36,7 @@ from backend.services.job_search import (
     _parse_eluta_results,
     _CCFTA_ELIGIBLE_TITLES,
     _is_language_keyword,
+    filter_excluded_roles,
 )
 
 log = logging.getLogger(__name__)
@@ -47,6 +48,9 @@ router = APIRouter()
 # ── Pydantic models ───────────────────────────────────────────────────────────
 
 class SearchParams(BaseModel):
+    # Which profile (master resume) to search with — if None, uses the active one
+    master_id: Optional[str] = None
+
     # What to search for
     job_title: str = ""
     custom_query: str = ""        # if set, bypass LLM query generation
@@ -201,7 +205,14 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
       3. Score each result against the active master resume (parallel)
       4. Sort by compatibility score and return
     """
-    master = db.query(MasterResume).filter(MasterResume.is_active == True).first()
+    # ── Select profile (master) for this search ───────────────────────────────
+    # Per-search profile selection: the user can search with any master without
+    # changing the globally "active" one. Falls back to active master if no id.
+    master = None
+    if params.master_id:
+        master = db.query(MasterResume).filter(MasterResume.id == params.master_id).first()
+    if not master:
+        master = db.query(MasterResume).filter(MasterResume.is_active == True).first()
     if not master:
         raise HTTPException(status_code=400, detail="No hay un resume maestro activo.")
 
@@ -212,10 +223,12 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
     if resolved_english_level == "any" and master.english_level and master.english_level != "any":
         resolved_english_level = master.english_level
 
-    # ── Resolve profile_tags from master profile ──────────────────────────────
-    # Candidate's explicit expertise tags (e.g. "QA, SQL, Product Owner, Telecom")
-    # override the LLM's inference of the candidate profile from the resume text.
-    resolved_profile_tags = (master.profile_tags or "").strip()
+    # ── Resolve search-profile fields from the selected master ────────────────
+    resolved_profile_tags       = (master.profile_tags or "").strip()
+    resolved_target_roles       = (master.target_roles or "").strip()
+    resolved_excluded_roles     = (master.excluded_roles or "").strip()
+    resolved_industry_experience = (master.industry_experience or "").strip()
+    resolved_target_industries  = (master.target_industries or "").strip()
 
     # ── Step 1: Queries ───────────────────────────────────────────────────────
     # Auto-detect language keywords typed in the job_title field.
@@ -245,6 +258,9 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             bilingual_spanish=effective_bilingual,
             english_level=resolved_english_level,
             profile_tags=resolved_profile_tags,
+            target_roles=resolved_target_roles,
+            excluded_roles=resolved_excluded_roles,
+            target_industries=resolved_target_industries,
         )
 
     if not queries:
@@ -308,10 +324,21 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
                 seen_urls.add(url)
                 raw_results.append(r)
 
+    # ── Hard filter: drop jobs whose title matches an excluded role ───────────
+    # This runs BEFORE scoring — deterministic and cheap. Excluded jobs never
+    # reach the LLM and never appear in results.
+    excluded_jobs: list[dict] = []
+    if resolved_excluded_roles:
+        raw_results, excluded_jobs = filter_excluded_roles(raw_results, resolved_excluded_roles)
+
     raw_results = raw_results[: params.num_results]
 
     if not raw_results:
-        return {"results": [], "queries_used": queries}
+        return {
+            "results": [],
+            "queries_used": queries,
+            "excluded_count": len(excluded_jobs),
+        }
 
     # ── Step 3: Batch score — ALL jobs in ONE LLM call (~88% token savings) ─────
     scores = await batch_score_jobs(
@@ -323,6 +350,8 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
         bilingual_spanish=effective_bilingual,
         english_level=resolved_english_level,
         profile_tags=resolved_profile_tags,
+        industry_experience=resolved_industry_experience,
+        target_industries=resolved_target_industries,
     )
 
     # ── Step 4: Merge + sort ─────────────────────────────────────────────────
@@ -374,7 +403,9 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
     return {
         "results":      final,
         "queries_used": queries,
-        "english_level_used": params.english_level,
+        "english_level_used": resolved_english_level,
+        "excluded_count": len(excluded_jobs),
+        "profile_used": master.profile_name or master.original_filename,
     }
 
 

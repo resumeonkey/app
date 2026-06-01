@@ -38,7 +38,13 @@ class MasterSummary(BaseModel):
     created_at: datetime
     notes: Optional[str]
     sections_detected: list[str]
+    profile_name: Optional[str]
     english_level: Optional[str]
+    profile_tags: Optional[str]
+    target_roles: Optional[str]
+    excluded_roles: Optional[str]
+    industry_experience: Optional[str]
+    target_industries: Optional[str]
 
     class Config:
         from_attributes = True
@@ -50,8 +56,13 @@ class MasterDetail(MasterSummary):
 
 
 class MasterPreferencesUpdate(BaseModel):
-    english_level: Optional[str] = None   # "any"|"basic"|"conversational"|"professional"|"fluent"
-    profile_tags:  Optional[str] = None   # comma-separated expertise tags, e.g. "QA, SQL, Product Owner"
+    profile_name:         Optional[str] = None  # display name, e.g. "Tech / Implementation"
+    english_level:        Optional[str] = None  # "any"|"basic"|"conversational"|"professional"|"fluent"
+    profile_tags:         Optional[str] = None  # comma-separated technical keywords
+    target_roles:         Optional[str] = None  # comma-separated target job titles
+    excluded_roles:       Optional[str] = None  # comma-separated exclusion terms
+    industry_experience:  Optional[str] = None  # industries where candidate has experience
+    target_industries:    Optional[str] = None  # industries candidate wants to target
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -148,18 +159,32 @@ def update_preferences(
     master = db.query(MasterResume).filter(MasterResume.id == master_id).first()
     if not master:
         raise HTTPException(404, "Master not found")
+    def _normalize_tags(raw: str | None, max_chars: int = 300,
+                        max_items: int = 30, max_item_len: int = 50) -> str | None:
+        """Trim, dedupe-empty, and cap a comma-separated tag string."""
+        if raw is None:
+            return None
+        items = [t.strip()[:max_item_len] for t in raw[:max_chars * 2].split(",") if t.strip()]
+        joined = ", ".join(items[:max_items])
+        return joined[:max_chars] or None
+
+    if body.profile_name is not None:
+        master.profile_name = body.profile_name.strip()[:60] or None
     if body.english_level is not None:
         valid = {"any", "basic", "conversational", "professional", "fluent"}
         if body.english_level not in valid:
             raise HTTPException(400, f"english_level must be one of: {', '.join(sorted(valid))}")
         master.english_level = body.english_level
     if body.profile_tags is not None:
-        # Normalize: trim each tag, remove empties, cap individual tag length,
-        # and enforce a total character limit — this is a keywords field, not free text.
-        raw = body.profile_tags[:500]   # hard server-side cap before splitting
-        tags = [t.strip()[:40] for t in raw.split(",") if t.strip()][:20]  # max 20 tags, 40 chars each
-        joined = ", ".join(tags)
-        master.profile_tags = joined[:250] if joined else None  # final safety cap
+        master.profile_tags = _normalize_tags(body.profile_tags, max_chars=250)
+    if body.target_roles is not None:
+        master.target_roles = _normalize_tags(body.target_roles, max_chars=400)
+    if body.excluded_roles is not None:
+        master.excluded_roles = _normalize_tags(body.excluded_roles, max_chars=400)
+    if body.industry_experience is not None:
+        master.industry_experience = _normalize_tags(body.industry_experience, max_chars=200)
+    if body.target_industries is not None:
+        master.target_industries = _normalize_tags(body.target_industries, max_chars=200)
     db.commit()
     db.refresh(master)
     return _to_summary(master)
@@ -195,9 +220,14 @@ def _to_summary(m: MasterResume) -> dict:
         "id": m.id, "original_filename": m.original_filename,
         "candidate_name": m.candidate_name, "is_active": m.is_active,
         "created_at": m.created_at, "notes": m.notes,
-        "sections_detected": list((m.sections or {}).keys()),
-        "english_level": m.english_level or "any",
-        "profile_tags":  m.profile_tags or "",
+        "sections_detected":  list((m.sections or {}).keys()),
+        "profile_name":       m.profile_name or "",
+        "english_level":      m.english_level or "any",
+        "profile_tags":       m.profile_tags or "",
+        "target_roles":       m.target_roles or "",
+        "excluded_roles":     m.excluded_roles or "",
+        "industry_experience":m.industry_experience or "",
+        "target_industries":  m.target_industries or "",
     }
 
 def _to_detail(m: MasterResume) -> dict:

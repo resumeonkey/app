@@ -31,11 +31,31 @@ class MasterResume(Base):
     is_active         = Column(Boolean, default=True)    # only one active at a time
     notes             = Column(Text, nullable=True)      # optional user notes about this master
 
-    # Candidate profile preferences (persist across searches)
+    # ── Search profile — persists across searches ────────────────────────────
+    # A master resume IS a search profile. Users create one master per career
+    # track (e.g. "Tech / QA", "Hospitality", "Operations") and switch between
+    # them in the search UI. All fields are generic — no assumptions about industry.
+
+    profile_name      = Column(String, nullable=True)   # e.g. "Tech / Implementation"
     english_level     = Column(String, default="any", nullable=True)
     # "any" | "basic" | "conversational" | "professional" | "fluent"
 
-    # Comma-separated expertise tags set by the candidate.
-    # Used as explicit primary-skill signals in query generation and scoring.
-    # Example: "QA, Testing, SQL, Product Owner, Implementation, Telecom, APIs"
+    # Technical / functional keywords (primary expertise signal for LLM)
+    # Example: "QA, Testing, SQL, Product Owner, Implementation, APIs"
     profile_tags      = Column(Text, nullable=True)
+
+    # Job titles the candidate WANTS to find (comma-separated)
+    # Example: "Implementation Specialist, QA Analyst, Business Systems Analyst"
+    target_roles      = Column(Text, nullable=True)
+
+    # Job title terms the candidate does NOT want to see (comma-separated)
+    # Filtered out before scoring. Example: "Construction, Civil, MEP, Superintendent"
+    excluded_roles    = Column(Text, nullable=True)
+
+    # Industries where the candidate already HAS experience (for domain scoring)
+    # Example: "Telecommunications, Banking, Contact Center, Software Testing"
+    industry_experience = Column(Text, nullable=True)
+
+    # Industries the candidate WANTS to work in (used in query generation)
+    # Example: "Technology, SaaS, Fintech, Healthcare Technology"
+    target_industries = Column(Text, nullable=True)

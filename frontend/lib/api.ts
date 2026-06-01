@@ -14,8 +14,13 @@ export interface MasterSummary {
   created_at: string;
   notes: string | null;
   sections_detected: string[];
+  profile_name: string;
   english_level: "any" | "basic" | "conversational" | "professional" | "fluent";
   profile_tags: string;
+  target_roles: string;
+  excluded_roles: string;
+  industry_experience: string;
+  target_industries: string;
 }
 
 export interface MasterDetail extends MasterSummary {
@@ -75,10 +80,18 @@ export const activateMaster = (id: string) =>
 
 export const deleteMaster = (id: string) => api.delete(`/api/master/${id}`);
 
-export const updateMasterPreferences = (
-  id: string,
-  prefs: { english_level?: MasterSummary["english_level"]; profile_tags?: string }
-) => api.patch<MasterSummary>(`/api/master/${id}/preferences`, prefs).then((r) => r.data);
+export interface ProfilePreferences {
+  profile_name?: string;
+  english_level?: MasterSummary["english_level"];
+  profile_tags?: string;
+  target_roles?: string;
+  excluded_roles?: string;
+  industry_experience?: string;
+  target_industries?: string;
+}
+
+export const updateMasterPreferences = (id: string, prefs: ProfilePreferences) =>
+  api.patch<MasterSummary>(`/api/master/${id}/preferences`, prefs).then((r) => r.data);
 
 // ── Adaptations ────────────────────────────────────────────────────────────────
 
@@ -143,6 +156,7 @@ export const getDownloadUrl = (adaptationId: string) =>
 // ── Job Search ─────────────────────────────────────────────────────────────────
 
 export interface SearchParams {
+  master_id?: string | null;   // which profile to search with; null = active
   job_title: string;
   custom_query: string;
   country: string;
@@ -203,6 +217,9 @@ export interface JobResult {
 export interface SearchResponse {
   results: JobResult[];
   queries_used: string[];
+  excluded_count?: number;
+  profile_used?: string;
+  english_level_used?: string;
 }
 
 export interface ExtractResponse {
