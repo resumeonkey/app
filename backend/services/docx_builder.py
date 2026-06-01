@@ -1,34 +1,28 @@
 """
-DOCX adaptation: XML-level text replacement.
+DOCX adaptation: XML-level text replacement (cv_editor pattern).
 
-Approach (inspired by cv_editor.py pattern):
-  1. Build a {normalized_original_line: adapted_line} replacement map from all
-     blocks_changed (we have both block["original"] and block["adapted"]).
-  2. Open the DOCX as a zip, parse word/document.xml with lxml.
-  3. Iterate EVERY <w:p> element in the document — body AND table cells.
-     For each paragraph, normalize its text; if it matches an original line,
-     replace the runs with the adapted text while preserving formatting.
-  4. Remove paragraphs whose original line has no corresponding adapted line
-     (LLM output shorter than original section).
-  5. Repack the zip.
+Core principle (same as cv_editor.py):
+  → Only <w:t>.text is ever changed.
+  → Runs, rPr, pPr, numPr, bold, font, color — 100% untouched.
+  → Format of each paragraph is defined by the original and stays there.
 
-Advantages over para_indices:
-  - No cascade: text matching is independent for each paragraph.
-  - No index tracking: insertions/deletions in one section don't affect others.
-  - Covers table cells: skills table entries can now be updated.
-  - Format-safe: we only touch run text, never section headings or layout.
+Pipeline:
+  1. Build {norm(original_line) → adapted_line} from blocks_changed.
+  2. Open DOCX as zip, parse word/document.xml with lxml.
+  3. For every <w:p> (body + table cells): normalise text; if it matches
+     an original line, call _set_para_text → only <w:t> nodes are mutated.
+  4. Remove paragraphs for lines the LLM dropped (shorter output).
+  5. Repack zip.
 """
 import os
 import re
 import shutil
 import zipfile
-from copy import deepcopy
-from typing import Any
 
 from lxml import etree
 
-# Canonical section keywords — used to detect when the LLM accidentally echoes
-# a section heading as the first line of its adapted output.
+# Canonical section keywords — guard against the LLM echoing a section
+# heading as the first adapted line, which would overwrite the real heading.
 _SECTION_HEADING_WORDS: frozenset[str] = frozenset({
     "summary", "profile", "professional summary", "professional profile",
     "career summary", "career profile", "about me", "objective",
@@ -45,47 +39,39 @@ _SECTION_HEADING_WORDS: frozenset[str] = frozenset({
 })
 
 # Word namespace
-_WNS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+_WNS    = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _XML_NS = "http://www.w3.org/XML/1998/namespace"
 
 def _w(tag: str) -> str:
     return f"{{{_WNS}}}{tag}"
 
-
-# Pattern: "| May 2020 – Apr 2021" — marks a job-title line.
-# Requires a MONTH NAME so "CertiProf | 2025" does NOT match.
-_JOB_TITLE_RE = re.compile(
-    r'\|\s*(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|'
-    r'jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)',
-    re.IGNORECASE,
-)
-
-# Sections whose bullet items are intentionally bold (preserve bold).
-_BOLD_PRESERVE_SECTIONS = frozenset({"certifications"})
+# Unicode space-like characters that can precede "|" in a run.
+# U+0020 SPACE · U+00A0 NBSP · U+2002 EN SPACE · U+2003 EM SPACE · U+2009 THIN SPACE
+_SPACE_LIKE: frozenset[str] = frozenset({" ", "\xa0", " ", " ", " "})
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 def build_adapted_docx(
     master_path: str,
-    master_sections: dict[str, Any],
+    master_sections: dict,
     blocks_changed: list[dict],
     output_path: str,
 ) -> str:
     """
     Creates output_path as an adapted copy of master_path.
-    Uses XML-level text replacement: finds each original paragraph by its
-    text content and replaces it with the adapted version in-place.
+    Only <w:t> text nodes are modified — every other XML attribute,
+    element, and property is left exactly as in the original.
     Returns output_path.
     """
     shutil.copy2(master_path, output_path)
 
-    # ── Build replacement + removal maps ──────────────────────────────────────
-    replacements: dict[str, tuple[str, str]] = {}   # norm_orig → (adapted, section)
-    removals:     set[str]                   = set() # norm_orig → remove paragraph
+    # ── Build replacement map ─────────────────────────────────────────────────
+    # norm(original_line) → adapted_line
+    replacements: dict[str, str] = {}
+    removals:     set[str]       = set()
 
     for block in blocks_changed:
-        section_name = block.get("section", "")
         orig_lines = [l.strip() for l in block.get("original", "").split("\n") if l.strip()]
         adpt_lines = [l.strip() for l in block.get("adapted",  "").split("\n") if l.strip()]
 
@@ -95,20 +81,14 @@ def build_adapted_docx(
                 continue
             if i < len(adpt_lines):
                 adpt = adpt_lines[i].lstrip("•-– ").strip()
-                # Guard: if the LLM echoed back a bare section heading as the
-                # first (or any) adapted line, skip it.  This prevents the
-                # heading paragraph in the document from being written twice.
+                # Skip if the LLM echoed a bare section heading
                 if adpt.lower() in _SECTION_HEADING_WORDS:
                     continue
-                # Skip identity replacements: if the adapted text is the same
-                # as the original (after normalisation), leave the paragraph
-                # untouched so its original multi-run formatting (e.g. partial
-                # bold on cert name vs. non-bold "| Org | Year") is preserved.
+                # Skip identity replacements — leave original XML untouched
                 if _norm(adpt) == key:
                     continue
-                replacements[key] = (adpt, section_name)
+                replacements[key] = adpt
             else:
-                # LLM produced fewer lines — mark original paragraph for removal
                 removals.add(key)
 
     # ── Open DOCX zip, parse XML ──────────────────────────────────────────────
@@ -130,8 +110,7 @@ def build_adapted_docx(
             continue
 
         if para_text in replacements:
-            adpt, sname = replacements[para_text]
-            _set_para_text(p_elem, adpt, section_name=sname)
+            _set_para_text(p_elem, replacements[para_text])
 
         elif para_text in removals:
             paras_to_remove.append(p_elem)
@@ -161,14 +140,14 @@ def build_adapted_docx(
 # ── XML helpers ────────────────────────────────────────────────────────────────
 
 def _norm(text: str) -> str:
-    """Normalize whitespace for matching (collapses soft-break spaces, etc.)."""
+    """Normalize whitespace for matching (collapses NBSP, soft-break spaces, etc.)."""
     return " ".join(text.replace("\n", " ").split()).strip()
 
 
 def _para_text(p_elem) -> str:
     """
-    Concatenate all <w:t> text in a paragraph, replacing <w:br> with space.
-    Then normalize whitespace so soft-break paragraphs match their DB raw_text.
+    Concatenate all <w:t> text in a paragraph, replacing <w:br> with a space.
+    Result is normalized so soft-break paragraphs match their DB raw_text.
     """
     parts: list[str] = []
     for elem in p_elem.iter():
@@ -179,151 +158,79 @@ def _para_text(p_elem) -> str:
     return _norm("".join(parts))
 
 
-def _extract_run_structure(p_elem) -> list[tuple[str, Any]]:
+def _set_para_text(p_elem, new_text: str) -> None:
     """
-    Extract the text and rPr of every direct-child <w:r> in paragraph order.
+    cv_editor pattern: ONLY change <w:t>.text — nothing else.
 
-    Returns [(run_text, rPr_deep_copy_or_None), ...]
+    Runs, rPr (bold/italic/font/size/color), pPr (numPr/indent/spacing),
+    hyperlinks, bookmarks — all left 100% untouched.
 
-    Only direct children are examined — runs nested inside <w:hyperlink> or
-    other wrappers are excluded because their rPr belongs to a different scope.
-    <w:br> within a run is normalised to a space.
+    Distribution strategy
+    ─────────────────────
+    Collect every <w:t> that currently holds text, in document order.
 
-    This is the authoritative per-run format profile used by _set_para_text to
-    reconstruct multi-run paragraphs without collapsing their formatting.
-    """
-    result: list[tuple[str, Any]] = []
-    for child in p_elem:
-        if child.tag != _w("r"):
-            continue
-        # Collect run text: <w:t> content + space for every <w:br>
-        parts: list[str] = []
-        for el in child:
-            if el.tag == _w("t") and el.text:
-                parts.append(el.text)
-            elif el.tag == _w("br"):
-                parts.append(" ")
-        run_text = "".join(parts)
-        rpr_el = child.find(_w("rPr"))
-        result.append((run_text, deepcopy(rpr_el) if rpr_el is not None else None))
-    return result
+    • 1 text node  → write the whole adapted line into it.
+    • 2+ text nodes AND "|" in new text:
+        - Canadian resume pattern: "Bold Name | non-bold metadata"
+        - Split at first "|"; write left segment into node 1, right segment
+          into node 2 (preserving the Unicode spacer character that precedes
+          "|" in the original — typically U+00A0 NO-BREAK SPACE).
+        - Any further nodes are cleared (they were empty or trailing fragments).
+    • 2+ text nodes WITHOUT "|":
+        - Write everything into node 1, clear the rest.
+        - This covers unexpected multi-run bullets where the split point is
+          not a structural separator we can detect.
 
-
-def _apply_bold_strip(rpr: Any, orig_has_numpr: bool, section_name: str) -> None:
-    """
-    Mutate rpr in-place: remove <w:b> and <w:bCs> when the slot is a bullet
-    outside of bold-preserve sections.  No-op for non-bullet or cert slots.
-    """
-    if not orig_has_numpr or section_name in _BOLD_PRESERVE_SECTIONS:
-        return
-    for bold_tag in (_w("b"), _w("bCs")):
-        el = rpr.find(bold_tag)
-        if el is not None:
-            rpr.remove(el)
-
-
-def _append_run(p_elem, text: str, rpr: Any,
-                orig_has_numpr: bool, section_name: str) -> None:
-    """
-    Append a single <w:r> child to p_elem with the given text and formatting.
-
-    The rpr argument is deep-copied so the caller's copy is not mutated.
-    Bold is stripped when the slot is a regular bullet (not cert).
-    Empty text is silently skipped.
-    """
-    if not text:
-        return
-    r = etree.SubElement(p_elem, _w("r"))
-    if rpr is not None:
-        rpr_copy = deepcopy(rpr)
-        _apply_bold_strip(rpr_copy, orig_has_numpr, section_name)
-        r.append(rpr_copy)
-    t = etree.SubElement(r, _w("t"))
-    t.text = text
-    t.set(f"{{{_XML_NS}}}space", "preserve")
-
-
-def _set_para_text(p_elem, new_text: str, section_name: str = "") -> None:
-    """
-    Replace the text of a paragraph in-place, preserving its original
-    run-level formatting as faithfully as possible.
-
-    Strategy
-    ────────
-    1.  Extract the full original run structure via _extract_run_structure
-        BEFORE any XML is modified.
-    2.  Job-title lines (contain "| <month>"): force a single bold run and
-        strip numPr — same as before.
-    3.  Multi-run paragraphs whose text contains "|" (cert entries, title lines
-        that somehow reach here): split the new text at the first "|" and map
-        each segment onto the corresponding original run's rPr.  This preserves
-        the canonical Canadian pattern: bold left-of-pipe, non-bold right-of-pipe.
-    4.  Single-run or fallback: create one run with the first run's rPr
-        (current behaviour, but now via _append_run for consistency).
-
-    Bold-stripping rules (unchanged):
-    • Bullet slots outside certifications → strip bold (safety net).
-    • Non-bullet slots, or cert bullets   → preserve bold.
+    xml:space="preserve" is set on any node whose text has leading or trailing
+    whitespace (required by the OOXML spec to prevent whitespace trimming).
     """
     clean = new_text.lstrip("•-– ").strip()
     if not clean:
         return
 
-    is_job_title = bool(_JOB_TITLE_RE.search(clean))
+    # Collect <w:t> elements that carry text, from direct-child <w:r> only.
+    # We exclude runs inside <w:hyperlink> wrappers intentionally — they are
+    # structural elements (URLs, bookmarks) that must never be changed.
+    t_nodes: list = []
+    for child in p_elem:
+        if child.tag != _w("r"):
+            continue
+        t = child.find(_w("t"))
+        if t is not None:
+            t_nodes.append(t)
 
-    # ── 1. Extract original run structure BEFORE touching the XML ────────────
-    run_struct = _extract_run_structure(p_elem)   # [(text, rPr|None), ...]
-
-    # ── Paragraph properties ──────────────────────────────────────────────────
-    pPr = p_elem.find(_w("pPr"))
-    orig_has_numpr = pPr is not None and pPr.find(_w("numPr")) is not None
-
-    # ── Remove existing direct-child runs ─────────────────────────────────────
-    for child in list(p_elem):
-        if child.tag == _w("r"):
-            p_elem.remove(child)
-
-    # ── 2. Job-title path: single bold run, strip bullet ─────────────────────
-    if is_job_title:
-        if pPr is not None:
-            numPr = pPr.find(_w("numPr"))
-            if numPr is not None:
-                pPr.remove(numPr)
-        r = etree.SubElement(p_elem, _w("r"))
-        rpr_new = etree.SubElement(r, _w("rPr"))
-        etree.SubElement(rpr_new, _w("b"))
-        t = etree.SubElement(r, _w("t"))
-        t.text = clean
-        t.set(f"{{{_XML_NS}}}space", "preserve")
+    if not t_nodes:
         return
 
-    # ── 3. Multi-run path: reconstruct the original run split at "|" ─────────
-    # Condition: original had ≥2 substantive runs AND both original and new text
-    # contain "|" (the structural separator used in Canadian resume formatting).
-    subst_runs = [(txt, rpr) for txt, rpr in run_struct if txt.strip() or rpr is not None]
-    orig_joined = "".join(txt for txt, _ in run_struct)
-    if len(subst_runs) >= 2 and "|" in clean and "|" in orig_joined:
+    def _write(t_elem, text: str) -> None:
+        t_elem.text = text
+        # xml:space="preserve" is required when text has leading/trailing spaces
+        if text != text.strip():
+            t_elem.set(f"{{{_XML_NS}}}space", "preserve")
+
+    # ── Single text node: straightforward swap ────────────────────────────────
+    if len(t_nodes) == 1:
+        _write(t_nodes[0], clean)
+        return
+
+    # ── Multi-node: distribute by "|" separator ───────────────────────────────
+    if "|" in clean:
         pipe_pos   = clean.index("|")
-        seg_before = clean[:pipe_pos].rstrip()   # text left of "|" → first run's style (usually bold)
-        seg_pipe   = clean[pipe_pos:]             # "|…" text        → second run's style (usually non-bold)
+        seg_before = clean[:pipe_pos].rstrip()
+        seg_pipe   = clean[pipe_pos:]               # includes "|"
 
-        # Preserve the Unicode spacing character that precedes "|" in the original
-        # (Canadian resumes use U+00A0 NO-BREAK SPACE before the pipe, e.g. " | Date").
-        # We read it from the original second run so it survives the replacement.
-        orig_r2_text = subst_runs[1][0] if len(subst_runs) > 1 else ""
-        spacer = ""
-        # _SPACE_LIKE: U+0020 SPACE, U+00A0 NBSP, U+2002 EN SPACE, U+2003 EM SPACE, U+2009 THIN SPACE
-        _SPACE_LIKE = {" ", " ", " ", " ", " "}
-        if orig_r2_text and orig_r2_text[0] in _SPACE_LIKE:
-            spacer = orig_r2_text[0]
+        # Copy the spacer character that originally preceded "|" in node 2
+        # (typically U+00A0 NO-BREAK SPACE — keeps the visual gap intact).
+        orig_node2_text = t_nodes[1].text or ""
+        spacer = orig_node2_text[0] if orig_node2_text and orig_node2_text[0] in _SPACE_LIKE else ""
 
-        rpr_first  = subst_runs[0][1]
-        rpr_second = subst_runs[1][1] if len(subst_runs) > 1 else None
-
-        _append_run(p_elem, seg_before,          rpr_first,  orig_has_numpr, section_name)
-        _append_run(p_elem, spacer + seg_pipe,   rpr_second, orig_has_numpr, section_name)
+        _write(t_nodes[0], seg_before)
+        _write(t_nodes[1], spacer + seg_pipe)
+        for t in t_nodes[2:]:          # clear any trailing nodes
+            t.text = ""
         return
 
-    # ── 4. Single-run / fallback path ─────────────────────────────────────────
-    first_rpr = subst_runs[0][1] if subst_runs else None
-    _append_run(p_elem, clean, first_rpr, orig_has_numpr, section_name)
+    # ── Multi-node without "|": everything into first node ───────────────────
+    _write(t_nodes[0], clean)
+    for t in t_nodes[1:]:
+        t.text = ""
