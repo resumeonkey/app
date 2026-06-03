@@ -259,6 +259,46 @@ def _build_section_map(paragraphs: list[dict]) -> dict[str, Any]:
                 "heading_index": start_idx,
             }
 
+    # ── Capture specialty tagline in the skills section ──────────────────────
+    # Many Canadian resume templates have a "specialty tagline" right after
+    # the name/contact block: "Operations & Workforce Coordination · Process
+    # Improvement · Administrative Operations". This line is NOT a section
+    # heading so _match_section ignores it, and the first-3-skip heuristic
+    # below buries it. We detect it by its "A · B · C" or "A | B | C" pattern
+    # and inject it into the skills section so the LLM can replace it.
+    if section_starts:
+        first_section_idx = section_starts[0][1]
+        for p in paragraphs:
+            if p["index"] >= first_section_idx:
+                break
+            text = p["text"]
+            # Specialty tagline heuristic: contains " · " or " | " separator,
+            # all segments are short (< 35 chars), no @ or http (contact lines)
+            if ("·" in text or (" | " in text and "@" not in text)) and "http" not in text.lower():
+                segments = [s.strip() for s in text.replace("·", "|").split("|")]
+                if len(segments) >= 2 and all(len(s) < 45 for s in segments if s):
+                    fmt = {
+                        "text":         text,
+                        "runs":         p.get("runs", []),
+                        "run_count":    p.get("run_count", 1),
+                        "has_bold":     p.get("has_bold", False),
+                        "partial_bold": p.get("partial_bold", False),
+                        "has_numpr":    p.get("has_numpr", False),
+                    }
+                    if "skills" in sections:
+                        # Prepend to existing skills section
+                        sections["skills"]["raw_text"]     = text + "\n" + sections["skills"]["raw_text"]
+                        sections["skills"]["para_indices"] = [p["index"]] + sections["skills"]["para_indices"]
+                        sections["skills"]["lines_format"] = [fmt] + sections["skills"]["lines_format"]
+                    else:
+                        sections["skills"] = {
+                            "raw_text":     text,
+                            "para_indices": [p["index"]],
+                            "lines_format": [fmt],
+                            "heading_index": p["index"],
+                        }
+                    break   # only capture the first matching tagline
+
     # ── Fallback: capture pre-section text as "summary" ──────────────────────
     # Many Canadian resumes have an unlabelled profile blurb at the top
     # (after name/contact) before the first explicit section heading.

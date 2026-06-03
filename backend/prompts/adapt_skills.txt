@@ -21,6 +21,8 @@ Actualiza la sección de skills/competencias del resume canadiense para esta ofe
 
 ## Tu tarea
 
+La primera línea del texto puede ser una "tagline de especialidades" con formato "A · B · C" (separada por puntos medios o pipes). Si existe, también debes adaptarla al rol objetivo, manteniendo el mismo formato separado por " · " y el mismo número de elementos.
+
 Optimiza la sección de skills para que coincida con lo que busca la oferta:
 
 1. **Prioriza** las skills que la oferta menciona explícitamente — ponlas primero
@@ -28,15 +30,20 @@ Optimiza la sección de skills para que coincida con lo que busca la oferta:
 3. **Reemplaza** skills genéricas o de otro dominio por skills relevantes al puesto — SIEMPRE que estén respaldadas por la experiencia real del candidato (visibles en la sección Experience/Proyectos del contexto del resume)
 4. **Mantén el mismo formato visual** exacto: misma cantidad de items, misma estructura de tabla o lista, mismos separadores
 
-## Reglas de honestidad (críticas)
+## REGLA ABSOLUTA ANTI-ALUCINACIÓN (la más importante)
 
-- **OBLIGATORIO — REEMPLAZA SKILLS DE DOMINIO INCORRECTO:** Si la sección de skills actual contiene skills claramente fuera del rol objetivo (ej: "Operations Coordination", "Workforce Scheduling", "Travel Coordination", "Administrative Operations" para un rol QA/Tech/Data), DEBES reemplazarlas por skills del dominio correcto que estén DEMOSTRADAS en la sección Experience del contexto. Esta es una corrección de coherencia, no una invención. El candidato que trabajó 8 años en QA tiene todo el derecho a listar "Quality Assurance" como skill aunque el template anterior diga otra cosa.
-- Skills de operaciones/administración que NO corresponden al rol objetivo = REEMPLAZAR siempre, sin excepción.
-- **SÍ PUEDES** usar skills respaldadas por la experiencia aunque no aparezcan literalmente en la lista actual de skills.
-- **NO PUEDES** agregar skills para las que no haya evidencia en ninguna parte del resume (ni en experience, ni en proyectos, ni en el contexto)
-- **NO afirmes** herramientas de testing que no aparecen en el resume: Selenium, Cypress, Playwright, JUnit, TestRail, Robot Framework — solo si están en el contexto
-- **NO INFLES** niveles de experticia: si el original dice "Basic Automation Scripting", no lo conviertas en "Advanced Test Automation"
+**NUNCA agregues herramientas, plataformas, sistemas, certificaciones, frameworks o metodologías específicas que no aparezcan LITERALMENTE en el resume maestro** (ni en la sección de skills, ni en la experiencia, ni en certificaciones).
+
+La oferta laboral NO es evidencia. Que la oferta mencione "ACE", "Salesforce", "SAP", "eQMS", "EDMS", "LMS", "CSV", "CSA", "GxP", "HIPAA" u otras plataformas específicas NO significa que el candidato las haya usado.
+
+**SOLO puedes incluir herramientas que ya están en el master_context.** Si una keyword está en el job_analysis pero NO en el resume → NO la incluyas, sin excepción.
+
+## Reglas de honestidad
+
+- **OBLIGATORIO — REEMPLAZA SKILLS DE DOMINIO INCORRECTO:** Si la sección actual contiene skills claramente fuera del rol (ej: "Workforce Scheduling", "Travel Coordination", "Administrative Operations" para un rol QA/Tech/Implementation), DEBES reemplazarlas por skills del dominio correcto que estén DEMOSTRADAS en la sección Experience del master_context.
+- Las skills de reemplazo deben ser GENÉRICAS y verificables (ej: "Requirements Gathering", "Stakeholder Management", "Process Improvement") — NUNCA nombres de plataformas específicas que no estén en el master.
 - **NO CAMBIES** el número de items — si la tabla tiene 18 celdas, el output debe tener 18 celdas
+- **NO INFLES** niveles de experticia
 
 ## REGLAS ANTI-TRUNCACIÓN (críticas)
 - NUNCA cortes un nombre a mitad: "Agile Methodology" → siempre completo, nunca "Agile M"

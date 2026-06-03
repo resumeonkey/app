@@ -38,9 +38,8 @@ Reescribe el summary para que:
 - NO inventes experiencia, roles, empresas, ni logros que no existan en el original
 - NO cambies el estilo de escritura (ej: si el original usa primera persona implícita, mantenerlo)
 - NO alargues ni acortes dramáticamente (±10% máximo)
-- REGLA DE AÑOS — CRÍTICA: ANTES de escribir cualquier número de años, cuenta explícitamente los años por cada rol relevante en la sección Experience del master_context. Suma solo los roles que corresponden al dominio del puesto objetivo. Si el total da ~8 años, escribe "8+ years". NUNCA escribas "10+ years" si la suma real es menor. NUNCA redondees hacia arriba más de 1 año.
-  Ejemplo de cálculo correcto: Allware QA 2009–2017 = 8 años → "8+ years of QA experience".
-  Si el summary original dice "10+ years" pero la cuenta real es menor, CORRÍGELO obligatoriamente. Inflar años de experiencia es un error grave que daña la credibilidad del candidato.
+- REGLA DE AÑOS — CRÍTICA: Calcula INTERNAMENTE (sin imprimir el cálculo, sin notas, sin listas) los años de experiencia relevante sumando los roles del master_context. Escribe solo el resultado final en el summary. NUNCA imprimas el cálculo, las notas intermedias, ni frases como "Cálculo de años", "Roles relevantes para", ni listas de empleos con fechas — eso es trabajo interno que JAMÁS debe aparecer en el documento. Solo el summary listo para el CV.
+  Si el summary menciona "10+ years" pero la experiencia real suma menos, corrígelo al valor honesto (ej: "8+ years"). Si no puedes calcular con certeza, omite el número y usa una frase sin años específicos.
 
 ## REGLA DE DISPONIBILIDAD GEOGRÁFICA
 Si la oferta menciona explícitamente trabajo presencial fuera de la ciudad base:
