@@ -6,6 +6,7 @@ import {
   listAdaptations,
   runJobSearch,
   suggestSearchParams,
+  getSavedUrls,
   type MasterDetail,
   type MasterSummary,
   type Adaptation,
@@ -45,6 +46,9 @@ export default function HomePage() {
   // History: job_url → Adaptation (seeded from DB on mount)
   const [adaptedJobs, setAdaptedJobs] = useState<AdaptedJobsMap>({});
 
+  // Saved jobs: url → saved_job_id
+  const [savedUrls, setSavedUrls] = useState<Record<string, string>>({});
+
   // Personalized search recommendations
   const [recommendations, setRecommendations] = useState<SearchRecommendation[]>([]);
   const [recsLoading, setRecsLoading]         = useState(false);
@@ -68,7 +72,8 @@ export default function HomePage() {
       getActiveMaster().catch(() => null),
       listAdaptations().catch((): Adaptation[] => []),
       listMasters().catch((): MasterSummary[] => []),
-    ]).then(([m, adaptations, allMasters]) => {
+      getSavedUrls().catch((): Record<string, string> => ({})),
+    ]).then(([m, adaptations, allMasters, savedUrlMap]) => {
       setMaster(m);
       setMasters(allMasters);
 
@@ -81,6 +86,7 @@ export default function HomePage() {
         setAdaptedJobs(map);
       }
 
+      setSavedUrls(savedUrlMap);
       if (m) loadRecommendations();
     }).finally(() => setLoading(false));
   }, [loadRecommendations]);
@@ -170,6 +176,19 @@ export default function HomePage() {
         <p className="text-gray-500">
           Adapta tu resume canadiense a cada oferta — sin romper el formato.
         </p>
+        <div className="flex justify-center gap-3 pt-1">
+          <a href="/saved" className="text-sm text-amber-600 hover:text-amber-700 font-medium flex items-center gap-1">
+            🔖 Guardados
+            {Object.keys(savedUrls).length > 0 && (
+              <span className="bg-amber-100 text-amber-700 border border-amber-300 rounded-full text-[10px] px-1.5 py-0.5 font-bold">
+                {Object.keys(savedUrls).length}
+              </span>
+            )}
+          </a>
+          <a href="/history" className="text-sm text-gray-400 hover:text-gray-600">
+            Historial
+          </a>
+        </div>
       </div>
 
       {/* ── Profiles / Master section ───────────────────────────────────────── */}
@@ -289,6 +308,14 @@ export default function HomePage() {
                   onAdapted={handleAdaptationCreated}
                   adaptedJobs={adaptedJobs}
                   onJobAdapted={handleJobAdapted}
+                  savedUrls={savedUrls}
+                  onSavedChange={(url, id) =>
+                    setSavedUrls((prev) => {
+                      const next = { ...prev };
+                      if (id) next[url] = id; else delete next[url];
+                      return next;
+                    })
+                  }
                 />
               )}
             </div>

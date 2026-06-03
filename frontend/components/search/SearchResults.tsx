@@ -4,6 +4,8 @@ import {
   extractJobFromUrl,
   createAdaptation,
   toggleApplied,
+  saveJob,
+  unsaveJob,
   type JobResult,
   type Adaptation,
 } from "@/lib/api";
@@ -17,6 +19,9 @@ interface Props {
   // job_url → adaptation for jobs already adapted this session
   adaptedJobs?: Record<string, Adaptation>;
   onJobAdapted?: (jobUrl: string, adaptation: Adaptation) => void;
+  // url → saved_job_id for jobs already saved
+  savedUrls?: Record<string, string>;
+  onSavedChange?: (url: string, savedId: string | null) => void;
 }
 
 export function SearchResults({
@@ -27,6 +32,8 @@ export function SearchResults({
   onAdapted,
   adaptedJobs = {},
   onJobAdapted,
+  savedUrls = {},
+  onSavedChange,
 }: Props) {
   return (
     <div className="space-y-4">
@@ -55,6 +62,8 @@ export function SearchResults({
           onAdapted={onAdapted}
           existingAdaptation={adaptedJobs[job.url] ?? null}
           onJobAdapted={onJobAdapted}
+          savedId={savedUrls[job.url] ?? null}
+          onSavedChange={onSavedChange}
         />
       ))}
 
@@ -76,6 +85,8 @@ interface CardProps {
   onAdapted: (a: Adaptation) => void;
   existingAdaptation: Adaptation | null;
   onJobAdapted?: (jobUrl: string, adaptation: Adaptation) => void;
+  savedId: string | null;
+  onSavedChange?: (url: string, savedId: string | null) => void;
 }
 
 function JobResultCard({
@@ -85,6 +96,8 @@ function JobResultCard({
   onAdapted,
   existingAdaptation,
   onJobAdapted,
+  savedId: initialSavedId,
+  onSavedChange,
 }: CardProps) {
   const [expanded, setExpanded] = useState(false);
   const [adapting, setAdapting] = useState(false);
@@ -97,6 +110,9 @@ function JobResultCard({
   const [instructions, setInstructions] = useState("");
   // Two-step adapt: first click opens panel, second click (Confirmar) runs it
   const [awaitingConfirm, setAwaitingConfirm] = useState(false);
+  // Saved state
+  const [savedId, setSavedId] = useState<string | null>(initialSavedId);
+  const [saving, setSaving] = useState(false);
 
   const score = job.compatibility_score;
   const scoreColor =
@@ -140,6 +156,25 @@ function JobResultCard({
       const err = e as { response?: { data?: { detail?: string } }; message?: string };
       setError(err?.response?.data?.detail || err?.message || "Error al iniciar la adaptación.");
       setAdapting(false);
+    }
+  };
+
+  const handleToggleSave = async () => {
+    setSaving(true);
+    try {
+      if (savedId) {
+        await unsaveJob(savedId);
+        setSavedId(null);
+        onSavedChange?.(job.url, null);
+      } else {
+        const saved = await saveJob(job);
+        setSavedId(saved.id);
+        onSavedChange?.(job.url, saved.id);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -196,6 +231,20 @@ function JobResultCard({
               </p>
             </div>
             <div className="flex-shrink-0 flex gap-2 flex-wrap justify-end">
+              {/* Bookmark button */}
+              <button
+                onClick={handleToggleSave}
+                disabled={saving}
+                title={savedId ? "Quitar de guardados" : "Guardar oferta"}
+                className={`text-xs py-1 px-2 rounded-lg border font-medium transition-colors ${
+                  savedId
+                    ? "bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200"
+                    : "btn-secondary hover:border-amber-300 hover:text-amber-600"
+                }`}
+              >
+                {saving ? "…" : savedId ? "🔖 Guardado" : "🔖"}
+              </button>
+
               <a
                 href={job.url}
                 target="_blank"

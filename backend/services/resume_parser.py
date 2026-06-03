@@ -54,59 +54,81 @@ SECTION_PATTERNS = {
 }
 
 
+def _para_meta(para, index: int, in_table: bool = False) -> dict:
+    """Extract metadata dict for a single python-docx Paragraph object."""
+    text = para.text.strip().replace("\n", " ")
+    style = para.style.name if para.style else ""
+
+    runs_meta: list[dict] = []
+    for run in para.runs:
+        run_text = run.text.replace("\n", " ")
+        runs_meta.append({
+            "text":    run_text,
+            "bold":    bool(run.bold),
+            "italic":  bool(run.italic),
+            "size_pt": round(run.font.size / 12700, 1) if run.font.size else None,
+        })
+
+    has_bold     = any(r["bold"] for r in runs_meta)
+    partial_bold = has_bold and not all(r["bold"] for r in runs_meta)
+    _pPr = para._p.pPr
+    has_numpr = (
+        _pPr is not None
+        and _pPr.find("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}numPr") is not None
+    )
+
+    return {
+        "index":        index,
+        "text":         text,
+        "style":        style,
+        "empty":        not text,
+        "in_table":     in_table,
+        "runs":         runs_meta,
+        "run_count":    len(runs_meta),
+        "has_bold":     has_bold,
+        "partial_bold": partial_bold,
+        "has_numpr":    has_numpr,
+    }
+
+
 def parse_docx(file_path: str) -> dict[str, Any]:
     from docx import Document
+    from docx.text.paragraph import Paragraph as DocxParagraph
+    from docx.oxml.ns import qn
+
     doc = Document(file_path)
 
-    paragraphs = []
-    for i, para in enumerate(doc.paragraphs):
-        # Replace soft line breaks (\n from <w:br w:type="textWrapping"/>) with a
-        # space so that raw_text has EXACTLY one entry per paragraph when split("\n").
-        # Without this, a paragraph like "Product Owner | May 2021\nEntel, Chile"
-        # would create 2 lines in raw_text but only 1 slot in para_indices, causing
-        # a systematic off-by-one overflow that corrupts every subsequent section.
-        text = para.text.strip().replace("\n", " ")
-        style = para.style.name if para.style else ""
+    # ── Walk body elements in document order ─────────────────────────────────
+    # doc.paragraphs only returns BODY-level paragraphs — it silently skips
+    # paragraphs inside <w:tbl> elements.  Canadian resume templates frequently
+    # use Word tables for the Core Competencies / Skills section, so those cells
+    # are completely invisible to the old approach.
+    #
+    # We iterate doc.element.body children directly so that body paragraphs and
+    # table-cell paragraphs are interleaved in true document order, each
+    # assigned a sequential index.  docx_builder already iterates root.iter("p")
+    # which includes table cells, so replacements land correctly.
 
-        # ── Per-run format metadata ──────────────────────────────────────────
-        # We capture exactly: which runs are bold and what their text is.
-        # This is the source-of-truth for format profiles used by docx_builder
-        # to reconstruct multi-run paragraphs with their original formatting.
-        runs_meta: list[dict] = []
-        for run in para.runs:
-            run_text = run.text.replace("\n", " ")
-            # run.bold can be: True (explicitly bold), False (explicitly not bold),
-            # None (inherits from style). We treat None as False for safety.
-            runs_meta.append({
-                "text":    run_text,
-                "bold":    bool(run.bold),     # True only if explicitly set
-                "italic":  bool(run.italic),
-                # font.size is in EMUs (914400 = 72pt). None = inherited.
-                "size_pt": round(run.font.size / 12700, 1) if run.font.size else None,
-            })
+    paragraphs: list[dict] = []
+    idx = 0
 
-        has_bold     = any(r["bold"] for r in runs_meta)
-        partial_bold = has_bold and not all(r["bold"] for r in runs_meta)
-        # Bullet (numPr) detection via lxml so we don't import OxmlElement
-        _pPr = para._p.pPr
-        has_numpr = (
-            _pPr is not None
-            and _pPr.find("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}numPr") is not None
-        )
+    for child in doc.element.body:
+        local = child.tag.split("}")[-1] if "}" in child.tag else child.tag
 
-        paragraphs.append({
-            "index":        i,
-            "text":         text,
-            "style":        style,
-            "empty":        not text,
-            # Format metadata — stored with the section and used by docx_builder
-            # to map new text back onto the original run structure.
-            "runs":         runs_meta,
-            "run_count":    len(runs_meta),
-            "has_bold":     has_bold,
-            "partial_bold": partial_bold,
-            "has_numpr":    has_numpr,
-        })
+        if local == "p":
+            # Body-level paragraph
+            para = DocxParagraph(child, doc)
+            paragraphs.append(_para_meta(para, idx, in_table=False))
+            idx += 1
+
+        elif local == "tbl":
+            # Table — iterate rows → cells → paragraphs in order
+            for tr in child.findall(".//" + qn("w:tr")):
+                for tc in tr.findall(qn("w:tc")):
+                    for p_elem in tc.findall(qn("w:p")):
+                        para = DocxParagraph(p_elem, doc)
+                        paragraphs.append(_para_meta(para, idx, in_table=True))
+                        idx += 1
 
     return _build_section_map(paragraphs)
 

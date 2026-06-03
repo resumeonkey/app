@@ -16,13 +16,23 @@ import re
 from backend.services.llm_client import call_llm
 from backend.services.prompt_loader import load_prompt
 
-# Job-title line detector (same pattern as docx_builder._JOB_TITLE_RE).
-# A line is a job-title anchor when it contains "| <month>" so we can split
-# the experience block into per-job chunks without index tracking.
+# Job-title line detector. A line is a job-title anchor when it contains
+# either "| <month>" OR ends with a 4-digit year (optionally preceded by a
+# month or dash), covering both Type-A ("Title | May 2021 – Jan 2025") and
+# resume formats where the date appears after a tab or dash without a pipe
+# (e.g. "Title – Company\tJun 2024 – Present" or "Title  2009 – 2017").
+_MONTH_NAMES = (
+    r'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|'
+    r'jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?'
+)
 _JOB_TITLE_SPLIT_RE = re.compile(
-    r'\|\s*(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|'
-    r'jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)',
-    re.IGNORECASE,
+    # Pattern 1 (primary): pipe followed by month name
+    r'\|\s*(?:' + _MONTH_NAMES + r')'
+    # Pattern 2 (fallback): line ends with a 4-digit year (with optional month prefix)
+    r'|(?:' + _MONTH_NAMES + r')[\s\-–]+\d{4}\s*(?:[-–]\s*(?:present|' + _MONTH_NAMES + r')[\s\S]*?)?\s*$'
+    # Pattern 3: tab or 2+ spaces followed by month+year (for tab-separated date formats)
+    r'|[\t]{1}(?:' + _MONTH_NAMES + r')\s+\d{4}',
+    re.IGNORECASE | re.MULTILINE,
 )
 
 
@@ -306,19 +316,47 @@ def _trim_job_analysis(job_analysis: dict) -> dict:
     return trimmed if trimmed else job_analysis
 
 
+# Detect job-title lines that carry NO date but look like "Role – Company" or
+# "Role | Company".  Used as a secondary split signal when the primary date-based
+# regex misses entries (e.g. a new job added to the master without a formatted date).
+# Heuristic: line starts with one or more Title-cased words, contains "–" or "|",
+# is short enough to be a title (≤ 100 chars), and does NOT start with a bullet marker.
+_BULLET_PREFIX_RE = re.compile(r'^[\•\-\–\*\d\.]\s')
+_ROLE_COMPANY_RE  = re.compile(
+    r'^[A-Z][A-Za-z &/\-]+(?:\s[A-Z][A-Za-z &/\-]+)*'   # starts with capitalized words
+    r'\s*(?:–|-|—|\|)\s*'                                  # separator: – | — |
+    r'[A-Z][A-Za-z0-9 &/\-,\.]+',                         # company name starts with capital
+    re.UNICODE,
+)
+
+
+def _looks_like_job_title(line: str) -> bool:
+    """Return True if the line looks like a job-title header (with or without date)."""
+    stripped = line.strip()
+    if not stripped or len(stripped) > 120:
+        return False
+    # Primary: contains a date pattern
+    if _JOB_TITLE_SPLIT_RE.search(stripped):
+        return True
+    # Secondary: "Role – Company" style, no bullet prefix
+    if _BULLET_PREFIX_RE.match(stripped):
+        return False
+    return bool(_ROLE_COMPANY_RE.match(stripped))
+
+
 def _split_by_job_titles(text: str) -> list[str]:
     """
     Split a multi-job experience text into per-job chunks.
-    A new chunk starts whenever a line matches the job-title pattern
-    (contains "| <month>").  Returns one string per job, preserving
-    the original line count within each chunk.
+    A new chunk starts whenever a line looks like a job-title header
+    (primary: contains date/pipe+month; secondary: "Role – Company" pattern).
+    Returns one string per job, preserving the original line count within each chunk.
     """
     lines = text.split("\n")
     chunks: list[list[str]] = []
     current: list[str] = []
 
     for line in lines:
-        if _JOB_TITLE_SPLIT_RE.search(line) and current:
+        if _looks_like_job_title(line) and current:
             chunks.append(current)
             current = [line]
         else:
@@ -382,10 +420,25 @@ async def _adapt_experience_per_job(
     ]
     adapted_chunks = await asyncio.gather(*tasks)
 
+    # ── Build a set of ALL original job-title signatures ─────────────────────
+    # Used below to filter out titles of OTHER jobs that the LLM accidentally
+    # emits as bullets (even without the date, which would bypass _JOB_TITLE_SPLIT_RE).
+    all_title_sigs: set[str] = set()
+    for chunk in chunks:
+        first = next((l.strip() for l in chunk.split("\n") if l.strip()), "")
+        if first:
+            # Store both the full title and the prefix before the date separator "|"
+            # so we catch "Founder & Operations Lead – SoyManada" even when the LLM
+            # drops "| Feb 2025 – Present".
+            all_title_sigs.add(" ".join(first.lower().split()))
+            # Also store the part before the last "|" or before the date
+            before_pipe = re.split(r'\s*\|\s*(?:' + _MONTH_NAMES + r')', first, flags=re.IGNORECASE)[0]
+            all_title_sigs.add(" ".join(before_pipe.lower().split()))
+
     # ── Post-process each adapted chunk against its original ──────────────────
     # The LLM sometimes:
     #   • Changes dates or splits the TYPE-A title line into two lines
-    #   • Hallucinated a second job-title line in bullet positions
+    #   • Emits another job's title as a bullet (the main corruption bug)
     #   • Emits the company/location as a standalone bullet right after the title
     #   • Produces more lines than the original (line-count enforcement)
     result_chunks: list[str] = []
@@ -404,10 +457,12 @@ async def _adapt_experience_per_job(
         else:
             adpt_lines = list(orig_lines)
 
+        # Signature of THIS chunk's own title (excluded from the drop filter)
+        own_title_sig = " ".join(orig_lines[0].lower().split())
+        own_before_pipe = re.split(r'\s*\|\s*(?:' + _MONTH_NAMES + r')', orig_lines[0], flags=re.IGNORECASE)[0]
+        own_before_sig  = " ".join(own_before_pipe.lower().split())
+
         # 2. Filter lines the LLM should not have generated (positions 1+).
-        #    Determine whether the original chunk has a TYPE-B company line at
-        #    position 1 (short standalone "Company, Country" with no pipe).
-        #    If it DOES, the LLM is allowed to keep it; otherwise, drop it.
         orig_has_company_at_1 = (
             len(orig_lines) > 1
             and len(orig_lines[1]) < 50
@@ -417,12 +472,29 @@ async def _adapt_experience_per_job(
         )
         clean: list[str] = [adpt_lines[0]]
         for i, line in enumerate(adpt_lines[1:], start=1):
-            # (a) Hallucinated job-title lines in bullet positions
-            if _JOB_TITLE_SPLIT_RE.search(line):
+            stripped = line.lstrip("•-– \t")
+            stripped_norm = " ".join(stripped.lower().split())
+
+            # (a) Any line that looks like a job title (date-based OR role–company pattern)
+            #     and is NOT this chunk's own title → it's another job leaking in as a bullet.
+            if _looks_like_job_title(line):
                 continue
-            # (b) Split company/location line injected by the LLM when the
-            #     original title had the company already on the same line.
-            #     Only drop it when the original did NOT have such a line here.
+
+            # (b) Another job's title appearing WITHOUT its date (LLM stripped the date).
+            #     Match against all known title signatures, excluding this chunk's own.
+            if stripped_norm and stripped_norm != own_title_sig and stripped_norm != own_before_sig:
+                is_foreign_title = any(
+                    sig and sig != own_title_sig and sig != own_before_sig and (
+                        stripped_norm == sig
+                        or (len(sig) > 20 and stripped_norm.startswith(sig[:25]))
+                        or (len(stripped_norm) > 20 and sig.startswith(stripped_norm[:25]))
+                    )
+                    for sig in all_title_sigs
+                )
+                if is_foreign_title:
+                    continue
+
+            # (c) Split company/location line injected by the LLM
             if (
                 i == 1
                 and not orig_has_company_at_1
@@ -441,9 +513,24 @@ async def _adapt_experience_per_job(
 
         result_chunks.append("\n".join(adpt_lines))
 
-    # Re-join adapted chunks — the builder matches by text so order is irrelevant,
-    # but keeping document order makes the stored adapted text human-readable.
-    return "\n".join(result_chunks)
+    # Re-join adapted chunks preserving document order.
+    joined = "\n".join(result_chunks)
+
+    # ── Dedup job-title lines across the full output ──────────────────────────
+    # If the same job-title line appears more than once, keep only the first.
+    # Uses _looks_like_job_title so it catches titles with or without date.
+    final_lines: list[str] = []
+    seen_titles: set[str] = set()
+    for line in joined.split("\n"):
+        stripped = line.strip()
+        if _looks_like_job_title(stripped):
+            key = " ".join(stripped.lower().split())
+            if key in seen_titles:
+                continue   # drop duplicate
+            seen_titles.add(key)
+        final_lines.append(line)
+
+    return "\n".join(final_lines)
 
 
 async def _adapt_section(
@@ -465,7 +552,7 @@ async def _adapt_section(
         job_analysis=json.dumps(_trim_job_analysis(job_analysis), ensure_ascii=False, indent=2),
         user_instructions=user_instructions or "Ninguna instrucción adicional.",
         reason=reason,
-        master_context=master_full_text[:400],
+        master_context=master_full_text[:4000],
     )
 
     adapted = await call_llm(

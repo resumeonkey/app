@@ -1,14 +1,11 @@
-Reordena y ajusta la sección de skills del resume canadiense para esta oferta.
+Actualiza la sección de skills/competencias del resume canadiense para esta oferta específica.
 
-REGLA MAESTRA: NO agregues skills que no existan en el resume original.
-Solo reorganiza, reordena o reformula los que ya están.
-
-## Skills actuales en el resume maestro
+## Skills/Competencias actuales en el resume maestro
 ---
 {original_text}
 ---
 
-## Contexto del resume (referencia)
+## Contexto completo del resume (experiencia, logros, proyectos)
 {master_context}
 
 ## Análisis de la oferta
@@ -24,59 +21,36 @@ Solo reorganiza, reordena o reformula los que ya están.
 
 ## Tu tarea
 
-Optimiza la sección de skills para esta oferta:
-1. Prioriza las skills que la oferta menciona explícitamente — ponlas primero
-2. Usa la terminología exacta de la oferta cuando corresponda (ej: si la oferta dice "Microsoft Azure" y el resume dice "Azure", usa "Microsoft Azure")
-3. Agrupa o desagrupa categorías si mejora la legibilidad para esta oferta
-4. Mantén el mismo formato visual (bullets, línea separada, categorías, etc.)
+Optimiza la sección de skills para que coincida con lo que busca la oferta:
 
-## Reglas estrictas
-- SOLO puedes usar skills que ya existen en el resume original
-- NO agregues skills nuevas aunque la oferta las pida
-- Mantén el mismo formato de presentación (bullets, categorías, tabla, etc.)
+1. **Prioriza** las skills que la oferta menciona explícitamente — ponlas primero
+2. **Usa terminología exacta** de la oferta cuando corresponda (ej: si la oferta dice "Microsoft Azure" y el resume dice "Azure", usa "Microsoft Azure")
+3. **Reemplaza** skills genéricas o de otro dominio por skills relevantes al puesto — SIEMPRE que estén respaldadas por la experiencia real del candidato (visibles en la sección Experience/Proyectos del contexto del resume)
+4. **Mantén el mismo formato visual** exacto: misma cantidad de items, misma estructura de tabla o lista, mismos separadores
 
-## REGLAS ANTI-TRUNCACIÓN (CRÍTICAS)
-- NUNCA cortes un nombre de habilidad a mitad de palabra o frase.
-  Si en el original dice "Agile Methodology", en el output debe decir "Agile Methodology",
-  no "Agile M" ni "Agile Q" ni ninguna versión incompleta.
-- El output debe tener EXACTAMENTE la misma cantidad de skills que el original — ni más ni menos.
-- Si las skills están en una tabla de dos columnas, mantén el mismo número de filas.
-  No comprimas dos celdas en una ni partas una skill entre dos celdas.
-- NO afirmes automatización avanzada que no esté explícita: "Script Automation" del
-  original → reformula como "Basic Automation Scripting" o "Scripting/Automation",
-  nunca como "Advanced Automation" o "CI/CD Automation".
+## Reglas de honestidad (críticas)
 
-## REGLA DE HONESTIDAD DE FRAMEWORKS
-NUNCA afirmes experiencia profunda en herramientas de testing que no aparecen
-en el resume original:
-- Selenium, Cypress, Playwright, Pytest, JUnit, TestRail, Robot Framework, etc.
-Si la oferta los pide y el original NO los menciona → NO los agregues.
-Si el original menciona "scripting" o "automation" genérica → usa la versión
-honesta con las herramientas que sí aparecen (ej: "Test Scripting (SQL, PowerShell)").
+- **OBLIGATORIO — REEMPLAZA SKILLS DE DOMINIO INCORRECTO:** Si la sección de skills actual contiene skills claramente fuera del rol objetivo (ej: "Operations Coordination", "Workforce Scheduling", "Travel Coordination", "Administrative Operations" para un rol QA/Tech/Data), DEBES reemplazarlas por skills del dominio correcto que estén DEMOSTRADAS en la sección Experience del contexto. Esta es una corrección de coherencia, no una invención. El candidato que trabajó 8 años en QA tiene todo el derecho a listar "Quality Assurance" como skill aunque el template anterior diga otra cosa.
+- Skills de operaciones/administración que NO corresponden al rol objetivo = REEMPLAZAR siempre, sin excepción.
+- **SÍ PUEDES** usar skills respaldadas por la experiencia aunque no aparezcan literalmente en la lista actual de skills.
+- **NO PUEDES** agregar skills para las que no haya evidencia en ninguna parte del resume (ni en experience, ni en proyectos, ni en el contexto)
+- **NO afirmes** herramientas de testing que no aparecen en el resume: Selenium, Cypress, Playwright, JUnit, TestRail, Robot Framework — solo si están en el contexto
+- **NO INFLES** niveles de experticia: si el original dice "Basic Automation Scripting", no lo conviertas en "Advanced Test Automation"
+- **NO CAMBIES** el número de items — si la tabla tiene 18 celdas, el output debe tener 18 celdas
 
-## REGLA DE SKILLS DEL CONTEXTO USUARIO
-Si las instrucciones del usuario mencionan experiencia adicional verificable del candidato
-(ej: "AI multi-agent workflows", "prompt engineering", proyectos de IA) →
-PUEDES reformular o renombrar UNA skill existente para reflejar esa experiencia,
-pero SOLO si:
-1. El usuario la menciona explícitamente como experiencia real
-2. La oferta valora esa habilidad directamente
-3. La describes con nivel real y honesto (básico, hands-on, proyecto personal)
-Ejemplo válido: "AI Multi-Agent Workflows (Claude, project-level)"
-Ejemplo inválido: "Advanced AI Engineering" o "Machine Learning"
-NO agregues skills completamente nuevas — solo reformula existentes.
+## REGLAS ANTI-TRUNCACIÓN (críticas)
+- NUNCA cortes un nombre a mitad: "Agile Methodology" → siempre completo, nunca "Agile M"
+- El output debe tener EXACTAMENTE la misma cantidad de skills que el original
+- Si las skills están en tabla de columnas, mantén el mismo número de filas y columnas
+- Si no hay cambios necesarios, devuelve la sección exactamente como está
+
+## REGLA DE CONTEXTO DE USUARIO
+Si las instrucciones del usuario mencionan experiencia adicional verificable (proyectos de IA, certificaciones específicas, etc.) → PUEDES reformular UNA skill existente para reflejarla, con nivel honesto.
 
 ## IDIOMA — REGLA ABSOLUTA
-Escribe en el MISMO IDIOMA que "Skills actuales en el resume maestro" de arriba.
-Si el original está en inglés → inglés. Si está en español → español.
-NUNCA traduzcas, aunque este prompt esté en español.
+Escribe en el MISMO IDIOMA que las "Skills/Competencias actuales" arriba.
+Si el original está en inglés → inglés. NUNCA traduzcas.
 
 ## FORMATO DE RESPUESTA — CRÍTICO
-Devuelve ÚNICAMENTE el texto adaptado de la sección, listo para insertar en el documento Word.
-PROHIBIDO incluir:
-- Asteriscos (**texto**) ni almohadillas (#, ##, ###) — cero markdown
-- Secciones de "Notas de adaptación", "Cambios realizados", "Explicaciones" o similares
-- Títulos de sección, etiquetas, comentarios de ningún tipo
-- Cualquier texto que no forme parte del contenido real del resume
-
-Si no hay cambios necesarios, devuelve la sección exactamente como está en el original.
+Devuelve ÚNICAMENTE el texto adaptado de la sección, sin markdown, sin notas, sin explicaciones.
+PROHIBIDO: asteriscos, almohadillas, "Notas de adaptación", comentarios.

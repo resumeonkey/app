@@ -38,14 +38,20 @@ Reescribe el summary para que:
 - NO inventes experiencia, roles, empresas, ni logros que no existan en el original
 - NO cambies el estilo de escritura (ej: si el original usa primera persona implícita, mantenerlo)
 - NO alargues ni acortes dramáticamente (±10% máximo)
+- REGLA DE AÑOS — CRÍTICA: ANTES de escribir cualquier número de años, cuenta explícitamente los años por cada rol relevante en la sección Experience del master_context. Suma solo los roles que corresponden al dominio del puesto objetivo. Si el total da ~8 años, escribe "8+ years". NUNCA escribas "10+ years" si la suma real es menor. NUNCA redondees hacia arriba más de 1 año.
+  Ejemplo de cálculo correcto: Allware QA 2009–2017 = 8 años → "8+ years of QA experience".
+  Si el summary original dice "10+ years" pero la cuenta real es menor, CORRÍGELO obligatoriamente. Inflar años de experiencia es un error grave que daña la credibilidad del candidato.
 
 ## REGLA DE DISPONIBILIDAD GEOGRÁFICA
-Si la oferta menciona explícitamente: "relocation", "travel", "willing to relocate",
-"travel required", "on-site", u otras frases de presencia física fuera de la ciudad base →
-Agrega al FINAL del summary, como oración separada:
-"Currently based in British Columbia and open to relocation and travel opportunities
-across Canada and internationally."
-Si la oferta NO menciona nada de esto, NO agregues esa frase.
+Si la oferta menciona explícitamente trabajo presencial fuera de la ciudad base:
+"relocation required", "must relocate", "travel required", "on-site at client locations",
+"FIFO", "fly-in fly-out", "rotational schedule", "remote camp" →
+Agrega al FINAL del summary UNA oración apropiada al contexto de la oferta:
+- Para roles de implementación en cliente / SaaS remoto: "Based in British Columbia and available to support distributed teams and global customer implementations."
+- Para roles que requieren reubicación física: "Currently based in British Columbia and open to relocation across Canada."
+- Para roles de minería/campo: "Currently based in British Columbia and open to relocation and rotational work assignments."
+NUNCA uses términos como "FIFO assignments" o "rotational schedules" a menos que la oferta los mencione literalmente.
+Si la oferta es remota o no menciona nada de presencia física, NO agregues ninguna frase de disponibilidad geográfica.
 
 ## REGLA DE ENFOQUE CLIENTE/USUARIO
 Si la oferta requiere atención a clientes, usuarios, onboarding, training, demos o

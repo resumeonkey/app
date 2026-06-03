@@ -71,6 +71,14 @@ Ejemplo: "Led cross-functional team of 8 engineers to deliver $2M platform migra
 - NO afirmes automatización avanzada que no esté en el original; usa "Basic Automation Scripting" en vez de "Script Automation"
 - Si la oferta requiere atención a clientes/onboarding y el original lo menciona, enfatiza ese aspecto
 
+## REGLA ANTI-ALUCINACIÓN — TERMINOLOGÍA ESPECIALIZADA (CRÍTICA)
+NUNCA uses los siguientes términos a menos que aparezcan LITERALMENTE en el texto original del trabajo:
+- GxP, GMP, FDA, 21 CFR, pharma, pharmaceutical, clinical, regulatory compliance → son términos farmacéuticos
+- FIFO, fly-in fly-out, rotational, camp-based, remote camp → son términos de minería/recursos
+- SOX, IFRS, GAAP, audit trail → son términos financieros/contables
+- HIPAA, HL7, EHR, EMR → son términos de salud
+Si la empresa en el original es telecom, tecnología, banca u otro sector, usar términos de otro sector es un error grave que daña la credibilidad del candidato.
+
 ## REGLA DE REENCUADRE QA
 Si el job_analysis indica que el rol objetivo es QA Engineer, QA Analyst, SDET,
 Test Engineer o similar → reformula los bullets TYPE C de CADA ROL usando

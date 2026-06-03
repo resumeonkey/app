@@ -103,6 +103,7 @@ def build_adapted_docx(
 
     # ── Apply replacements & collect removals ─────────────────────────────────
     paras_to_remove: list = []
+    already_replaced: set[str] = set()  # prevent replacing duplicate paragraphs twice
 
     for p_elem in root.iter(_w("p")):
         para_text = _para_text(p_elem)
@@ -110,7 +111,9 @@ def build_adapted_docx(
             continue
 
         if para_text in replacements:
-            _set_para_text(p_elem, replacements[para_text])
+            if para_text not in already_replaced:
+                _set_para_text(p_elem, replacements[para_text])
+                already_replaced.add(para_text)
 
         elif para_text in removals:
             paras_to_remove.append(p_elem)

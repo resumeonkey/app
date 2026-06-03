@@ -262,3 +262,73 @@ export const extractJobFromUrl = (url: string, llm_provider = "anthropic", llm_m
   api
     .post<ExtractResponse>("/api/search/extract", { url, llm_provider, llm_model })
     .then((r) => r.data);
+
+// ── Saved Jobs ─────────────────────────────────────────────────────────────────
+
+export interface SavedJob {
+  id: string;
+  created_at: string;
+  url: string;
+  title: string | null;
+  company: string | null;
+  location: string | null;
+  snippet: string | null;
+  salary: string | null;
+  date_posted: string | null;
+  source: string | null;
+  compatibility_score: number | null;
+  matched_skills: string[];
+  missing_skills: string[];
+  score_summary: string | null;
+  confidence: string | null;
+  blockers: string[];
+  why_relevant: string[];
+  lmia_approved: boolean;
+  ccfta_eligible: boolean;
+  immigration_support: string | null;
+  bilingual_advantage: boolean;
+  english_barrier: boolean;
+  english_required: string | null;
+  notes: string | null;
+  applied_at: string | null;
+}
+
+export const listSavedJobs = () =>
+  api.get<{ saved_jobs: SavedJob[] }>("/api/jobs/saved").then((r) => r.data.saved_jobs);
+
+export const getSavedUrls = () =>
+  api.get<{ urls: Record<string, string> }>("/api/jobs/saved/urls").then((r) => r.data.urls);
+
+export const saveJob = (job: JobResult) =>
+  api.post<SavedJob>("/api/jobs/saved", {
+    url:                 job.url,
+    title:               job.title,
+    company:             job.company,
+    location:            job.location,
+    snippet:             job.snippet,
+    salary:              job.salary,
+    date_posted:         job.date_posted,
+    source:              job.source,
+    compatibility_score: job.compatibility_score,
+    matched_skills:      job.matched_skills,
+    missing_skills:      job.missing_skills,
+    score_summary:       job.score_summary,
+    confidence:          job.confidence,
+    blockers:            job.blockers,
+    why_relevant:        job.why_relevant,
+    lmia_approved:       job.lmia_approved,
+    ccfta_eligible:      job.ccfta_eligible,
+    immigration_support: job.immigration_support,
+    bilingual_advantage: job.bilingual_advantage,
+    english_barrier:     job.english_barrier,
+    english_required:    job.english_required,
+  }).then((r) => r.data);
+
+export const unsaveJob = (id: string) =>
+  api.delete(`/api/jobs/saved/${id}`);
+
+export const unsaveJobByUrl = (url: string) =>
+  api.delete("/api/jobs/saved/by-url", { data: { url } });
+
+export const patchSavedJob = (id: string, patch: { notes?: string; applied?: boolean }) =>
+  api.patch<SavedJob>(`/api/jobs/saved/${id}`, patch).then((r) => r.data);
