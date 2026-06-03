@@ -49,7 +49,7 @@ _HTTP_TIMEOUT = 30          # seconds per Jina request
 _MAX_JOB_CHARS = 8_000      # cap on extracted job text forwarded to LLM
 _PROFILE_CHARS = 1500       # profile excerpt sent to LLM for query generation
 _SCORE_JOB_CHARS = 700      # job text sent per job in single-job scoring (reduced)
-_BATCH_PROFILE_CHARS = 500  # profile excerpt in batch scoring (raised for seniority detection)
+_BATCH_PROFILE_CHARS = 1200  # profile excerpt in batch scoring — needs enough for skills+summary
 _BATCH_SNIPPET_CHARS = 220  # snippet chars per job in batch mode (raised for requirement detection)
 
 # Lighter models for scoring (vs generation). Saves tokens on rate-limited tiers.
