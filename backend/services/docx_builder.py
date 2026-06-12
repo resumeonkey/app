@@ -18,6 +18,7 @@ import os
 import re
 import shutil
 import zipfile
+from difflib import SequenceMatcher
 
 from lxml import etree
 
@@ -68,6 +69,18 @@ def build_adapted_docx(
 
     # ── Build replacement map ─────────────────────────────────────────────────
     # norm(original_line) → adapted_line
+    #
+    # Pairing strategy: difflib alignment, NOT positional zip.
+    # Positional zip (orig[i] → adpt[i]) breaks catastrophically when the LLM
+    # inserts, drops, merges, or reorders a single line: every pairing after
+    # that point is shifted by one, so bullet text lands in heading paragraphs
+    # (inheriting heading format), trailing original lines get deleted, and the
+    # document layout degrades. SequenceMatcher gives us true edit regions:
+    #   equal   → line unchanged, leave XML untouched
+    #   replace → pair orig↔adapted within the region (the actual rewrites)
+    #   delete  → line genuinely dropped by the LLM → removal candidate
+    #   insert  → LLM invented a new line → IGNORED (we can never add
+    #             paragraphs without breaking the template)
     replacements: dict[str, str] = {}
     removals:     set[str]       = set()
 
@@ -75,21 +88,40 @@ def build_adapted_docx(
         orig_lines = [l.strip() for l in block.get("original", "").split("\n") if l.strip()]
         adpt_lines = [l.strip() for l in block.get("adapted",  "").split("\n") if l.strip()]
 
-        for i, orig in enumerate(orig_lines):
-            key = _norm(orig)
-            if not key:
-                continue
-            if i < len(adpt_lines):
-                adpt = adpt_lines[i].lstrip("•-– ").strip()
-                # Skip if the LLM echoed a bare section heading
-                if adpt.lower() in _SECTION_HEADING_WORDS:
-                    continue
-                # Skip identity replacements — leave original XML untouched
-                if _norm(adpt) == key:
-                    continue
-                replacements[key] = adpt
-            else:
-                removals.add(key)
+        orig_norm = [_norm(l) for l in orig_lines]
+        adpt_norm = [_norm(l.lstrip("•-– ").strip()) for l in adpt_lines]
+
+        matcher = SequenceMatcher(a=orig_norm, b=adpt_norm, autojunk=False)
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag == "equal":
+                continue            # unchanged — leave original XML untouched
+
+            if tag == "replace":
+                # Pair lines inside the changed region. When the region sizes
+                # differ, zip the overlap; extra original lines become removals,
+                # extra adapted lines are dropped (no paragraph to host them).
+                region_orig = list(range(i1, i2))
+                region_adpt = list(range(j1, j2))
+                for oi, ai in zip(region_orig, region_adpt):
+                    key  = orig_norm[oi]
+                    adpt = adpt_lines[ai].lstrip("•-– ").strip()
+                    if not key:
+                        continue
+                    if adpt.lower() in _SECTION_HEADING_WORDS:
+                        continue    # LLM echoed a bare section heading
+                    if _norm(adpt) == key:
+                        continue    # identity — leave original untouched
+                    replacements[key] = adpt
+                for oi in region_orig[len(region_adpt):]:
+                    if orig_norm[oi]:
+                        removals.add(orig_norm[oi])
+
+            elif tag == "delete":
+                # LLM dropped these lines entirely
+                for oi in range(i1, i2):
+                    if orig_norm[oi]:
+                        removals.add(orig_norm[oi])
+            # tag == "insert": adapted-only lines — ignored by design
 
     # ── Open DOCX zip, parse XML ──────────────────────────────────────────────
     with zipfile.ZipFile(output_path, "r") as zin:
