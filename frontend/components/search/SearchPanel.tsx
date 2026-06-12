@@ -14,6 +14,10 @@ const INDUSTRIES = [
   "E-commerce / Retail", "Education / Edtech", "Government / Public Sector",
   "Non-profit", "Consulting", "Manufacturing", "Media / Entertainment",
   "Real Estate", "Energy / Cleantech", "Telecommunications", "Logistics / Supply Chain",
+  // Sectores relevantes para visas de tratados comerciales (CPTPP / CCFTA)
+  "Environmental / Sustainability", "Agriculture / Agritech",
+  "Forestry / Natural Resources", "Mining / Resources",
+  "Tourism / Hospitality", "Construction / Infrastructure",
 ];
 
 const LLM_OPTIONS = [
@@ -73,6 +77,7 @@ export function SearchPanel({ onSearch, loading, masters = [], activeMasterId = 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [kwInput, setKwInput] = useState("");
   const [exKwInput, setExKwInput] = useState("");
+  const [industryInput, setIndustryInput] = useState("");
   const [selectedLLM, setSelectedLLM] = useState(0);
 
   const set = <K extends keyof SearchParams>(key: K, value: SearchParams[K]) =>
@@ -306,9 +311,13 @@ export function SearchPanel({ onSearch, loading, masters = [], activeMasterId = 
         </div>
       </div>
 
-      {/* ── Industries ────────────────────────────────────────────────────── */}
+      {/* ── Industries / tipo de negocio ──────────────────────────────────── */}
       <div>
-        <label className="label">Industria (multi-selección)</label>
+        <label className="label">🏢 Tipo de negocio / Industria (multi-selección)</label>
+        <p className="text-[11px] text-gray-400 mb-2">
+          Elige los sectores donde quieres postular — ej. Environmental / Sustainability
+          si tu estrategia de visa (CPTPP) apunta a ese rubro.
+        </p>
         <div className="flex flex-wrap gap-2">
           {INDUSTRIES.map((ind) => (
             <ToggleChip
@@ -318,6 +327,50 @@ export function SearchPanel({ onSearch, loading, masters = [], activeMasterId = 
               onClick={() => toggleList("industries", ind)}
             />
           ))}
+          {/* Custom industries the user typed (not in the predefined list) */}
+          {params.industries
+            .filter((ind) => !INDUSTRIES.includes(ind))
+            .map((ind) => (
+              <ToggleChip
+                key={ind}
+                label={`${ind} ✕`}
+                active
+                onClick={() => toggleList("industries", ind)}
+              />
+            ))}
+        </div>
+        {/* Free-text input for any business type not in the list */}
+        <div className="flex gap-2 mt-2">
+          <input
+            type="text"
+            value={industryInput}
+            onChange={(e) => setIndustryInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                const v = industryInput.trim();
+                if (v && !params.industries.includes(v)) {
+                  set("industries", [...params.industries, v]);
+                }
+                setIndustryInput("");
+              }
+            }}
+            placeholder="Otro tipo de negocio… (ej: Conservación marina, Carbon markets)"
+            className="input flex-1 text-sm"
+          />
+          <button
+            type="button"
+            className="btn-secondary text-sm px-3"
+            onClick={() => {
+              const v = industryInput.trim();
+              if (v && !params.industries.includes(v)) {
+                set("industries", [...params.industries, v]);
+              }
+              setIndustryInput("");
+            }}
+          >
+            + Agregar
+          </button>
         </div>
       </div>
 
