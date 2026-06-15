@@ -20,6 +20,22 @@ const INDUSTRIES = [
   "Tourism / Hospitality", "Construction / Infrastructure",
 ];
 
+// Industrias con mayor probabilidad de calificar para visa de tratado comercial.
+// CPTPP favorece sectores de recursos / medio ambiente; CCFTA favorece profesiones
+// reguladas (ingeniería, ciencias, TI, finanzas) listadas en el Apéndice L-1.
+const TREATY_INDUSTRIES: Record<string, ("CPTPP" | "CCFTA")[]> = {
+  "Technology":                     ["CPTPP", "CCFTA"],
+  "Software / SaaS":                ["CPTPP", "CCFTA"],
+  "Finance / Fintech":              ["CCFTA"],
+  "Consulting":                     ["CCFTA"],
+  "Manufacturing":                  ["CCFTA"],
+  "Energy / Cleantech":             ["CPTPP", "CCFTA"],
+  "Environmental / Sustainability": ["CPTPP"],
+  "Agriculture / Agritech":         ["CPTPP"],
+  "Forestry / Natural Resources":   ["CPTPP"],
+  "Mining / Resources":             ["CPTPP", "CCFTA"],
+};
+
 const LLM_OPTIONS = [
   { provider: "anthropic", model: "claude-haiku-4-5",        label: "Claude Haiku · Anthropic" },
   { provider: "groq",      model: "llama-3.3-70b-versatile", label: "Llama 3.3 70B · Groq (gratis)" },
@@ -175,16 +191,30 @@ export function SearchPanel({ onSearch, loading, masters = [], activeMasterId = 
     ];
   };
 
-  const ToggleChip = ({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) => (
+  const ToggleChip = ({ label, active, onClick, treaties }: { label: string; active: boolean; onClick: () => void; treaties?: ("CPTPP" | "CCFTA")[] }) => (
     <button
       onClick={onClick}
-      className={`px-3 py-1 rounded-full text-xs border transition-all ${
+      className={`px-3 py-1 rounded-full text-xs border transition-all inline-flex items-center gap-1 ${
         active
           ? "bg-indigo-100 border-indigo-400 text-indigo-700 font-medium"
+          : treaties && treaties.length > 0
+          ? "border-emerald-300 bg-emerald-50/40 text-emerald-800 hover:border-emerald-400"
           : "border-gray-200 text-gray-500 hover:border-gray-400"
       }`}
     >
       {label}
+      {treaties?.map((t) => (
+        <span
+          key={t}
+          className={`text-[9px] px-1 py-0.5 rounded-full font-bold leading-none ${
+            t === "CPTPP"
+              ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+              : "bg-blue-100 text-blue-800 border border-blue-300"
+          }`}
+        >
+          {t === "CPTPP" ? "🌏" : "🇨🇱"} {t}
+        </span>
+      ))}
     </button>
   );
 
@@ -314,9 +344,13 @@ export function SearchPanel({ onSearch, loading, masters = [], activeMasterId = 
       {/* ── Industries / tipo de negocio ──────────────────────────────────── */}
       <div>
         <label className="label">🏢 Tipo de negocio / Industria (multi-selección)</label>
-        <p className="text-[11px] text-gray-400 mb-2">
-          Elige los sectores donde quieres postular — ej. Environmental / Sustainability
-          si tu estrategia de visa (CPTPP) apunta a ese rubro.
+        <p className="text-[11px] text-gray-400 mb-1">
+          Elige los sectores donde quieres postular.
+        </p>
+        <p className="text-[11px] text-emerald-700 mb-2">
+          Los sectores marcados con <span className="font-bold">🌏 CPTPP</span> o{" "}
+          <span className="font-bold">🇨🇱 CCFTA</span> son los más probables para calificar a
+          una visa de tratado comercial.
         </p>
         <div className="flex flex-wrap gap-2">
           {INDUSTRIES.map((ind) => (
@@ -325,6 +359,7 @@ export function SearchPanel({ onSearch, loading, masters = [], activeMasterId = 
               label={ind}
               active={params.industries.includes(ind)}
               onClick={() => toggleList("industries", ind)}
+              treaties={TREATY_INDUSTRIES[ind]}
             />
           ))}
           {/* Custom industries the user typed (not in the predefined list) */}
