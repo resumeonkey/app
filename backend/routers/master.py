@@ -45,6 +45,9 @@ class MasterSummary(BaseModel):
     excluded_roles: Optional[str]
     industry_experience: Optional[str]
     target_industries: Optional[str]
+    citizenship: Optional[str]
+    education_level: Optional[str]
+    prioritize_treaty: Optional[bool]
 
     class Config:
         from_attributes = True
@@ -63,6 +66,9 @@ class MasterPreferencesUpdate(BaseModel):
     excluded_roles:       Optional[str] = None  # comma-separated exclusion terms
     industry_experience:  Optional[str] = None  # industries where candidate has experience
     target_industries:    Optional[str] = None  # industries candidate wants to target
+    citizenship:          Optional[str] = None  # country of citizenship (treaty eligibility)
+    education_level:      Optional[str] = None  # "none"|"technical"|"university"
+    prioritize_treaty:    Optional[bool] = None # boost treaty-eligible jobs in scoring
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -213,6 +219,15 @@ def update_preferences(
         master.industry_experience = _normalize_tags(body.industry_experience, max_chars=200)
     if body.target_industries is not None:
         master.target_industries = _normalize_tags(body.target_industries, max_chars=200)
+    if body.citizenship is not None:
+        master.citizenship = body.citizenship.strip()[:60] or None
+    if body.education_level is not None:
+        valid_edu = {"none", "technical", "university"}
+        if body.education_level not in valid_edu:
+            raise HTTPException(400, f"education_level must be one of: {', '.join(sorted(valid_edu))}")
+        master.education_level = body.education_level
+    if body.prioritize_treaty is not None:
+        master.prioritize_treaty = body.prioritize_treaty
     db.commit()
     db.refresh(master)
     return _to_summary(master)
@@ -276,6 +291,9 @@ def _to_summary(m: MasterResume) -> dict:
         "excluded_roles":     m.excluded_roles or "",
         "industry_experience":m.industry_experience or "",
         "target_industries":  m.target_industries or "",
+        "citizenship":        m.citizenship or "",
+        "education_level":     m.education_level or "none",
+        "prioritize_treaty":  bool(m.prioritize_treaty),
     }
 
 def _to_detail(m: MasterResume) -> dict:

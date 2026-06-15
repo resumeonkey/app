@@ -218,6 +218,11 @@ function JobResultCard({
               🇨🇱 CCFTA
             </span>
           )}
+          {!!job.treaty_boost && job.treaty_boost > 0 && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 font-bold">
+              ⬆ +{job.treaty_boost} por tu perfil
+            </span>
+          )}
         </div>
       )}
       <div className="flex items-start gap-3">

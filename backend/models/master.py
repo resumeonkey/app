@@ -59,3 +59,12 @@ class MasterResume(Base):
     # Industries the candidate WANTS to work in (used in query generation)
     # Example: "Technology, SaaS, Fintech, Healthcare Technology"
     target_industries = Column(Text, nullable=True)
+
+    # ── Trade-treaty visa eligibility — drives proximity weighting ───────────
+    # Country of citizenship + education level determine which Canadian FTAs the
+    # candidate can use for LMIA-exempt temporary entry (CPTPP, CCFTA, etc.).
+    # See backend/services/treaty_eligibility.py for the country→treaty matrix.
+    citizenship       = Column(String, nullable=True)        # e.g. "Chile"
+    education_level   = Column(String, default="none", nullable=True)
+    # "none" | "technical" (2-yr) | "university" (4-yr)
+    prioritize_treaty = Column(Boolean, default=False)       # boost treaty-eligible jobs

@@ -45,6 +45,9 @@ def _migrate_add_columns():
         ("master_resumes",    "excluded_roles",     "TEXT"),
         ("master_resumes",    "industry_experience","TEXT"),
         ("master_resumes",    "target_industries",  "TEXT"),
+        ("master_resumes",    "citizenship",        "TEXT"),
+        ("master_resumes",    "education_level",    "TEXT DEFAULT 'none'"),
+        ("master_resumes",    "prioritize_treaty",  "BOOLEAN DEFAULT FALSE"),
         ("saved_jobs",        "cptpp_eligible",     "BOOLEAN DEFAULT FALSE"),
     ]
     with engine.connect() as conn:

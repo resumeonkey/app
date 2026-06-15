@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.models.master import MasterResume
+from backend.services.treaty_eligibility import eligible_treaties
 from backend.services.job_search import (
     generate_search_queries,
     search_jobs_via_jina,
@@ -231,6 +232,11 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
     resolved_industry_experience = (master.industry_experience or "").strip()
     resolved_target_industries  = (master.target_industries or "").strip()
 
+    # Trade-treaty eligibility from the profile (citizenship + education level).
+    # Drives the proximity-score boost for treaty-eligible jobs below.
+    user_treaties = eligible_treaties(master.citizenship, master.education_level)
+    treaty_priority = bool(master.prioritize_treaty) and bool(user_treaties)
+
     # ── Step 1: Queries ───────────────────────────────────────────────────────
     # Auto-detect language keywords typed in the job_title field.
     # e.g. user typed "Spanish" → they want jobs requiring Spanish, not jobs
@@ -364,6 +370,18 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
         title_lower = (raw.get("title") or "").lower()
         fast_ccfta = any(kw in title_lower for kw in _CCFTA_ELIGIBLE_TITLES)
         fast_cptpp = any(kw in title_lower for kw in _CPTPP_ELIGIBLE_TITLES)
+        job_ccfta = score.get("ccfta_eligible", False) or fast_ccfta
+        job_cptpp = fast_cptpp
+
+        # Proximity boost: if the candidate is treaty-eligible (per profile) AND
+        # this job qualifies under one of those treaties, raise its score so the
+        # LMIA-exempt pathway surfaces to the top. Capped at 100.
+        compat = score.get("compatibility_score", 50)
+        treaty_boost = 0
+        if treaty_priority:
+            if ("CCFTA" in user_treaties and job_ccfta) or ("CPTPP" in user_treaties and job_cptpp):
+                treaty_boost = 12
+                compat = min(100, compat + treaty_boost)
 
         final.append({
             "id":                  raw.get("id", ""),
@@ -374,15 +392,16 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             "snippet":             raw.get("snippet", ""),
             "salary":              score.get("salary") or raw.get("salary_display"),
             "date_posted":         raw.get("date") or score.get("date_posted", ""),
-            "compatibility_score": score.get("compatibility_score", 50),
+            "compatibility_score": compat,
+            "treaty_boost":        treaty_boost,
             "matched_skills":      score.get("matched_skills", []),
             "missing_skills":      score.get("missing_skills", []),
             "score_summary":       score.get("score_summary", ""),
             # Immigration fields
             "source":              raw.get("source", "linkedin"),
             "lmia_approved":       raw.get("lmia_approved", False),
-            "ccfta_eligible":      score.get("ccfta_eligible", False) or fast_ccfta,
-            "cptpp_eligible":      fast_cptpp,
+            "ccfta_eligible":      job_ccfta,
+            "cptpp_eligible":      job_cptpp,
             "immigration_support": score.get("immigration_support", "no"),
             "bilingual_advantage": score.get("bilingual_advantage", False),
             # English level fields

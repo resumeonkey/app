@@ -83,6 +83,16 @@ const ENGLISH_LEVELS: { val: MasterSummary["english_level"]; label: string }[] =
   { val: "fluent", label: "Fluido · C1–C2" },
 ];
 
+// Countries with a Canadian FTA professional-mobility pathway (see backend
+// treaty_eligibility.py). Empty = no treaty pathway considered.
+const CITIZENSHIPS = ["", "Chile", "Mexico", "Peru", "Colombia", "Panama", "Costa Rica"];
+
+const EDUCATION_LEVELS: { val: MasterSummary["education_level"]; label: string }[] = [
+  { val: "none", label: "Sin definir" },
+  { val: "technical", label: "Técnico · 2 años" },
+  { val: "university", label: "Universitario · 4 años" },
+];
+
 const CHIP_STYLES: Record<string, string> = {
   green:  "bg-green-100 border-green-300 text-green-700",
   red:    "bg-red-100 border-red-300 text-red-700",
@@ -178,6 +188,9 @@ function ProfileCard({ profile, isActive, selected, onToggleSelect, onActivate, 
   const [indExp, setIndExp]   = useState(profile.industry_experience ?? "");
   const [tgtInds, setTgtInds] = useState(profile.target_industries ?? "");
   const [engLevel, setEngLvl] = useState<MasterSummary["english_level"]>(profile.english_level ?? "any");
+  const [citizenship, setCitizenship] = useState(profile.citizenship ?? "");
+  const [eduLevel, setEduLevel] = useState<MasterSummary["education_level"]>(profile.education_level ?? "none");
+  const [prioritizeTreaty, setPrioritizeTreaty] = useState<boolean>(profile.prioritize_treaty ?? false);
 
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -381,6 +394,76 @@ function ProfileCard({ profile, isActive, selected, onToggleSelect, onActivate, 
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Trade-treaty visa eligibility */}
+          <div className="border border-emerald-200 bg-emerald-50/30 rounded-lg p-3 space-y-3">
+            <div>
+              <label className="block text-[11px] font-semibold text-emerald-700 uppercase tracking-wide mb-0.5">
+                🌏 Elegibilidad de visa por tratado
+              </label>
+              <p className="text-[11px] text-gray-500">
+                Tu ciudadanía y nivel de estudios determinan a qué tratados (CPTPP, CCFTA…)
+                puedes optar para trabajar en Canadá sin LMIA. Se usa para priorizar empleos compatibles.
+              </p>
+            </div>
+
+            {/* Citizenship */}
+            <div>
+              <label className="block text-[11px] font-medium text-gray-500 mb-1">🌎 País de ciudadanía</label>
+              <select
+                className="input text-sm"
+                value={citizenship}
+                onChange={async (e) => {
+                  const val = e.target.value;
+                  setCitizenship(val);
+                  const updated = await updateMasterPreferences(profile.id, { citizenship: val });
+                  onUpdated(updated);
+                }}
+              >
+                {CITIZENSHIPS.map((c) => (
+                  <option key={c} value={c}>{c || "Sin definir"}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Education level */}
+            <div>
+              <label className="block text-[11px] font-medium text-gray-500 mb-1">🎓 Nivel de estudios</label>
+              <div className="flex flex-wrap gap-2">
+                {EDUCATION_LEVELS.map(({ val, label }) => (
+                  <button key={val}
+                    onClick={async () => {
+                      setEduLevel(val);
+                      const updated = await updateMasterPreferences(profile.id, { education_level: val });
+                      onUpdated(updated);
+                    }}
+                    className={`px-3 py-1 rounded-full text-xs border transition-all ${
+                      eduLevel === val
+                        ? "bg-emerald-100 border-emerald-400 text-emerald-700 font-medium"
+                        : "border-gray-200 text-gray-500 hover:border-emerald-300"
+                    }`}>{label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Prioritize toggle */}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={prioritizeTreaty}
+                onChange={async (e) => {
+                  const val = e.target.checked;
+                  setPrioritizeTreaty(val);
+                  const updated = await updateMasterPreferences(profile.id, { prioritize_treaty: val });
+                  onUpdated(updated);
+                }}
+              />
+              <span className="text-xs text-gray-700">
+                Priorizar empleos con vía de tratado (sube su % de compatibilidad)
+              </span>
+            </label>
           </div>
 
         </div>

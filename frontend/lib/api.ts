@@ -21,6 +21,9 @@ export interface MasterSummary {
   excluded_roles: string;
   industry_experience: string;
   target_industries: string;
+  citizenship: string;
+  education_level: "none" | "technical" | "university";
+  prioritize_treaty: boolean;
 }
 
 export interface MasterDetail extends MasterSummary {
@@ -88,6 +91,9 @@ export interface ProfilePreferences {
   excluded_roles?: string;
   industry_experience?: string;
   target_industries?: string;
+  citizenship?: string;
+  education_level?: MasterSummary["education_level"];
+  prioritize_treaty?: boolean;
 }
 
 export const updateMasterPreferences = (id: string, prefs: ProfilePreferences) =>
@@ -196,6 +202,7 @@ export interface JobResult {
   salary: string | null;
   date_posted: string | null;
   compatibility_score: number;
+  treaty_boost?: number;
   matched_skills: string[];
   missing_skills: string[];
   score_summary: string;
