@@ -1,4 +1,6 @@
-# 📄 Resume Adapter
+# 🐵 Resumonkey
+
+> Una app de **SoyManada**.
 
 **Tu resume canadiense como plantilla maestra. Cada oferta genera una versión adaptada — sin romper el formato.**
 

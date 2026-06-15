@@ -25,8 +25,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Resume Adapter",
-    description="Canadian resume adaptation engine — one master, unlimited tailored versions.",
+    title="Resumonkey",
+    description="Resumonkey — motor de adaptación de CV canadienses. Una app de SoyManada.",
     version="0.1.0",
     lifespan=lifespan,
 )

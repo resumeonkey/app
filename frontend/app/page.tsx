@@ -172,7 +172,7 @@ export default function HomePage() {
     <div className="space-y-6">
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold text-gray-800">📄 Resume Adapter</h1>
+        <h1 className="text-3xl font-bold text-gray-800">🐵 Resumonkey</h1>
         <p className="text-gray-500">
           Adapta tu resume canadiense a cada oferta — sin romper el formato.
         </p>

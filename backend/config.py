@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    app_name: str = "Resume Adapter"
+    app_name: str = "Resumonkey"
     debug: bool = False
 
     # Database — SQLite for local dev, PostgreSQL (Supabase) for prod

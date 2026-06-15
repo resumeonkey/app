@@ -4,7 +4,7 @@ Set-Location $Root
 
 Write-Host ""
 Write-Host "  ================================================" -ForegroundColor Cyan
-Write-Host "   Resume Adapter - Iniciando..." -ForegroundColor Cyan
+Write-Host "   Resumonkey - Iniciando..." -ForegroundColor Cyan
 Write-Host "  ================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -110,7 +110,7 @@ Start-Process "http://127.0.0.1:8000"
 Clear-Host
 Write-Host ""
 Write-Host "  ================================================" -ForegroundColor Green
-Write-Host "   Resume Adapter esta corriendo" -ForegroundColor Green
+Write-Host "   Resumonkey esta corriendo" -ForegroundColor Green
 Write-Host "  ================================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "   http://127.0.0.1:8000" -ForegroundColor White
