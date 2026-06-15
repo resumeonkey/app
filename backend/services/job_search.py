@@ -1097,7 +1097,12 @@ async def batch_score_jobs(
         "\nCCFTA=true if role matches: Engineer/Analyst/Consultant/Accountant/Scientist/Architect."
     ) if ccfta_check else ""
     bilingual_note = (
-        "\nbilingual=true if job values/requires Spanish or bilingual."
+        "\nbilingual=true ONLY if the job text EXPLICITLY names a second spoken "
+        "language as required or an asset — e.g. 'Spanish', 'French', 'bilingual', "
+        "'English and French', 'fluency in Spanish', 'multilingual'. "
+        "Do NOT set bilingual=true from generic global/international wording like "
+        "'global team', 'international', 'worldwide', 'X countries', 'cross-border'. "
+        "If no explicit language other than English is named, bilingual=false."
     ) if bilingual_spanish else ""
 
     # English level scoring note
@@ -1307,7 +1312,11 @@ async def score_job(
     ) if ccfta_check else ""
 
     bilingual_block = (
-        "\nbilingual_advantage: true if job values/requires Spanish or bilingual."
+        "\nbilingual_advantage: true ONLY if the job text EXPLICITLY names a second "
+        "spoken language as required or an asset (Spanish, French, bilingual, "
+        "'English and French', 'multilingual'). Do NOT infer it from generic "
+        "global/international wording ('global team', 'worldwide', 'X countries'). "
+        "If no explicit non-English language is named, bilingual_advantage=false."
     ) if bilingual_spanish else ""
 
     # English level block for single-job scoring

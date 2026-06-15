@@ -8,6 +8,7 @@ Job search endpoints.
 import asyncio
 import json
 import logging
+import re
 from typing import Optional
 
 import httpx
@@ -45,6 +46,16 @@ log = logging.getLogger(__name__)
 from backend.services.llm_client import call_llm
 
 router = APIRouter()
+
+# Explicit second-language evidence — used to suppress bilingual false positives.
+# Matches a named non-English language or an explicit bilingual/multilingual cue,
+# NOT generic global/international wording.
+_LANGUAGE_EVIDENCE_RE = re.compile(
+    r"\b(biling\w*|multiling\w*|spanish|espa[nñ]ol|french|fran[cç]ais|"
+    r"english\s+and\s+(?:french|spanish)|fluency\s+in|"
+    r"mandarin|cantonese|portuguese|german|italian|punjabi|arabic|tagalog)\b",
+    re.IGNORECASE,
+)
 
 
 # ── Pydantic models ───────────────────────────────────────────────────────────
@@ -373,6 +384,13 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
         job_ccfta = score.get("ccfta_eligible", False) or fast_ccfta
         job_cptpp = fast_cptpp
 
+        # Deterministic guard against bilingual false positives: only trust the
+        # LLM's bilingual flag if the job text actually names a second language.
+        # Prevents "global team / 90 countries" from being read as bilingual.
+        job_text = f"{raw.get('title','')} {raw.get('snippet','')}".lower()
+        has_language_evidence = bool(_LANGUAGE_EVIDENCE_RE.search(job_text))
+        job_bilingual = bool(score.get("bilingual_advantage", False)) and has_language_evidence
+
         # Proximity boost: if the candidate is treaty-eligible (per profile) AND
         # this job qualifies under one of those treaties, raise its score so the
         # LMIA-exempt pathway surfaces to the top. Capped at 100.
@@ -403,7 +421,7 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             "ccfta_eligible":      job_ccfta,
             "cptpp_eligible":      job_cptpp,
             "immigration_support": score.get("immigration_support", "no"),
-            "bilingual_advantage": score.get("bilingual_advantage", False),
+            "bilingual_advantage": job_bilingual,
             # English level fields
             "english_barrier":     score.get("english_barrier", False),
             "english_required":    score.get("english_required", "unknown"),
