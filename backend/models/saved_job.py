@@ -37,6 +37,7 @@ class SavedJob(Base):
     # Immigration flags
     lmia_approved       = Column(Boolean, default=False)
     ccfta_eligible      = Column(Boolean, default=False)
+    cptpp_eligible      = Column(Boolean, default=False)
     immigration_support = Column(String, nullable=True)
     bilingual_advantage = Column(Boolean, default=False)
     english_barrier     = Column(Boolean, default=False)

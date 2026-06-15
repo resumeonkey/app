@@ -36,6 +36,31 @@ _CCFTA_ELIGIBLE_TITLES = [
     "land surveyor", "geologist", "meteorologist",
 ]
 
+# ── CPTPP eligible job title keywords (Comprehensive & Progressive TPP) ────────
+# Chile is a CPTPP member. Under Canada's CPTPP "Professionals and Technicians"
+# commitments, Chilean nationals can access LMIA-exempt work permits for a BROADER
+# set of professional/technical occupations than CCFTA, including many sustainability,
+# environmental, agricultural and natural-resource roles relevant to the candidate's
+# CPTPP strategy. This list is a fast title-based heuristic (LLM confirms in scoring).
+_CPTPP_ELIGIBLE_TITLES = [
+    # Professionals shared with CCFTA
+    "engineer", "software engineer", "systems analyst", "business analyst",
+    "data analyst", "data scientist", "consultant", "scientist", "architect",
+    "accountant", "auditor", "economist", "statistician",
+    # Environmental / sustainability (CPTPP-strategy focus)
+    "environmental", "sustainability", "climate", "esg", "carbon",
+    "conservation", "ecology", "ecologist", "renewable", "clean energy",
+    "environmental engineer", "environmental scientist", "environmental analyst",
+    "sustainability analyst", "sustainability consultant", "sustainability manager",
+    # Agriculture / natural resources
+    "agronomist", "agricultural", "agriculture", "forestry", "forester",
+    "fisheries", "aquaculture", "natural resource",
+    # Technical / specialist roles
+    "technician", "technologist", "specialist", "coordinator",
+    "project manager", "product manager", "implementation specialist",
+    "quality", "researcher", "analyst",
+]
+
 
 def _parse_json_response(raw: str) -> dict:
     """Parse JSON from LLM response, stripping markdown fences if present."""

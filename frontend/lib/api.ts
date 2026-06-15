@@ -203,6 +203,7 @@ export interface JobResult {
   source: "linkedin" | "jobbank" | "workopolis" | "eluta";
   lmia_approved: boolean;
   ccfta_eligible: boolean;
+  cptpp_eligible: boolean;
   immigration_support: "yes" | "mentioned" | "no";
   bilingual_advantage: boolean;
   // English level fields
@@ -285,6 +286,7 @@ export interface SavedJob {
   why_relevant: string[];
   lmia_approved: boolean;
   ccfta_eligible: boolean;
+  cptpp_eligible: boolean;
   immigration_support: string | null;
   bilingual_advantage: boolean;
   english_barrier: boolean;
@@ -318,6 +320,7 @@ export const saveJob = (job: JobResult) =>
     why_relevant:        job.why_relevant,
     lmia_approved:       job.lmia_approved,
     ccfta_eligible:      job.ccfta_eligible,
+    cptpp_eligible:      job.cptpp_eligible,
     immigration_support: job.immigration_support,
     bilingual_advantage: job.bilingual_advantage,
     english_barrier:     job.english_barrier,

@@ -42,6 +42,7 @@ class SaveJobRequest(BaseModel):
     why_relevant:        Optional[list] = None
     lmia_approved:       bool = False
     ccfta_eligible:      bool = False
+    cptpp_eligible:      bool = False
     immigration_support: Optional[str]  = None
     bilingual_advantage: bool = False
     english_barrier:     bool = False
@@ -81,6 +82,7 @@ def _serialize(job: SavedJob) -> dict:
         "why_relevant":        job.why_relevant or [],
         "lmia_approved":       job.lmia_approved,
         "ccfta_eligible":      job.ccfta_eligible,
+        "cptpp_eligible":      job.cptpp_eligible,
         "immigration_support": job.immigration_support,
         "bilingual_advantage": job.bilingual_advantage,
         "english_barrier":     job.english_barrier,
@@ -130,6 +132,7 @@ def save_job(req: SaveJobRequest, db: Session = Depends(get_db)):
         why_relevant=req.why_relevant,
         lmia_approved=req.lmia_approved,
         ccfta_eligible=req.ccfta_eligible,
+        cptpp_eligible=req.cptpp_eligible,
         immigration_support=req.immigration_support,
         bilingual_advantage=req.bilingual_advantage,
         english_barrier=req.english_barrier,

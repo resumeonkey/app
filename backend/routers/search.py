@@ -35,6 +35,7 @@ from backend.services.job_search import (
     _parse_workopolis_results,
     _parse_eluta_results,
     _CCFTA_ELIGIBLE_TITLES,
+    _CPTPP_ELIGIBLE_TITLES,
     _is_language_keyword,
     filter_excluded_roles,
 )
@@ -359,9 +360,10 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
     for raw, score in zip(raw_results, scores):
         if not isinstance(score, dict):
             score = {}
-        # Fast CCFTA pre-check from title keywords (no LLM needed)
+        # Fast treaty-eligibility pre-check from title keywords (no LLM needed)
         title_lower = (raw.get("title") or "").lower()
         fast_ccfta = any(kw in title_lower for kw in _CCFTA_ELIGIBLE_TITLES)
+        fast_cptpp = any(kw in title_lower for kw in _CPTPP_ELIGIBLE_TITLES)
 
         final.append({
             "id":                  raw.get("id", ""),
@@ -380,6 +382,7 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             "source":              raw.get("source", "linkedin"),
             "lmia_approved":       raw.get("lmia_approved", False),
             "ccfta_eligible":      score.get("ccfta_eligible", False) or fast_ccfta,
+            "cptpp_eligible":      fast_cptpp,
             "immigration_support": score.get("immigration_support", "no"),
             "bilingual_advantage": score.get("bilingual_advantage", False),
             # English level fields

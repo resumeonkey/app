@@ -139,8 +139,28 @@ function SavedJobCard({
     <div className={`border rounded-xl p-4 transition-all ${
       job.applied_at
         ? "border-green-300 bg-green-50/30"
+        : (job.cptpp_eligible || job.ccfta_eligible)
+        ? "border-emerald-300 bg-emerald-50/20 ring-1 ring-emerald-200"
         : "border-gray-200 hover:border-gray-300 bg-white"
     }`}>
+      {/* Visa-eligibility banner */}
+      {(job.cptpp_eligible || job.ccfta_eligible) && (
+        <div className="flex items-center gap-2 mb-2 -mt-1">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+            ✅ Apto para visa de tratado
+          </span>
+          {job.cptpp_eligible && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold">
+              🌏 CPTPP
+            </span>
+          )}
+          {job.ccfta_eligible && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-300 font-bold">
+              🇨🇱 CCFTA
+            </span>
+          )}
+        </div>
+      )}
       <div className="flex items-start gap-3">
         {/* Score badge */}
         <div className="flex-shrink-0">
@@ -228,9 +248,7 @@ function SavedJobCard({
             {job.lmia_approved && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">✅ LMIA</span>
             )}
-            {job.ccfta_eligible && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-medium">🇨🇱 CCFTA</span>
-            )}
+            {/* CCFTA/CPTPP shown in the top visa banner — not repeated here */}
           </div>
 
           {job.score_summary && (
