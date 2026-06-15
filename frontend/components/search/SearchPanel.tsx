@@ -320,95 +320,6 @@ export function SearchPanel({ onSearch, loading, masters = [], activeMasterId = 
         </div>
       </div>
 
-      {/* ── Experience level ──────────────────────────────────────────────── */}
-      <div>
-        <label className="label">Nivel de experiencia</label>
-        <div className="flex flex-wrap gap-2">
-          {[
-            { val: "entry", label: "Junior / Entry" },
-            { val: "mid",   label: "Mid-level" },
-            { val: "senior", label: "Senior" },
-            { val: "lead",  label: "Lead / Staff" },
-            { val: "executive", label: "Director / VP" },
-          ].map(({ val, label }) => (
-            <ToggleChip
-              key={val}
-              label={label}
-              active={params.experience_level.includes(val)}
-              onClick={() => toggleList("experience_level", val)}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* ── Industries / tipo de negocio ──────────────────────────────────── */}
-      <div>
-        <label className="label">🏢 Tipo de negocio / Industria (multi-selección)</label>
-        <p className="text-[11px] text-gray-400 mb-1">
-          Elige los sectores donde quieres postular.
-        </p>
-        <p className="text-[11px] text-emerald-700 mb-2">
-          Los sectores marcados con <span className="font-bold">🌏 CPTPP</span> o{" "}
-          <span className="font-bold">🇨🇱 CCFTA</span> son los más probables para calificar a
-          una visa de tratado comercial.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {INDUSTRIES.map((ind) => (
-            <ToggleChip
-              key={ind}
-              label={ind}
-              active={params.industries.includes(ind)}
-              onClick={() => toggleList("industries", ind)}
-              treaties={TREATY_INDUSTRIES[ind]}
-            />
-          ))}
-          {/* Custom industries the user typed (not in the predefined list) */}
-          {params.industries
-            .filter((ind) => !INDUSTRIES.includes(ind))
-            .map((ind) => (
-              <ToggleChip
-                key={ind}
-                label={`${ind} ✕`}
-                active
-                onClick={() => toggleList("industries", ind)}
-              />
-            ))}
-        </div>
-        {/* Free-text input for any business type not in the list */}
-        <div className="flex gap-2 mt-2">
-          <input
-            type="text"
-            value={industryInput}
-            onChange={(e) => setIndustryInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                const v = industryInput.trim();
-                if (v && !params.industries.includes(v)) {
-                  set("industries", [...params.industries, v]);
-                }
-                setIndustryInput("");
-              }
-            }}
-            placeholder="Otro tipo de negocio… (ej: Conservación marina, Carbon markets)"
-            className="input flex-1 text-sm"
-          />
-          <button
-            type="button"
-            className="btn-secondary text-sm px-3"
-            onClick={() => {
-              const v = industryInput.trim();
-              if (v && !params.industries.includes(v)) {
-                set("industries", [...params.industries, v]);
-              }
-              setIndustryInput("");
-            }}
-          >
-            + Agregar
-          </button>
-        </div>
-      </div>
-
       {/* ── Advanced toggle ───────────────────────────────────────────────── */}
       <button
         onClick={() => setShowAdvanced(!showAdvanced)}
@@ -419,6 +330,95 @@ export function SearchPanel({ onSearch, loading, masters = [], activeMasterId = 
 
       {showAdvanced && (
         <div className="space-y-5 border-t border-gray-100 pt-4">
+          {/* ── Experience level ────────────────────────────────────────────── */}
+          <div>
+            <label className="label">Nivel de experiencia</label>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { val: "entry", label: "Junior / Entry" },
+                { val: "mid",   label: "Mid-level" },
+                { val: "senior", label: "Senior" },
+                { val: "lead",  label: "Lead / Staff" },
+                { val: "executive", label: "Director / VP" },
+              ].map(({ val, label }) => (
+                <ToggleChip
+                  key={val}
+                  label={label}
+                  active={params.experience_level.includes(val)}
+                  onClick={() => toggleList("experience_level", val)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* ── Industries / tipo de negocio ────────────────────────────────── */}
+          <div>
+            <label className="label">🏢 Tipo de negocio / Industria (multi-selección)</label>
+            <p className="text-[11px] text-gray-400 mb-1">
+              Elige los sectores donde quieres postular.
+            </p>
+            <p className="text-[11px] text-emerald-700 mb-2">
+              Los sectores marcados con <span className="font-bold">🌏 CPTPP</span> o{" "}
+              <span className="font-bold">🇨🇱 CCFTA</span> son los más probables para calificar a
+              una visa de tratado comercial.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {INDUSTRIES.map((ind) => (
+                <ToggleChip
+                  key={ind}
+                  label={ind}
+                  active={params.industries.includes(ind)}
+                  onClick={() => toggleList("industries", ind)}
+                  treaties={TREATY_INDUSTRIES[ind]}
+                />
+              ))}
+              {/* Custom industries the user typed (not in the predefined list) */}
+              {params.industries
+                .filter((ind) => !INDUSTRIES.includes(ind))
+                .map((ind) => (
+                  <ToggleChip
+                    key={ind}
+                    label={`${ind} ✕`}
+                    active
+                    onClick={() => toggleList("industries", ind)}
+                  />
+                ))}
+            </div>
+            {/* Free-text input for any business type not in the list */}
+            <div className="flex gap-2 mt-2">
+              <input
+                type="text"
+                value={industryInput}
+                onChange={(e) => setIndustryInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const v = industryInput.trim();
+                    if (v && !params.industries.includes(v)) {
+                      set("industries", [...params.industries, v]);
+                    }
+                    setIndustryInput("");
+                  }
+                }}
+                placeholder="Otro tipo de negocio… (ej: Conservación marina, Carbon markets)"
+                className="input flex-1 text-sm"
+              />
+              <button
+                type="button"
+                className="btn-secondary text-sm px-3"
+                onClick={() => {
+                  const v = industryInput.trim();
+                  if (v && !params.industries.includes(v)) {
+                    set("industries", [...params.industries, v]);
+                  }
+                  setIndustryInput("");
+                }}
+              >
+                + Agregar
+              </button>
+            </div>
+          </div>
+
           {/* Job type */}
           <div>
             <label className="label">Tipo de empleo</label>
