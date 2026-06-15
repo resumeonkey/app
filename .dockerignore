@@ -1,0 +1,14 @@
+venv/
+backend/venv/
+frontend/
+node_modules/
+__pycache__/
+*.pyc
+*.db
+*.sqlite
+uploads/
+outputs/
+*.log
+.env
+.git/
+.gitignore
