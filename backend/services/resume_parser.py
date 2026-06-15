@@ -134,24 +134,7 @@ def parse_docx(file_path: str) -> dict[str, Any]:
 
 
 def parse_pdf(file_path: str) -> dict[str, Any]:
-    try:
-        import pdfplumber
-        lines = []
-        with pdfplumber.open(file_path) as pdf:
-            for page in pdf.pages:
-                text = page.extract_text() or ""
-                lines.extend(text.split("\n"))
-    except ImportError:
-        # fallback: pypdf
-        from pypdf import PdfReader
-        reader = PdfReader(file_path)
-        lines = []
-        for page in reader.pages:
-            lines.extend((page.extract_text() or "").split("\n"))
-
-    # Repair broken single-char lines produced by complex PDF layouts
-    # (e.g. fancy headers where each letter is individually positioned)
-    lines = _repair_single_char_lines(lines)
+    lines = _extract_pdf_lines(file_path)
 
     # Convert to paragraph-like objects
     paragraphs = []
@@ -162,6 +145,49 @@ def parse_pdf(file_path: str) -> dict[str, Any]:
         paragraphs.append({"index": i, "text": text, "style": style, "empty": not text})
 
     return _build_section_map(paragraphs)
+
+
+def _extract_pdf_lines(file_path: str) -> list[str]:
+    """Extract text lines from a PDF, repairing broken single-char layouts."""
+    try:
+        import pdfplumber
+        lines: list[str] = []
+        with pdfplumber.open(file_path) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text() or ""
+                lines.extend(text.split("\n"))
+    except ImportError:
+        from pypdf import PdfReader
+        reader = PdfReader(file_path)
+        lines = []
+        for page in reader.pages:
+            lines.extend((page.extract_text() or "").split("\n"))
+    return _repair_single_char_lines(lines)
+
+
+def pdf_to_docx(pdf_path: str, docx_path: str) -> None:
+    """
+    Convert a PDF resume into a clean, well-structured DOCX.
+
+    This is a *content* reconstruction, not a visual one: it extracts the text
+    and rebuilds it as flowing Word paragraphs with Heading styles on detected
+    section titles. The original PDF's colours/columns/icons are dropped, but the
+    result is a real .docx that the adaptation + export pipeline can edit
+    paragraph-by-paragraph without breaking formatting.
+    """
+    from docx import Document
+
+    doc = Document()
+    for raw in _extract_pdf_lines(pdf_path):
+        text = raw.strip()
+        if not text:
+            doc.add_paragraph("")
+            continue
+        if _looks_like_heading(text):
+            doc.add_heading(text, level=1)
+        else:
+            doc.add_paragraph(text)
+    doc.save(docx_path)
 
 
 def _repair_single_char_lines(lines: list[str]) -> list[str]:

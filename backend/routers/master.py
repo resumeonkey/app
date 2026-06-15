@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from backend.config import get_settings
 from backend.database import get_db
 from backend.models.master import MasterResume
-from backend.services.resume_parser import parse_docx, parse_pdf
+from backend.services.resume_parser import parse_docx, parse_pdf, pdf_to_docx
 from backend.services import storage
 
 router   = APIRouter()
@@ -102,6 +102,29 @@ async def upload_master(
     if len(contents) > MAX_BYTES:
         raise HTTPException(413, f"Archivo demasiado grande (máx {settings.max_upload_mb} MB)")
 
+    original_filename = file.filename or f"master_{file_type}"
+
+    # A PDF can't drive the format-preserving adaptation/export pipeline (which
+    # edits Word XML paragraph-by-paragraph). Convert it to a clean DOCX up front
+    # so the rest of the flow treats it like a native Word upload.
+    pdf_tmp = None
+    try:
+        if file_type == "pdf":
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as t:
+                t.write(contents)
+                pdf_tmp = t.name
+            docx_tmp = pdf_tmp + ".docx"
+            pdf_to_docx(pdf_tmp, docx_tmp)
+            with open(docx_tmp, "rb") as fh:
+                contents = fh.read()
+            os.remove(docx_tmp)
+            file_type = "docx"  # everything downstream is now a real Word doc
+    except Exception as e:
+        raise HTTPException(422, f"No se pudo convertir el PDF a Word: {e}")
+    finally:
+        if pdf_tmp and os.path.exists(pdf_tmp):
+            os.remove(pdf_tmp)
+
     master_id = uuid.uuid4().hex
     safe_name = f"master_{master_id}.{file_type}"
     storage_path = f"uploads/{safe_name}"
@@ -132,9 +155,14 @@ async def upload_master(
     # Deactivate previous masters
     db.query(MasterResume).filter(MasterResume.is_active == True).update({"is_active": False})
 
+    # If we converted a PDF, reflect the .docx result in the stored display name.
+    display_name = original_filename
+    if display_name.lower().endswith(".pdf"):
+        display_name = display_name[:-4] + ".docx"
+
     master = MasterResume(
         id=master_id,
-        original_filename=file.filename or safe_name,
+        original_filename=display_name,
         file_path=file_path,
         file_type=file_type,
         full_text=parsed.get("full_text"),
