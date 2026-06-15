@@ -402,13 +402,16 @@ async def _adapt_experience_per_job(
             system=system,
         )
 
-    # Adapt all jobs in parallel — each LLM call sees only its own lines.
+    # Adapt all jobs in parallel — each LLM call sees ONLY its own job, both as
+    # the text to rewrite AND as its reference context. Passing the chunk (not the
+    # full resume) as master_context is what prevents cross-job contamination:
+    # the model literally cannot see another job's content to import it.
     tasks = [
         _adapt_section(
             section_name="experience",
             prompt_name="adapt_experience",
             original_text=chunk,
-            master_full_text=master_full_text,
+            master_full_text=chunk,
             job_analysis=job_analysis,
             user_instructions=user_instructions,
             reason=reason,

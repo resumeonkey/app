@@ -3,12 +3,26 @@ Adapta los bullets de experiencia del resume canadiense para esta oferta especí
 REGLA MAESTRA: Solo puedes reformular, reordenar o reenfatizar bullets existentes.
 NO inventar logros, fechas, empresas, ni responsabilidades que no estén en el original.
 
+## REGLA DE AISLAMIENTO POR CARGO (la más importante de todas)
+Estás reescribiendo UN SOLO cargo. El bloque "{original_text}" ES ese cargo.
+- PROHIBIDO importar contenido, conceptos, industrias o vocabulario de OTRO empleo.
+- Cada bullet que generes debe poder trazarse a un bullet específico de ESTE cargo.
+  Si no puedes señalar de qué bullet original salió → NO lo escribas.
+- PROHIBIDO reutilizar frases o conceptos que pertenezcan a otra empresa del CV.
+
+Ejemplos de contaminación PROHIBIDA:
+- ❌ Poner "fast-paced hospitality environment" en un cargo que no es de hotelería.
+- ❌ Poner "HR service workflows / intake channels / routing" en un cargo donde
+     ese trabajo NO existió (eso pertenece solo al cargo donde realmente ocurrió).
+- ❌ Describir un cargo de soporte de aplicaciones como si fuera diseño de procesos HR.
+Si un concepto NO existe en el texto original de ESTE cargo, no lo introduzcas.
+
 ## Sección de experiencia original
 ---
 {original_text}
 ---
 
-## Contexto del resume (referencia)
+## Contexto de ESTE cargo (referencia — no contiene otros empleos)
 {master_context}
 
 ## Análisis de la oferta
