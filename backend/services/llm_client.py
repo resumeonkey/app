@@ -7,9 +7,44 @@ Providers:
   - anthropic → Anthropic API       (claude-opus-4-5 …)      [native SDK]
 """
 import asyncio
+import logging
 from backend.config import get_settings
 
 settings = get_settings()
+log = logging.getLogger(__name__)
+
+# Order to try providers when the requested one fails (free/strong first).
+# A default model per provider is used for fallback hops.
+_FALLBACK_ORDER = ["groq", "gemini", "anthropic", "openai"]
+_DEFAULT_MODELS = {
+    "groq":      "llama-3.3-70b-versatile",
+    "gemini":    "gemini-2.0-flash",
+    "anthropic": "claude-haiku-4-5",
+    "openai":    "gpt-4o-mini",
+}
+# Error signatures that won't be fixed by retrying the SAME provider — fall back
+# to the next provider immediately (no credits, quota, rate limit, bad/no key).
+_PERMANENT_MARKERS = (
+    "not configured", "invalid x-api-key", "authentication", "401", "402", "403",
+    "429", "quota", "insufficient", "credit balance", "billing", "exceeded",
+)
+
+
+def _provider_key_attr(provider: str) -> str:
+    if provider == "anthropic":
+        return "anthropic_api_key"
+    cfg = _OPENAI_COMPAT.get(provider)
+    return cfg["key_attr"] if cfg else ""
+
+
+def _has_key(provider: str) -> bool:
+    attr = _provider_key_attr(provider)
+    return bool(attr and (getattr(settings, attr, "") or ""))
+
+
+def _is_permanent(err: Exception) -> bool:
+    s = str(err).lower()
+    return any(m in s for m in _PERMANENT_MARKERS)
 
 # Providers that use the OpenAI-compatible interface
 _OPENAI_COMPAT: dict[str, dict] = {
@@ -38,15 +73,32 @@ async def call_llm(
     json_mode: bool = False,
     temperature: float = 0.2,
 ) -> str:
+    # Build the provider chain: the requested one first, then the others that
+    # have a key configured. If the active provider runs out of credits / hits a
+    # quota or rate limit, we transparently switch to the next available one.
+    chain: list[tuple[str, str]] = [(provider, model)]
+    for p in _FALLBACK_ORDER:
+        if p != provider and _has_key(p):
+            chain.append((p, _DEFAULT_MODELS[p]))
+
     last_error: Exception | None = None
-    for attempt in range(settings.max_retries):
-        try:
-            return await _call_once(provider, model, system, user, json_mode, temperature)
-        except Exception as e:
-            last_error = e
-            if attempt < settings.max_retries - 1:
-                await asyncio.sleep(settings.retry_delay_seconds * (attempt + 1))
-    raise RuntimeError(f"LLM call failed after {settings.max_retries} attempts: {last_error}") from last_error
+    for idx, (p, m) in enumerate(chain):
+        for attempt in range(settings.max_retries):
+            try:
+                result = await _call_once(p, m, system, user, json_mode, temperature)
+                if idx > 0:
+                    log.warning("LLM fell back to %s/%s (requested %s/%s)", p, m, provider, model)
+                return result
+            except Exception as e:
+                last_error = e
+                # Permanent errors (no credits/quota/rate-limit/bad key) won't be
+                # fixed by retrying the same provider — break to the next provider.
+                if _is_permanent(e):
+                    log.warning("provider %s permanent error (%s) — switching provider", p, str(e)[:80])
+                    break
+                if attempt < settings.max_retries - 1:
+                    await asyncio.sleep(settings.retry_delay_seconds * (attempt + 1))
+    raise RuntimeError(f"LLM call failed across all providers: {last_error}") from last_error
 
 
 async def _call_once(provider, model, system, user, json_mode, temperature) -> str:
