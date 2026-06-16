@@ -221,8 +221,8 @@ def _set_para_text(p_elem, new_text: str) -> None:
     xml:space="preserve" is set on any node whose text has leading or trailing
     whitespace (required by the OOXML spec to prevent whitespace trimming).
     """
-    clean = new_text.lstrip("•-–* ").strip()
-    if not clean:
+    body = new_text.lstrip("•-–* ").strip()   # content WITHOUT any leading bullet
+    if not body:
         return
 
     # Collect <w:t> elements that carry text, from direct-child <w:r> only.
@@ -239,43 +239,48 @@ def _set_para_text(p_elem, new_text: str) -> None:
     if not t_nodes:
         return
 
-    # Preserve a literal leading bullet/marker from the original first text node
-    # (competency tables use literal "•  " text, not Word list numbering). Without
-    # this, replacing the text would drop the bullet and break the visual list.
-    _bullet_m = re.match(r'^([••\-–\*]\s+)', t_nodes[0].text or "")
-    bullet_prefix = _bullet_m.group(1) if _bullet_m else ""
-    if bullet_prefix and not clean.startswith(bullet_prefix.strip()):
-        clean = bullet_prefix + clean
-
     def _write(t_elem, text: str) -> None:
         t_elem.text = text
         # xml:space="preserve" is required when text has leading/trailing spaces
         if text != text.strip():
             t_elem.set(f"{{{_XML_NS}}}space", "preserve")
 
-    # ── Single text node: straightforward swap ────────────────────────────────
+    first_raw = t_nodes[0].text or ""
+    # A leading bullet/marker that lives in the FIRST run (e.g. "•  "). Competency
+    # tables style the bullet run differently (bold/colour) from the skill text run.
+    bullet_only_re = re.compile(r'^\s*[••●\-–\*]+\s*$')
+    bullet_prefix_re = re.compile(r'^([••●\-–\*]\s+)')
+
+    # ── Single text node: write bullet (if original had one) + body together ──
     if len(t_nodes) == 1:
-        _write(t_nodes[0], clean)
+        m = bullet_prefix_re.match(first_raw)
+        _write(t_nodes[0], (m.group(1) + body) if m else body)
         return
 
-    # ── Multi-node: distribute by "|" separator ───────────────────────────────
-    if "|" in clean:
-        pipe_pos   = clean.index("|")
-        seg_before = clean[:pipe_pos].rstrip()
-        seg_pipe   = clean[pipe_pos:]               # includes "|"
-
-        # Copy the spacer character that originally preceded "|" in node 2
-        # (typically U+00A0 NO-BREAK SPACE — keeps the visual gap intact).
+    # ── "Bold name | metadata" header pattern ────────────────────────────────
+    if "|" in body:
+        pipe_pos   = body.index("|")
+        seg_before = body[:pipe_pos].rstrip()
+        seg_pipe   = body[pipe_pos:]               # includes "|"
         orig_node2_text = t_nodes[1].text or ""
         spacer = orig_node2_text[0] if orig_node2_text and orig_node2_text[0] in _SPACE_LIKE else ""
-
         _write(t_nodes[0], seg_before)
         _write(t_nodes[1], spacer + seg_pipe)
-        for t in t_nodes[2:]:          # clear any trailing nodes
+        for t in t_nodes[2:]:
             t.text = ""
         return
 
-    # ── Multi-node without "|": everything into first node ───────────────────
-    _write(t_nodes[0], clean)
+    # ── Bullet marker in its OWN run → keep run 0 untouched (preserves its
+    #    colour/bold), write the content into run 1 (preserves ITS colour). ────
+    if bullet_only_re.match(first_raw) and len(t_nodes) >= 2:
+        _write(t_nodes[1], body)
+        for t in t_nodes[2:]:
+            t.text = ""
+        return
+
+    # ── Generic multi-run, no separator: content (keeping a leading bullet that
+    #    was part of run 0) into run 0, clear the rest. ──────────────────────────
+    m = bullet_prefix_re.match(first_raw)
+    _write(t_nodes[0], (m.group(1) + body) if m else body)
     for t in t_nodes[1:]:
         t.text = ""
