@@ -33,7 +33,7 @@ def _jina_headers(extra: dict | None = None) -> dict:
     return h
 
 
-async def _jina_get(target_url: str, extra_headers: dict | None = None, retries: int = 2) -> str:
+async def _jina_get(target_url: str, extra_headers: dict | None = None, retries: int = 3) -> str:
     """
     GET a page through the Jina Reader with retry+backoff on rate-limit/timeout.
     The free Jina tier throttles bursts (5 parallel scrapes per search), causing

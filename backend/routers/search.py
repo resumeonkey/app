@@ -330,7 +330,19 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             location=location_str,
         ),
     ]
-    results_per_query = await asyncio.gather(*search_tasks, return_exceptions=True)
+    # Stagger the source scrapes instead of firing all 5 at once. The free Jina
+    # reader rate-limits concurrent bursts, which made some sources fail and the
+    # result set vary run-to-run (sometimes only Job Bank's weaker matches).
+    # Spreading the launches over ~1.6s lets each call through more reliably.
+    async def _staggered(coro, delay: float):
+        if delay:
+            await asyncio.sleep(delay)
+        return await coro
+
+    results_per_query = await asyncio.gather(
+        *[_staggered(t, i * 0.4) for i, t in enumerate(search_tasks)],
+        return_exceptions=True,
+    )
 
     # Track scraping health: distinguish "sources errored" (transient, e.g. the
     # free Jina reader rate-limiting) from "genuinely no matches".
