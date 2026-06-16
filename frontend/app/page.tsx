@@ -303,6 +303,7 @@ export default function HomePage() {
                 <SearchResults
                   results={searchResult.results}
                   queriesUsed={searchResult.queries_used}
+                  scrapeFailed={searchResult.scrape_failed ?? false}
                   llmProvider={lastSearchParams?.llm_provider ?? "anthropic"}
                   llmModel={lastSearchParams?.llm_model ?? "claude-haiku-4-5"}
                   onAdapted={handleAdaptationCreated}

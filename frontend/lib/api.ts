@@ -226,6 +226,7 @@ export interface SearchResponse {
   results: JobResult[];
   queries_used: string[];
   excluded_count?: number;
+  scrape_failed?: boolean;
   profile_used?: string;
   english_level_used?: string;
 }

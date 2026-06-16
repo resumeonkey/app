@@ -13,6 +13,7 @@ import {
 interface Props {
   results: JobResult[];
   queriesUsed: string[];
+  scrapeFailed?: boolean;
   llmProvider: string;
   llmModel: string;
   onAdapted: (adaptation: Adaptation) => void;
@@ -27,6 +28,7 @@ interface Props {
 export function SearchResults({
   results,
   queriesUsed,
+  scrapeFailed = false,
   llmProvider,
   llmModel,
   onAdapted,
@@ -67,7 +69,18 @@ export function SearchResults({
         />
       ))}
 
-      {results.length === 0 && (
+      {results.length === 0 && scrapeFailed && (
+        <div className="text-center py-10 text-amber-600 bg-amber-50 border border-amber-200 rounded-xl">
+          <p className="text-2xl mb-2">⏳</p>
+          <p className="font-medium">El buscador de ofertas falló temporalmente.</p>
+          <p className="text-sm text-amber-700 mt-1">
+            La fuente gratuita se satura si haces varias búsquedas seguidas.
+            Espera ~15 segundos y vuelve a intentar — no significa que no haya trabajos.
+          </p>
+        </div>
+      )}
+
+      {results.length === 0 && !scrapeFailed && (
         <div className="text-center py-10 text-gray-400">
           <p className="text-2xl mb-2">🔍</p>
           <p>No se encontraron ofertas. Prueba con otros parámetros.</p>

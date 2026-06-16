@@ -332,6 +332,12 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
     ]
     results_per_query = await asyncio.gather(*search_tasks, return_exceptions=True)
 
+    # Track scraping health: distinguish "sources errored" (transient, e.g. the
+    # free Jina reader rate-limiting) from "genuinely no matches".
+    n_tasks    = len(results_per_query)
+    n_errored  = sum(1 for b in results_per_query if isinstance(b, Exception))
+    n_returned = sum(len(b) for b in results_per_query if not isinstance(b, Exception))
+
     seen_urls: set[str] = set()
     raw_results: list[dict] = []
     for batch in results_per_query:
@@ -356,10 +362,14 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
     raw_results = raw_results[: params.num_results]
 
     if not raw_results:
+        # No results AND every/most source failed (or none returned anything) →
+        # almost certainly a transient scraping hiccup, not "no jobs exist".
+        scrape_failed = n_errored >= n_tasks or n_returned == 0
         return {
             "results": [],
             "queries_used": queries,
             "excluded_count": len(excluded_jobs),
+            "scrape_failed": scrape_failed,
         }
 
     # ── Step 3: Batch score — ALL jobs in ONE LLM call (~88% token savings) ─────
