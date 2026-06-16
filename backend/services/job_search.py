@@ -1254,6 +1254,12 @@ why_relevant: list 2-3 genuine reasons the candidate IS worth noting for this ro
   Examples: "Bilingual Spanish/English", "Process improvement experience",
             "Stakeholder coordination background"
   Be honest — only include real strengths, not forced connections.
+  DO NOT overstate transferable experience as direct domain expertise. Phrase the
+  candidate's level accurately:
+    ✅ "HR process-design exposure" / "system validation background applicable to HR systems"
+    ❌ "HRIS specialist" / "end-to-end HR systems implementation expert" (unless the
+       profile literally shows that role). "Participated in HR process design" is NOT
+       the same as "HRIS analyst" — never phrase it as if it were.
 
 Return ONLY this JSON (one entry per job, same index order):
 {{"results":[
