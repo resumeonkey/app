@@ -75,10 +75,13 @@ export function SearchRecommendations({ recommendations, loading, onSearch, onRe
   }
 
   const handleSelect = (rec: SearchRecommendation) => {
+    // Use the role-anchored query generator on the title (NOT rec.keywords as a
+    // literal custom_query). A long keyword string like "HR systems implementation
+    // consultant SAP SuccessFactors Canada" is searched verbatim and returns 0
+    // jobs; the title lets the engine expand to coherent role queries that work.
     onSearch({
       ...DEFAULT_PARAMS,
       job_title: rec.title,
-      custom_query: rec.keywords,
       experience_level: rec.experience_level,
       industries: rec.industries,
       remote: (rec.remote as SearchParams["remote"]) ?? "any",

@@ -336,7 +336,6 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
     # free Jina reader rate-limiting) from "genuinely no matches".
     n_tasks    = len(results_per_query)
     n_errored  = sum(1 for b in results_per_query if isinstance(b, Exception))
-    n_returned = sum(len(b) for b in results_per_query if not isinstance(b, Exception))
 
     seen_urls: set[str] = set()
     raw_results: list[dict] = []
@@ -362,9 +361,10 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
     raw_results = raw_results[: params.num_results]
 
     if not raw_results:
-        # No results AND every/most source failed (or none returned anything) →
-        # almost certainly a transient scraping hiccup, not "no jobs exist".
-        scrape_failed = n_errored >= n_tasks or n_returned == 0
+        # Distinguish a transient scraping failure (sources raised errors) from a
+        # genuine "no jobs match this query" (sources responded fine with 0 hits).
+        # Only the former should tell the user to retry.
+        scrape_failed = n_errored >= max(1, n_tasks // 2)
         return {
             "results": [],
             "queries_used": queries,
