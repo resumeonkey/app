@@ -34,6 +34,16 @@ Reescribe el summary para que:
 3. Los 2-3 logros o fortalezas mencionados sean los más relevantes para esta oferta
 4. Suene auténtico, no como un copia-pega de la descripción del trabajo
 
+## REGLA ANTI-ELEVACIÓN DE NIVEL (crítica)
+NO transformes una actividad en una de mayor responsabilidad o expertise que no esté
+en el original. En particular:
+- "SuccessFactors reporting / reporting support" NUNCA se convierte en
+  "SuccessFactors administration", "Employee Central configuration", "system ownership".
+- PROHIBIDO agregar términos no presentes en el original: "Employee Central",
+  "role-based security", "permissions", "Workday", "Dayforce", "payroll", "benefits",
+  "configuration ownership", "administration" (si el original solo dice reporting/support).
+- "Participé en diseño de procesos HR" NO es "soy especialista HRIS". Mantén el nivel real.
+
 ## Reglas estrictas
 - NO inventes experiencia, roles, empresas, ni logros que no existan en el original
 - NO cambies el estilo de escritura (ej: si el original usa primera persona implícita, mantenerlo)

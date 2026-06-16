@@ -38,6 +38,18 @@ La oferta laboral NO es evidencia. Que la oferta mencione "ACE", "Salesforce", "
 
 **SOLO puedes incluir herramientas que ya están en el master_context.** Si una keyword está en el job_analysis pero NO en el resume → NO la incluyas, sin excepción.
 
+## REGLA ANTI-ELEVACIÓN (crítica — aplica también a la tagline del header)
+NO conviertas una actividad en una de mayor expertise que no esté en el master:
+- "SuccessFactors reporting / reporting support" NUNCA pasa a "SuccessFactors Administration",
+  "SuccessFactors Reporting & Administration", "Employee Central Support/Configuration".
+- PROHIBIDO agregar (a menos que estén LITERALMENTE en el master): "Employee Central",
+  "Role-Based Security", "Permissions", "Configuration Ownership", "Administration",
+  "Workday", "Dayforce", "Payroll", "Benefits", "Employee Relations".
+- SuccessFactors solo puede aparecer como "SAP SuccessFactors reporting" o
+  "SuccessFactors reporting support" o "HR data validation" — nada más fuerte.
+- En la tagline "A · B · C", cada elemento debe ser una skill REAL del master;
+  no la rellenes con términos inflados del mercado.
+
 ## Reglas de honestidad
 
 - **OBLIGATORIO — REEMPLAZA SKILLS DE DOMINIO INCORRECTO:** Si la sección actual contiene skills claramente fuera del rol (ej: "Workforce Scheduling", "Travel Coordination", "Administrative Operations" para un rol QA/Tech/Implementation), DEBES reemplazarlas por skills del dominio correcto que estén DEMOSTRADAS en la sección Experience del master_context.

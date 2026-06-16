@@ -12,9 +12,12 @@ Rule enforced in every prompt:
 """
 import asyncio
 import json
+import logging
 import re
 from backend.services.llm_client import call_llm
 from backend.services.prompt_loader import load_prompt
+
+log = logging.getLogger(__name__)
 
 # Job-title line detector. A line is a job-title anchor when it contains
 # either "| <month>" OR ends with a 4-digit year (optionally preceded by a
@@ -304,6 +307,37 @@ def _clean_llm_section_output(text: str) -> str:
     return text.strip()
 
 
+_DEGENERATE_MARKERS = (
+    "the original text is", "original text:", "original text is",
+    "adapted text", "here is the", "here's the", "aquí está", "aqui esta",
+    "lo siento", "as an ai", "i cannot", "i'm sorry", "el texto original",
+    "texto adaptado", "no puedo",
+)
+
+
+def _is_degenerate_adaptation(original: str, adapted: str) -> bool:
+    """
+    True if an adapted section/chunk looks broken and must NOT be used:
+      - empty after cleaning
+      - contains LLM control/debug preambles ("The original text is:", etc.)
+      - collapsed to a tiny fraction of the original (lost content)
+    When True, the caller keeps the ORIGINAL text unchanged — a non-adapted
+    section is always better than a destroyed one.
+    """
+    a = (adapted or "").strip()
+    if not a:
+        return True
+    low = a.lower()
+    if any(m in low for m in _DEGENERATE_MARKERS):
+        return True
+    orig_words = len((original or "").split())
+    adpt_words = len(a.split())
+    # Drastic content loss (kept only if original was non-trivial)
+    if orig_words >= 12 and adpt_words < orig_words * 0.4:
+        return True
+    return False
+
+
 def _trim_job_analysis(job_analysis: dict) -> dict:
     """Keep only actionable fields for section rewriting; drop metadata."""
     KEEP = {
@@ -564,4 +598,16 @@ async def _adapt_section(
         user=prompt,
         temperature=0.3,
     )
-    return _clean_llm_section_output(adapted)
+    cleaned = _clean_llm_section_output(adapted)
+
+    # Safety net: if the model returned a broken/degenerate output (debug
+    # preamble, empty, or collapsed), keep the ORIGINAL text untouched rather
+    # than letting garbage like "The original text is:" reach the document.
+    if _is_degenerate_adaptation(original_text, cleaned):
+        log.warning(
+            "adapt(%s): degenerate output discarded, keeping original. got=%r",
+            section_name, cleaned[:80],
+        )
+        return original_text
+
+    return cleaned

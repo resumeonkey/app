@@ -133,8 +133,13 @@ def build_adapted_docx(
 
     root = etree.fromstring(doc_xml)
 
-    # ── Apply replacements & collect removals ─────────────────────────────────
-    paras_to_remove: list = []
+    # ── Apply replacements ONLY — never delete paragraphs ─────────────────────
+    # Deleting paragraphs when the LLM returns fewer lines is too dangerous: a
+    # single misalignment removed whole sections (e.g. "HR TECHNOLOGY HIGHLIGHTS")
+    # and protected content (an education diploma). A slightly longer section is
+    # always safer than a corrupted/incomplete document. We modify content in
+    # place and leave structure intact (the `removals` set is intentionally unused).
+    _ = removals  # computed above but deliberately not applied
     already_replaced: set[str] = set()  # prevent replacing duplicate paragraphs twice
 
     for p_elem in root.iter(_w("p")):
@@ -142,18 +147,9 @@ def build_adapted_docx(
         if not para_text:
             continue
 
-        if para_text in replacements:
-            if para_text not in already_replaced:
-                _set_para_text(p_elem, replacements[para_text])
-                already_replaced.add(para_text)
-
-        elif para_text in removals:
-            paras_to_remove.append(p_elem)
-
-    for p in paras_to_remove:
-        parent = p.getparent()
-        if parent is not None:
-            parent.remove(p)
+        if para_text in replacements and para_text not in already_replaced:
+            _set_para_text(p_elem, replacements[para_text])
+            already_replaced.add(para_text)
 
     # ── Repack ────────────────────────────────────────────────────────────────
     all_files["word/document.xml"] = etree.tostring(

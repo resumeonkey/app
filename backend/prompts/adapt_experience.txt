@@ -17,6 +17,19 @@ Ejemplos de contaminación PROHIBIDA:
 - ❌ Describir un cargo de soporte de aplicaciones como si fuera diseño de procesos HR.
 Si un concepto NO existe en el texto original de ESTE cargo, no lo introduzcas.
 
+## REGLA ANTI-INYECCIÓN DE DOMINIO (crítica)
+El puesto OBJETIVO puede ser de un dominio (ej. HR / RR.HH.), pero NO todos tus
+cargos son de ese dominio. PROHIBIDO inyectar el dominio del puesto objetivo en un
+cargo cuyo texto original es de OTRO dominio.
+- Si el cargo original era banca/financiero (ej. Accenture, "core banking"),
+  NO agregues "HR", "employee records", "HR workflows", "HR stakeholders".
+- Si el cargo original era QA/telecom (ej. Allware, "telecom systems"),
+  NO agregues "HR", "employee records", "HR stakeholders".
+- Si el cargo original era soporte de aplicaciones, NO lo conviertas en HR.
+Mantén CADA cargo en su dominio real. Puedes reencuadrar hacia skills transversales
+(validación de datos, testing, SQL, documentación, requisitos) SIN inventar que el
+trabajo fue en el dominio del puesto objetivo.
+
 ## Sección de experiencia original
 ---
 {original_text}
