@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     anthropic_api_key: str = ""
 
+    # Jina Reader (job scraping). Optional API key — without it the free tier
+    # rate-limits aggressively (causes intermittent 0-result searches). A free
+    # key from jina.ai raises the limit dramatically.
+    jina_api_key: str = ""
+
     # LLM defaults
     default_llm_provider: str = "openai"
     default_llm_model: str = "gpt-4o"

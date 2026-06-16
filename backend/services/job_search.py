@@ -18,7 +18,47 @@ from urllib.parse import quote, quote_plus
 
 import httpx
 
+from backend.config import get_settings
 from backend.services.llm_client import call_llm
+
+
+def _jina_headers(extra: dict | None = None) -> dict:
+    """Standard Jina Reader headers + optional Bearer auth (raises rate limits)."""
+    h = {"X-Return-Format": "markdown", "X-Timeout": "20"}
+    if extra:
+        h.update(extra)
+    key = get_settings().jina_api_key
+    if key:
+        h["Authorization"] = f"Bearer {key}"
+    return h
+
+
+async def _jina_get(target_url: str, extra_headers: dict | None = None, retries: int = 2) -> str:
+    """
+    GET a page through the Jina Reader with retry+backoff on rate-limit/timeout.
+    The free Jina tier throttles bursts (5 parallel scrapes per search), causing
+    intermittent failures; retrying with a short backoff recovers most of them.
+    """
+    import asyncio as _asyncio
+    headers = _jina_headers(extra_headers)
+    last_exc: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=True) as client:
+                resp = await client.get(f"https://r.jina.ai/{target_url}", headers=headers)
+            if resp.status_code in (429, 500, 502, 503, 504):
+                raise httpx.HTTPStatusError(
+                    f"jina {resp.status_code}", request=resp.request, response=resp
+                )
+            resp.raise_for_status()
+            return resp.content.decode("utf-8", errors="replace")
+        except httpx.HTTPError as e:
+            last_exc = e
+            if attempt < retries:
+                await _asyncio.sleep(1.5 * (attempt + 1))
+                continue
+            raise
+    raise last_exc  # pragma: no cover
 
 log = logging.getLogger(__name__)
 
@@ -492,20 +532,7 @@ async def search_jobs_via_jina(
     Returns a list of job dicts ready for scoring.
     """
     linkedin_url = _build_linkedin_url(query, location, remote, date_posted)
-
-    headers = {
-        "X-Return-Format": "markdown",
-        "X-Timeout":       "20",
-    }
-
-    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=True) as client:
-        response = await client.get(
-            f"https://r.jina.ai/{linkedin_url}",
-            headers=headers,
-        )
-        response.raise_for_status()
-
-    content = response.content.decode("utf-8", errors="replace")
+    content = await _jina_get(linkedin_url)
     return _parse_linkedin_results(content, num_results)
 
 
@@ -670,20 +697,7 @@ async def search_jobbank_via_jina(
     Especially useful for jobs not posted on LinkedIn (SMEs, government, nonprofits).
     """
     jobbank_url = _build_jobbank_url(query, location, province, remote, lmia_only)
-
-    headers = {
-        "X-Return-Format": "markdown",
-        "X-Timeout":       "20",
-    }
-
-    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=True) as client:
-        response = await client.get(
-            f"https://r.jina.ai/{jobbank_url}",
-            headers=headers,
-        )
-        response.raise_for_status()
-
-    content = response.content.decode("utf-8", errors="replace")
+    content = await _jina_get(jobbank_url)
     return _parse_jobbank_results(content, num_results)
 
 
@@ -814,15 +828,7 @@ async def search_workopolis_via_jina(
     Returns jobs not always found on LinkedIn (retail, trades, office, SMEs).
     """
     search_url = _build_workopolis_url(query, location, remote, date_posted)
-    headers = {
-        "X-Return-Format": "markdown",
-        "X-Timeout":       "20",
-    }
-    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=True) as client:
-        response = await client.get(f"https://r.jina.ai/{search_url}", headers=headers)
-        response.raise_for_status()
-
-    content = response.content.decode("utf-8", errors="replace")
+    content = await _jina_get(search_url)
     results = _parse_workopolis_results(content, num_results)
     log.info("workopolis: found %d results for %r", len(results), query)
     return results
@@ -959,15 +965,7 @@ async def search_eluta_via_jina(
     not found on LinkedIn or Job Bank.
     """
     search_url = _build_eluta_url(query, location)
-    headers = {
-        "X-Return-Format": "markdown",
-        "X-Timeout":       "20",
-    }
-    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=True) as client:
-        response = await client.get(f"https://r.jina.ai/{search_url}", headers=headers)
-        response.raise_for_status()
-
-    content = response.content.decode("utf-8", errors="replace")
+    content = await _jina_get(search_url)
     results = _parse_eluta_results(content, num_results)
     log.info("eluta: found %d results for %r", len(results), query)
     return results
@@ -982,21 +980,12 @@ async def extract_job_via_jina(url: str) -> str:
     Returns cleaned text capped at _MAX_JOB_CHARS.
     """
     encoded_url = quote(url, safe="")
-    reader_url  = f"https://r.jina.ai/{encoded_url}"
-
-    headers = {
-        "X-Return-Format": "markdown",
+    raw = await _jina_get(encoded_url, extra_headers={
         "X-Remove-Selector": (
             "header,footer,nav,.sidebar,#sidebar,"
             ".ads,.advertisement,.cookie-banner,.similar-jobs"
         ),
-    }
-
-    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=True) as client:
-        response = await client.get(reader_url, headers=headers)
-        response.raise_for_status()
-
-    raw = response.content.decode("utf-8", errors="replace")
+    })
     cleaned = _clean_extracted_text(raw)
     if _is_error_page(cleaned):
         raise ValueError("URL returned a bot-block or error page — cannot extract job description")
