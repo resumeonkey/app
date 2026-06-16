@@ -74,7 +74,7 @@ _HTTP_TIMEOUT = 30          # seconds per Jina request
 _MAX_JOB_CHARS = 8_000      # cap on extracted job text forwarded to LLM
 _PROFILE_CHARS = 1500       # profile excerpt sent to LLM for query generation
 _SCORE_JOB_CHARS = 700      # job text sent per job in single-job scoring (reduced)
-_BATCH_PROFILE_CHARS = 1200  # profile excerpt in batch scoring — needs enough for skills+summary
+_BATCH_PROFILE_CHARS = 2200  # profile excerpt in batch scoring — enough to include the full experience timeline (companies+domains+dates) so the LLM can judge DOMAIN-specific years, not just total career years
 _BATCH_SNIPPET_CHARS = 600  # snippet chars per job in batch mode — enough to surface hard requirements (tools, years) so the scorer can detect real gaps
 
 # Lighter models for scoring (vs generation). Saves tokens on rate-limited tiers.
@@ -1243,6 +1243,23 @@ NAMED-TOOL & SPECIFIC-REQUIREMENT GAPS — count them honestly:
   (e.g. "7-10 years leading HR SaaS migrations"), cap at 65 max.
 - A high count of matched GENERIC skills (SQL, data quality, process improvement) does NOT lift the
   score past these caps when the SPECIFIC hard requirements are missing.
+
+DOMAIN-YEARS HONESTY — the most important calibration rule:
+- NEVER convert a candidate's TOTAL career years into DOMAIN-SPECIFIC years. A person with
+  10+ years in technology/QA/systems but only a FEW years touching a specific domain (e.g. HR
+  systems / HRIS / SuccessFactors) does NOT have "10+ years HRIS experience".
+- Estimate domain-specific experience SEPARATELY from total experience. If most of the career
+  was in OTHER areas (QA, telecom, product, support) and only a portion was in the job's domain,
+  the domain-specific years are SMALL — judge the fit on those.
+- A job asking for "Senior" + "N+ years" of the SPECIFIC domain, when the candidate's
+  domain-specific experience is clearly less → cap at 65 max and add a blocker
+  "Domain-depth gap: limited dedicated <domain> experience".
+- In why_relevant, NEVER write "10+ years HRIS", "Senior HRIS professional", "extensive HRIS
+  administration", "deep HRIS ownership" for such a candidate. Instead write honestly:
+  "HR systems exposure through Product Owner role", "SuccessFactors reporting experience",
+  "HR data validation background", "system implementation & UAT experience".
+- Their real edge is transferable: technology/QA/validation/process + SOME HR-systems work.
+  Frame it that way — do not manufacture a career-long specialist.
 
 PHYSICAL/TRADES DOMAIN CAP — applies when job is in a physical/on-site domain:
 - Job title/description shows: construction, civil engineering, MEP, site coordinator, field safety,
