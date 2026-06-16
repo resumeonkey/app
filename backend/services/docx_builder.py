@@ -215,7 +215,7 @@ def _set_para_text(p_elem, new_text: str) -> None:
     xml:space="preserve" is set on any node whose text has leading or trailing
     whitespace (required by the OOXML spec to prevent whitespace trimming).
     """
-    clean = new_text.lstrip("•-– ").strip()
+    clean = new_text.lstrip("•-–* ").strip()
     if not clean:
         return
 
@@ -232,6 +232,14 @@ def _set_para_text(p_elem, new_text: str) -> None:
 
     if not t_nodes:
         return
+
+    # Preserve a literal leading bullet/marker from the original first text node
+    # (competency tables use literal "•  " text, not Word list numbering). Without
+    # this, replacing the text would drop the bullet and break the visual list.
+    _bullet_m = re.match(r'^([••\-–\*]\s+)', t_nodes[0].text or "")
+    bullet_prefix = _bullet_m.group(1) if _bullet_m else ""
+    if bullet_prefix and not clean.startswith(bullet_prefix.strip()):
+        clean = bullet_prefix + clean
 
     def _write(t_elem, text: str) -> None:
         t_elem.text = text

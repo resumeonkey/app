@@ -238,6 +238,12 @@ def _build_section_map(paragraphs: list[dict]) -> dict[str, Any]:
     for p in paragraphs:
         if not p["text"]:
             continue
+        # Table cells are CONTENT, never section headings. A competencies table
+        # cell like "User Training Support" must not be mistaken for a heading
+        # (it contains "training" → would false-match "certifications" and split
+        # the section, scattering content across the wrong sections).
+        if p.get("in_table"):
+            continue
         matched = _match_section(p["text"])
         if matched:
             section_starts.append((matched, p["index"]))
