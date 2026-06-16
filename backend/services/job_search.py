@@ -46,6 +46,13 @@ async def _jina_get(target_url: str, extra_headers: dict | None = None, retries:
         try:
             async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=True) as client:
                 resp = await client.get(f"https://r.jina.ai/{target_url}", headers=headers)
+            # A configured API key with no balance/invalid returns 401/402/403.
+            # The free no-key reader works fine, so drop the auth header and retry
+            # immediately — a bad key must never break scraping.
+            if resp.status_code in (401, 402, 403) and "Authorization" in headers:
+                log.warning("jina: key rejected (%s) — falling back to keyless", resp.status_code)
+                headers = {k: v for k, v in headers.items() if k != "Authorization"}
+                continue
             if resp.status_code in (429, 500, 502, 503, 504):
                 raise httpx.HTTPStatusError(
                     f"jina {resp.status_code}", request=resp.request, response=resp
