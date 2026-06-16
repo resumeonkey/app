@@ -98,7 +98,16 @@ async def call_llm(
                     break
                 if attempt < settings.max_retries - 1:
                     await asyncio.sleep(settings.retry_delay_seconds * (attempt + 1))
-    raise RuntimeError(f"LLM call failed across all providers: {last_error}") from last_error
+    # All providers exhausted. Log the raw detail; surface a clean, actionable
+    # message to the user instead of a wall of provider JSON.
+    log.error("LLM all-providers failure. tried=%s last_error=%s",
+              [p for p, _ in chain], last_error)
+    raise RuntimeError(
+        "Todos los modelos de IA están temporalmente sin capacidad "
+        "(límites de cuota o sin créditos). Espera ~1 minuto y reintenta, "
+        "o recarga créditos de tu proveedor. Groq se reinicia por minuto; "
+        "Gemini y Claude según tu plan."
+    ) from last_error
 
 
 async def _call_once(provider, model, system, user, json_mode, temperature) -> str:
