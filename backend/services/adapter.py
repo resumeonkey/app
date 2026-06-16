@@ -292,6 +292,16 @@ def _clean_llm_section_output(text: str) -> str:
             seen.add(key)
         deduped.append(line)
 
+    # Drop LLM meta/control lines that sometimes leak into the output as if they
+    # were content (e.g. "Line Count & Bullet Structure (Original)", "Original text:",
+    # "Adapted version:"). These must never reach the document.
+    _META_LINE_RE = re.compile(
+        r'(line\s+count|bullet\s+structure|original\s+text|adapted\s+text|'
+        r'adapted\s+version|^\s*\(original\)|^\s*\(adapted\)|structure\s*:)',
+        re.IGNORECASE,
+    )
+    deduped = [ln for ln in deduped if not _META_LINE_RE.search(ln.strip())]
+
     # Filter ALL-CAPS LLM commentary lines (e.g. "EXPERIENCE SECTION — ADAPTED FOR …")
     # A line is commentary when it is longer than 20 chars and contains only
     # uppercase letters, digits, whitespace, and punctuation ( - — / & | : . , )
@@ -311,7 +321,8 @@ _DEGENERATE_MARKERS = (
     "the original text is", "original text:", "original text is",
     "adapted text", "here is the", "here's the", "aquí está", "aqui esta",
     "lo siento", "as an ai", "i cannot", "i'm sorry", "el texto original",
-    "texto adaptado", "no puedo",
+    "texto adaptado", "no puedo", "line count", "bullet structure",
+    "adapted version", "(original)", "(adapted)",
 )
 
 

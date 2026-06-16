@@ -147,6 +147,12 @@ def build_adapted_docx(
         if not para_text:
             continue
 
+        # Never rewrite an ALL-CAPS sub-heading (e.g. "HR TECHNOLOGY HIGHLIGHTS").
+        # These are structural labels that get swept into a section's content but
+        # must stay verbatim — turning them into a bullet breaks the layout.
+        if para_text.isupper() and 3 < len(para_text) < 45:
+            continue
+
         if para_text in replacements and para_text not in already_replaced:
             _set_para_text(p_elem, replacements[para_text])
             already_replaced.add(para_text)
