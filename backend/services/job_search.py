@@ -306,6 +306,18 @@ Ejemplos INCORRECTOS:
   "Analyst" (genérico — atrae GIS, Financial, etc.)
   "QA Engineer Vancouver Canada" (no incluir ubicación)
 
+## REGLA DE ANCLAJE A ROL (crítica — no inflar seniority ni buscar por plataforma)
+- Cada query DEBE estar anclada a un TÍTULO DE ROL de los ROLES OBJETIVO (o muy cercano).
+- Los nombres de PLATAFORMA/HERRAMIENTA (ej. "SAP SuccessFactors", "Workday", "SAP")
+  NUNCA pueden ser una query por sí solos, ni el término principal. Una herramienta es
+  un "plus", no el puesto. Buscar "SAP SuccessFactors" trae Consultants/Managers/Leads
+  que NO corresponden al nivel del candidato.
+  ❌ "SAP SuccessFactors"  ❌ "SuccessFactors Consultant"  ❌ "Workday"
+  ✅ "HRIS Analyst"  ✅ "HR Systems Analyst"  ✅ "HR Reporting Analyst"
+- NO subas el nivel: si los ROLES OBJETIVO son Analyst/Specialist/Coordinator, NO generes
+  queries de "Consultant", "Manager", "Lead", "Senior Consultant", "Director" — aunque
+  el perfil mencione esas herramientas. Mantén el nivel de los ROLES OBJETIVO.
+
 Responde ÚNICAMENTE con JSON válido:
 {{"queries": ["keyword query 1", "keyword query 2"]}}"""
 
@@ -316,7 +328,7 @@ Responde ÚNICAMENTE con JSON válido:
             system="Eres un especialista en reclutamiento y búsqueda de empleo en Canadá.",
             user=prompt,
             json_mode=True,
-            temperature=0.3,
+            temperature=0.1,   # low variance: stable, role-anchored queries run-to-run
         )
         data   = _parse_json_response(raw)
         result = data.get("queries", [])
@@ -1210,7 +1222,11 @@ SCORING RULES — read carefully:
 - 0-29   = low fit: fundamentally different career track
 
 CRITICAL CALIBRATION — these factors independently cap the score:
-- Job requires "Senior Manager" / "Director" / "VP" / "Head of" AND candidate's profile shows analyst/specialist/coordinator/engineer roles → cap at 55 max.
+- SENIORITY CAP: if the job title/level is "Manager", "Senior Manager", "Consulting Manager",
+  "Director", "VP", "Head of", "Lead", "Principal", "Senior Consultant", or "Consultant"
+  AND the candidate's profile is analyst/specialist/coordinator/engineer/product-owner level
+  → cap at 55 max. A strong tool match (e.g. SAP SuccessFactors) does NOT lift the score
+  above this cap: the candidate has the tools but not the consulting/management level.
 - Job requires "10+ years" in a specific industry AND candidate lacks that specific industry → cap at 50 max.
 - Job requires domain expertise (banking, healthcare, legal) that candidate clearly lacks → cap at 55 max.
 - Being bilingual IS a plus, but it CANNOT compensate for missing industry experience, seniority, or years.
