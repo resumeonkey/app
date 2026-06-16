@@ -19,6 +19,20 @@ from backend.services.prompt_loader import load_prompt
 
 log = logging.getLogger(__name__)
 
+
+def _adaptation_model(provider: str, model: str) -> str:
+    """
+    Return a model strong enough for reliable, structure-preserving section
+    rewriting. Haiku/small models ignore "return ONLY this section" and emit a
+    rogue full-header reconstruction that corrupts the docx.
+    """
+    m = (model or "").lower()
+    if provider == "anthropic" and ("haiku" in m or not m):
+        return "claude-sonnet-4-6"
+    if provider == "groq" and "8b" in m:
+        return "llama-3.3-70b-versatile"
+    return model
+
 # Job-title line detector. A line is a job-title anchor when it contains
 # either "| <month>" OR ends with a 4-digit year (optionally preceded by a
 # month or dash), covering both Type-A ("Title | May 2021 – Jan 2025") and
@@ -110,6 +124,12 @@ async def run_adaptation(
       ]
     }
     """
+
+    # Adaptation is quality-critical and low-volume (once per CV). Weak models —
+    # especially Haiku — go off-script and emit a rogue reconstructed header
+    # (name, tagline, contact, summary) instead of just the requested section,
+    # which the document builder then scrambles. Upgrade to a stronger model.
+    llm_model = _adaptation_model(llm_provider, llm_model)
 
     context_block = (
         f"\n\n--- CONTEXTO ADICIONAL DEL CANDIDATO ---\n{user_context.strip()}\n---"
@@ -341,6 +361,14 @@ def _is_degenerate_adaptation(original: str, adapted: str) -> bool:
     low = a.lower()
     if any(m in low for m in _DEGENERATE_MARKERS):
         return True
+    # Rogue-header guard: a section rewrite that suddenly contains contact info or
+    # the summary heading means the model reconstructed the whole resume header
+    # instead of the requested section. Reject it (keep original) unless the
+    # original itself had those (it never does for skills/experience).
+    orig_low = (original or "").lower()
+    for marker in ("@", "linkedin.com", "professional summary", "professional profile"):
+        if marker in low and marker not in orig_low:
+            return True
     orig_words = len((original or "").split())
     adpt_words = len(a.split())
     # Drastic content loss (kept only if original was non-trivial)
