@@ -75,7 +75,7 @@ _MAX_JOB_CHARS = 8_000      # cap on extracted job text forwarded to LLM
 _PROFILE_CHARS = 1500       # profile excerpt sent to LLM for query generation
 _SCORE_JOB_CHARS = 700      # job text sent per job in single-job scoring (reduced)
 _BATCH_PROFILE_CHARS = 1200  # profile excerpt in batch scoring — needs enough for skills+summary
-_BATCH_SNIPPET_CHARS = 220  # snippet chars per job in batch mode (raised for requirement detection)
+_BATCH_SNIPPET_CHARS = 600  # snippet chars per job in batch mode — enough to surface hard requirements (tools, years) so the scorer can detect real gaps
 
 # Lighter models for scoring (vs generation). Saves tokens on rate-limited tiers.
 _SCORE_MODEL_MAP: dict[str, str] = {
@@ -1173,6 +1173,18 @@ CRITICAL CALIBRATION — these factors independently cap the score:
 - Job requires domain expertise (banking, healthcare, legal) that candidate clearly lacks → cap at 55 max.
 - Being bilingual IS a plus, but it CANNOT compensate for missing industry experience, seniority, or years.
   If a bilingual job has all the above caps apply, do NOT raise the score above the cap just for bilingual match.
+
+NAMED-TOOL & SPECIFIC-REQUIREMENT GAPS — count them honestly:
+- When the job names SPECIFIC platforms/tools/languages (e.g. Workday, Power BI, SAP SuccessFactors,
+  Salesforce, Python, R, Tableau, ServiceNow) that the candidate's profile does NOT contain, each one
+  is a real gap. Add it to "missing".
+- Adjacent/transferable skills (e.g. "SQL + data validation") do NOT equal a named requirement
+  (e.g. "Workday Reporting expertise" or "3-5 years HR Analytics"). Do not treat them as a match.
+- If the job lists 3+ specific required tools/skills the candidate lacks, cap the score at 70 max.
+- If on top of that the job requires several years in a domain the candidate has not worked in
+  (e.g. "7-10 years leading HR SaaS migrations"), cap at 65 max.
+- A high count of matched GENERIC skills (SQL, data quality, process improvement) does NOT lift the
+  score past these caps when the SPECIFIC hard requirements are missing.
 
 PHYSICAL/TRADES DOMAIN CAP — applies when job is in a physical/on-site domain:
 - Job title/description shows: construction, civil engineering, MEP, site coordinator, field safety,

@@ -398,7 +398,10 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
         treaty_boost = 0
         if treaty_priority:
             if ("CCFTA" in user_treaties and job_ccfta) or ("CPTPP" in user_treaties and job_cptpp):
-                treaty_boost = 12
+                # Small nudge so the LMIA-exempt pathway surfaces, WITHOUT making a
+                # mediocre skill match look excellent. Skill-fit caps still rule the
+                # number; the boost only breaks ties near the top.
+                treaty_boost = 6
                 compat = min(100, compat + treaty_boost)
 
         final.append({
