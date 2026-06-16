@@ -323,6 +323,17 @@ Genera 2–4 variaciones de búsqueda de keywords para LinkedIn Jobs y Job Bank 
 Las queries deben ser SOLO palabras clave del puesto/skills (sin ciudad ni país).
 Si hay ROLES OBJETIVO definidos, basa las queries en ellos.
 
+## CASO ESPECIAL — EMPRESA EN VEZ DE ROL
+Si el "Puesto que busca el usuario" es claramente el NOMBRE DE UNA EMPRESA/empleador
+(ej. Deloitte, EY, KPMG, Shopify, Google, Telus, RBC) y NO un título de puesto,
+trátalo como un FILTRO DE EMPLEADOR: genera queries combinando tus ROLES OBJETIVO
+con el nombre de la empresa, para encontrar SUS vacantes en tu rol.
+  Ejemplo — usuario escribe "Deloitte":
+    ✅ "HRIS Analyst Deloitte"
+    ✅ "HR Systems Analyst Deloitte"
+    ✅ "Business Systems Analyst Deloitte"
+  NO ignores la empresa, y NO la conviertas en un rol.
+
 ## REGLA DE COHERENCIA (crítica)
 Cada query DEBE ser UN TÍTULO DE PUESTO REAL Y COHERENTE (2–4 palabras que nombren
 un solo rol). El "Puesto que busca el usuario" es una INTENCIÓN DE DOMINIO, no
