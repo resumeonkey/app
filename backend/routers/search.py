@@ -39,6 +39,7 @@ from backend.services.job_search import (
     _CCFTA_ELIGIBLE_TITLES,
     _CPTPP_ELIGIBLE_TITLES,
     _is_language_keyword,
+    _is_junk_job_title,
     filter_excluded_roles,
 )
 
@@ -338,6 +339,9 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             continue
         for r in batch:
             url = r.get("url", "")
+            # Drop scraping noise (images/logos/nav/ads) from any source before scoring.
+            if _is_junk_job_title(r.get("title", "")):
+                continue
             if url and url not in seen_urls:
                 seen_urls.add(url)
                 raw_results.append(r)

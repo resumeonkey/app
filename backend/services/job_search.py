@@ -276,13 +276,34 @@ Genera 2–4 variaciones de búsqueda de keywords para LinkedIn Jobs y Job Bank 
 Las queries deben ser SOLO palabras clave del puesto/skills (sin ciudad ni país).
 Si hay ROLES OBJETIVO definidos, basa las queries en ellos.
 
-Ejemplos de formato correcto:
+## REGLA DE COHERENCIA (crítica)
+Cada query DEBE ser UN TÍTULO DE PUESTO REAL Y COHERENTE (2–4 palabras que nombren
+un solo rol). El "Puesto que busca el usuario" es una INTENCIÓN DE DOMINIO, no
+palabras sueltas a buscar por separado.
+
+- PROHIBIDO partir un input de varias palabras en términos independientes y amplios.
+  Si el usuario escribe "HR IT" o "HR Technology", NO busques "HR" por un lado e "IT"
+  por otro (eso trae HR Advisor, IT Support, GIS Analyst — dominios equivocados).
+- En su lugar, EXPANDE la intención a títulos específicos y reales de ESE cruce de dominio.
+
+Ejemplo — usuario escribe "HR IT" / "HR Technology":
+  ✅ "HRIS Analyst"
+  ✅ "HR Systems Analyst"
+  ✅ "People Systems Analyst"
+  ✅ "HR Data Analyst"
+  ✅ "Workday Analyst"
+  ❌ "HR Specialist"  (dominio HR genérico, no sistemas)
+  ❌ "IT Support Technician"  (IT genérico)
+  ❌ "GIS Analyst"  (dominio totalmente distinto)
+
+Más ejemplos de formato correcto:
   "QA Analyst automation testing"
   "Implementation Specialist software"
   "Hotel Operations Manager hospitality"
 
 Ejemplos INCORRECTOS:
   "Coordinator" (demasiado genérico)
+  "Analyst" (genérico — atrae GIS, Financial, etc.)
   "QA Engineer Vancouver Canada" (no incluir ubicación)
 
 Responde ÚNICAMENTE con JSON válido:
@@ -832,6 +853,25 @@ _ELUTA_LOCATION_LINE_RE = re.compile(
 )
 
 
+def _is_junk_job_title(title: str) -> bool:
+    """
+    True if a parsed 'title' is scraping noise rather than a real job posting:
+    markdown images, logos, nav controls, ads, search UI, etc. Prevents entries
+    like '![Image: Eluta Logo', 'Search', 'Close menu', 'Advertise your jobs'.
+    """
+    t = (title or "").strip().lower()
+    if not t or len(t) < 3:
+        return True
+    if t.startswith("!") or t.startswith("![") or t.startswith("image"):
+        return True
+    _JUNK_TERMS = (
+        "logo", "close menu", "open menu", "advertise", "sign in", "sign up",
+        "log in", "cookie", "search", "menu", "newsletter", "subscribe",
+        "view all", "see all", "more jobs", "previous", "next page",
+    )
+    return any(term in t for term in _JUNK_TERMS)
+
+
 def _parse_eluta_results(content: str, num_results: int) -> list[dict]:
     """
     Extract job listings from Eluta.ca page markdown rendered by Jina.
@@ -844,7 +884,9 @@ def _parse_eluta_results(content: str, num_results: int) -> list[dict]:
         title = m.group(1).strip()
         url   = m.group(2).strip()
 
-        # Skip Eluta navigation / non-job links (company pages, apply links, etc.)
+        # Skip scraping noise (images, logos, nav, ads) and non-job links.
+        if _is_junk_job_title(title):
+            continue
         if any(kw in title.lower() for kw in ('view all', 'see all', 'apply', 'more jobs', 'sign up')):
             continue
         if url in seen:
