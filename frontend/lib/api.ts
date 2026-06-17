@@ -343,3 +343,39 @@ export const unsaveJobByUrl = (url: string) =>
 
 export const patchSavedJob = (id: string, patch: { notes?: string; applied?: boolean }) =>
   api.patch<SavedJob>(`/api/jobs/saved/${id}`, patch).then((r) => r.data);
+
+// ── Resume v2 (data-driven, clean generation) ────────────────────────────────
+
+export interface ResumeProfile {
+  profile_id: string;
+  name: string;
+  title: string;
+}
+
+export const listResumeProfiles = () =>
+  api.get<{ profiles: ResumeProfile[] }>("/api/resume/profiles").then((r) => r.data.profiles);
+
+export interface GenerateResumeBody {
+  profile_id: string;
+  template: "classic" | "iris";
+  job_description?: string;
+  user_instructions?: string;
+  llm_provider?: string;
+  llm_model?: string;
+}
+
+// Generates the DOCX server-side and triggers a browser download.
+export const generateAndDownloadResume = async (body: GenerateResumeBody) => {
+  const res = await api.post("/api/resume/generate", body, { responseType: "blob" });
+  const blob = new Blob([res.data], {
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${body.profile_id}_resume.docx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};

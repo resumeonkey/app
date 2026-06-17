@@ -900,12 +900,21 @@ def _is_junk_job_title(title: str) -> bool:
         return True
     if t.startswith("!") or t.startswith("![") or t.startswith("image"):
         return True
-    _JUNK_TERMS = (
-        "logo", "close menu", "open menu", "advertise", "sign in", "sign up",
-        "log in", "cookie", "search", "menu", "newsletter", "subscribe",
-        "view all", "see all", "more jobs", "previous", "next page",
+    # Multi-word phrases are safe as substrings (won't appear inside real titles).
+    _JUNK_PHRASES = (
+        "close menu", "open menu", "sign in", "sign up", "log in", "view all",
+        "see all", "more jobs", "next page", "advertise your", "post a job",
     )
-    return any(term in t for term in _JUNK_TERMS)
+    if any(p in t for p in _JUNK_PHRASES):
+        return True
+    # Single words must match as WHOLE words, so "Research"/"Menu Engineer" etc.
+    # are not wrongly flagged by "search"/"menu".
+    _JUNK_WORDS = {
+        "logo", "advertise", "cookie", "cookies",
+        "newsletter", "subscribe", "filters",
+    }
+    words = set(re.findall(r"[a-z]+", t))
+    return bool(words & _JUNK_WORDS)
 
 
 def _parse_eluta_results(content: str, num_results: int) -> list[dict]:

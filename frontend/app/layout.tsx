@@ -16,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </a>
           <div className="flex gap-4 text-sm font-medium ml-4">
             <a href="/" className="text-gray-600 hover:text-indigo-600 transition-colors">Adaptar</a>
+            <a href="/generar" className="text-gray-600 hover:text-indigo-600 transition-colors">Generar CV</a>
             <a href="/history" className="text-gray-600 hover:text-indigo-600 transition-colors">Historial</a>
           </div>
         </nav>
