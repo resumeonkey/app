@@ -15,7 +15,6 @@ import {
   type SearchRecommendation,
 } from "@/lib/api";
 // MasterStatus kept for reference — replaced by ProfilesPanel
-import { MasterUpload } from "@/components/master/MasterUpload";
 import { ResumeTypeChooser } from "@/components/master/ResumeTypeChooser";
 import { ProfilesPanel } from "@/components/master/ProfilesPanel";
 import { JobForm } from "@/components/job/JobForm";
@@ -198,20 +197,15 @@ export default function HomePage() {
           {view === "upload_master" ? (
             <div className="card p-6">
               <h2 className="text-base font-semibold text-gray-700 mb-1">
-                {master ? "➕ Agregar nuevo perfil" : "1. Carga tu primer resume"}
+                {master ? "➕ Elegir un CV tipo" : "1. Elige tu CV tipo"}
               </h2>
               <p className="text-sm text-gray-400 mb-5">
-                Cada perfil tiene su propio resume y configuración de búsqueda (roles objetivo, exclusiones, industrias).
+                Elige el formato de tu área. Lo personalizas y descargas una vez que adaptes tu CV
+                a una oferta específica (buscando empleos, pegando el link o el texto de la oferta).
               </p>
               <ResumeTypeChooser />
-              <div className="flex items-center gap-3 my-4">
-                <div className="flex-1 h-px bg-gray-200" />
-                <span className="text-xs text-gray-400">o sube tu propio Word</span>
-                <div className="flex-1 h-px bg-gray-200" />
-              </div>
-              <MasterUpload onUploaded={handleMasterUploaded} />
               {master && (
-                <button className="btn-secondary mt-3 text-sm" onClick={() => setView("adapt")}>
+                <button className="btn-secondary mt-4 text-sm" onClick={() => setView("adapt")}>
                   ← Cancelar
                 </button>
               )}

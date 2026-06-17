@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   listResumeProfiles,
   generateAndDownloadResume,
+  extractJobFromUrl,
   type ResumeProfile,
 } from "@/lib/api";
 
@@ -17,10 +18,31 @@ export default function GenerarPage() {
   const [profileId, setProfileId] = useState("hr_technology");
   const [template, setTemplate] = useState<"classic" | "iris">("classic");
   const [jobDesc, setJobDesc] = useState("");
+  const [jobUrl, setJobUrl] = useState("");
+  const [extracting, setExtracting] = useState(false);
   const [instructions, setInstructions] = useState("");
   const [llm, setLlm] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleExtractLink = async () => {
+    if (!jobUrl.trim()) return;
+    setExtracting(true);
+    setError(null);
+    try {
+      const res = await extractJobFromUrl(
+        jobUrl.trim(),
+        LLM_OPTIONS[llm].provider,
+        LLM_OPTIONS[llm].model,
+      );
+      setJobDesc(res.job_description || "");
+      if (!res.job_description) setError("No se pudo leer la oferta desde ese link. Pega el texto manualmente.");
+    } catch {
+      setError("No se pudo leer la oferta desde ese link. Pega el texto manualmente.");
+    } finally {
+      setExtracting(false);
+    }
+  };
 
   useEffect(() => {
     const fromUrl = new URLSearchParams(window.location.search).get("profile");
@@ -99,12 +121,28 @@ export default function GenerarPage() {
           </div>
         </div>
 
+        {/* Job link → extract */}
+        <div>
+          <label className="label">Link de la oferta (opcional)</label>
+          <div className="flex gap-2">
+            <input
+              className="input flex-1"
+              placeholder="https://… (LinkedIn, Job Bank, careers…)"
+              value={jobUrl}
+              onChange={(e) => setJobUrl(e.target.value)}
+            />
+            <button className="btn-secondary text-sm px-3" disabled={extracting} onClick={handleExtractLink}>
+              {extracting ? "Leyendo…" : "Leer link"}
+            </button>
+          </div>
+        </div>
+
         {/* Job description */}
         <div>
-          <label className="label">Oferta laboral (opcional)</label>
+          <label className="label">Texto de la oferta</label>
           <textarea
             className="textarea h-32"
-            placeholder="Pega aquí la descripción de la oferta para adaptar el CV a ese puesto. Déjalo vacío para descargar tu CV maestro."
+            placeholder="Pega el texto completo de la oferta (o usa 'Leer link' arriba). El CV se adapta a este puesto. Déjalo vacío para descargar el CV tipo tal cual."
             value={jobDesc}
             onChange={(e) => setJobDesc(e.target.value)}
           />
