@@ -1,0 +1,94 @@
+{
+  "profile_id": "hospitality",
+  "name": "Your Name",
+  "area": "Hospitality & Tourism",
+  "format_type": "Combinado",
+  "description": "Servicio al cliente, F&B, operaciones de hotel/restaurante.",
+  "title": "Hospitality & Guest Services Professional",
+  "tagline": [
+    "Guest Service",
+    "Food & Beverage",
+    "Front Desk",
+    "Team Coordination",
+    "Bilingual"
+  ],
+  "summary": [
+    "Hospitality professional with experience delivering exceptional guest experiences in fast-paced hotel and restaurant environments.",
+    "Skilled in front-of-house operations, food and beverage service, and team coordination, with a focus on service quality and customer satisfaction."
+  ],
+  "competencies": {
+    "Guest Service": [
+      "Customer Service",
+      "Guest Relations",
+      "Complaint Resolution",
+      "Reservations",
+      "Upselling"
+    ],
+    "Food & Beverage": [
+      "Table Service",
+      "Bartending Basics",
+      "POS Systems",
+      "Food Safety",
+      "Inventory Support"
+    ],
+    "Operations & Team": [
+      "Shift Coordination",
+      "Cash Handling",
+      "Scheduling Support",
+      "Cleanliness Standards",
+      "Teamwork"
+    ]
+  },
+  "experience": [
+    {
+      "title": "Front Desk Agent",
+      "company": "Example Hotel",
+      "location": "City, Province",
+      "dates": "2022 - Present",
+      "domain": "hospitality",
+      "bullets": [
+        "Welcomed and checked in guests, handling reservations and inquiries with a friendly, professional manner.",
+        "Resolved guest concerns promptly, contributing to improved guest satisfaction scores.",
+        "Coordinated with housekeeping and management to ensure smooth daily operations."
+      ]
+    },
+    {
+      "title": "Server",
+      "company": "Example Restaurant",
+      "location": "City, Province",
+      "dates": "2020 - 2022",
+      "domain": "hospitality",
+      "bullets": [
+        "Provided attentive table service in a high-volume restaurant, managing multiple tables efficiently.",
+        "Operated POS system for orders and payments with accuracy.",
+        "Upsold menu items and specials, supporting revenue targets."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree": "Diploma in Hospitality Management",
+      "institution": "Your College",
+      "dates": "Year"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "Food Safe / Food Handler Certificate",
+      "issuer": "Provincial",
+      "year": ""
+    },
+    {
+      "name": "Smart Serve / Responsible Beverage Service",
+      "issuer": "Provincial",
+      "year": ""
+    }
+  ],
+  "contact": {
+    "location": "City, Province, Canada",
+    "phone": "(000) 000-0000",
+    "email": "you@email.com",
+    "linkedin": "linkedin.com/in/you",
+    "website": ""
+  }
+}

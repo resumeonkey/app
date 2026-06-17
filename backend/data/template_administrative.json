@@ -1,0 +1,77 @@
+{
+  "profile_id": "administrative",
+  "name": "Your Name",
+  "area": "Administrative & Office",
+  "format_type": "Cronologico",
+  "description": "Organizacion, software de oficina y comunicacion.",
+  "title": "Administrative Professional",
+  "tagline": [
+    "Office Administration",
+    "Scheduling",
+    "MS Office",
+    "Communication",
+    "Data Entry"
+  ],
+  "summary": [
+    "Organized administrative professional with experience supporting office operations and management teams.",
+    "Skilled in scheduling, correspondence, record keeping, and office software, with strong attention to detail."
+  ],
+  "competencies": {
+    "Administration": [
+      "Scheduling",
+      "Calendar Management",
+      "Correspondence",
+      "Filing & Records",
+      "Reception"
+    ],
+    "Software": [
+      "MS Office (Word, Excel, Outlook)",
+      "Data Entry",
+      "Google Workspace",
+      "CRM Basics",
+      "Bookkeeping Basics"
+    ],
+    "Professional": [
+      "Communication",
+      "Time Management",
+      "Confidentiality",
+      "Customer Service",
+      "Problem Solving"
+    ]
+  },
+  "experience": [
+    {
+      "title": "Administrative Assistant",
+      "company": "Example Organization",
+      "location": "City, Province",
+      "dates": "2021 - Present",
+      "domain": "administrative",
+      "bullets": [
+        "Managed calendars, scheduling, and correspondence for the management team.",
+        "Maintained accurate records and filing systems, ensuring confidentiality.",
+        "Prepared documents and reports using MS Office and supported office operations."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree": "Diploma in Office Administration",
+      "institution": "Your College",
+      "dates": "Year"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "MS Office / Bookkeeping Certificate",
+      "issuer": "Provider",
+      "year": ""
+    }
+  ],
+  "contact": {
+    "location": "City, Province, Canada",
+    "phone": "(000) 000-0000",
+    "email": "you@email.com",
+    "linkedin": "linkedin.com/in/you",
+    "website": ""
+  }
+}

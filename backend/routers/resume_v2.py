@@ -23,22 +23,29 @@ _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
 def _load_profile(profile_id: str) -> dict:
-    path = _DATA_DIR / f"master_{profile_id}.json"
-    if not path.exists():
-        raise HTTPException(404, f"Profile '{profile_id}' not found.")
-    return json.loads(path.read_text(encoding="utf-8"))
+    # Career-area templates (template_*) and personal masters (master_*) are both
+    # loadable by id.
+    for prefix in ("template_", "master_"):
+        path = _DATA_DIR / f"{prefix}{profile_id}.json"
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+    raise HTTPException(404, f"Profile '{profile_id}' not found.")
 
 
 @router.get("/profiles")
 def list_profiles() -> dict:
+    """List the career-area resume types (template_*) available to choose from."""
     profiles = []
-    for p in sorted(_DATA_DIR.glob("master_*.json")):
+    for p in sorted(_DATA_DIR.glob("template_*.json")):
         try:
             d = json.loads(p.read_text(encoding="utf-8"))
             profiles.append({
-                "profile_id": d.get("profile_id", p.stem.replace("master_", "")),
+                "profile_id": d.get("profile_id", p.stem.replace("template_", "")),
                 "name": d.get("name", ""),
                 "title": d.get("title", ""),
+                "area": d.get("area", ""),
+                "format_type": d.get("format_type", ""),
+                "description": d.get("description", ""),
             })
         except Exception:
             continue

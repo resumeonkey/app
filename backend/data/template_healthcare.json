@@ -1,0 +1,82 @@
+{
+  "profile_id": "healthcare",
+  "name": "Your Name",
+  "area": "Healthcare & Nursing",
+  "format_type": "Cronologico",
+  "description": "Licencias y certificaciones primero, skills clinicas.",
+  "title": "Healthcare Professional",
+  "tagline": [
+    "Patient Care",
+    "Clinical Skills",
+    "Documentation",
+    "Team Care",
+    "Bilingual"
+  ],
+  "summary": [
+    "Compassionate healthcare professional with experience providing patient-centered care in clinical settings.",
+    "Skilled in clinical procedures, patient assessment, and accurate documentation, committed to safety and quality of care."
+  ],
+  "competencies": {
+    "Clinical Skills": [
+      "Patient Assessment",
+      "Vital Signs",
+      "Medication Administration",
+      "Wound Care",
+      "Infection Control"
+    ],
+    "Patient Care": [
+      "Patient Education",
+      "Care Planning",
+      "Mobility Assistance",
+      "Compassionate Care",
+      "Family Communication"
+    ],
+    "Professional": [
+      "Charting / EMR",
+      "Privacy / Confidentiality",
+      "Team Collaboration",
+      "Time Management",
+      "CPR / First Aid"
+    ]
+  },
+  "experience": [
+    {
+      "title": "Registered Nurse / Care Aide",
+      "company": "Example Health Centre",
+      "location": "City, Province",
+      "dates": "2021 - Present",
+      "domain": "healthcare",
+      "bullets": [
+        "Provided direct patient care including assessment, monitoring, and medication administration.",
+        "Maintained accurate patient records in the electronic medical record system.",
+        "Collaborated with the interdisciplinary team to develop and update care plans."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree": "Bachelor of Science in Nursing (BScN)",
+      "institution": "Your University",
+      "dates": "Year"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "Provincial Nursing License / Registration",
+      "issuer": "College of Nurses",
+      "year": ""
+    },
+    {
+      "name": "CPR / BLS",
+      "issuer": "Heart & Stroke",
+      "year": ""
+    }
+  ],
+  "contact": {
+    "location": "City, Province, Canada",
+    "phone": "(000) 000-0000",
+    "email": "you@email.com",
+    "linkedin": "linkedin.com/in/you",
+    "website": ""
+  }
+}

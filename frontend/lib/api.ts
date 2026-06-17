@@ -350,6 +350,9 @@ export interface ResumeProfile {
   profile_id: string;
   name: string;
   title: string;
+  area?: string;
+  format_type?: string;
+  description?: string;
 }
 
 export const listResumeProfiles = () =>

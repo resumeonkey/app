@@ -1,0 +1,95 @@
+{
+  "profile_id": "information_technology",
+  "name": "Your Name",
+  "area": "Information Technology",
+  "format_type": "Hibrido",
+  "description": "Skills tecnicas arriba, proyectos y certificaciones.",
+  "title": "IT Professional",
+  "tagline": [
+    "Software",
+    "Troubleshooting",
+    "Cloud",
+    "Databases",
+    "Support"
+  ],
+  "summary": [
+    "IT professional with experience supporting systems, applications, and end users across enterprise environments.",
+    "Strong technical foundation in troubleshooting, scripting, and system administration, with a focus on reliability and security."
+  ],
+  "competencies": {
+    "Technical Skills": [
+      "SQL",
+      "Python",
+      "PowerShell",
+      "Networking",
+      "System Administration",
+      "Troubleshooting"
+    ],
+    "Tools & Platforms": [
+      "Windows / Linux",
+      "Azure / AWS",
+      "Active Directory",
+      "Git",
+      "Ticketing Systems"
+    ],
+    "Practices": [
+      "Agile / Scrum",
+      "Documentation",
+      "Incident Management",
+      "Data Backup",
+      "Security Basics"
+    ]
+  },
+  "experience": [
+    {
+      "title": "IT Support Specialist",
+      "company": "Example Corp",
+      "location": "City, Province",
+      "dates": "2021 - Present",
+      "domain": "IT support",
+      "bullets": [
+        "Provided technical support to end users, resolving hardware, software, and network issues.",
+        "Administered user accounts and access in Active Directory.",
+        "Documented procedures and maintained the knowledge base to improve resolution times."
+      ]
+    },
+    {
+      "title": "Junior Systems Administrator",
+      "company": "Example Inc",
+      "location": "City, Province",
+      "dates": "2019 - 2021",
+      "domain": "IT",
+      "bullets": [
+        "Supported server maintenance, backups, and monitoring across Windows and Linux systems.",
+        "Automated routine tasks with PowerShell scripts.",
+        "Assisted with cloud migration and configuration projects."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree": "Diploma in Computer Systems Technology",
+      "institution": "Your College",
+      "dates": "Year"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "CompTIA A+",
+      "issuer": "CompTIA",
+      "year": ""
+    },
+    {
+      "name": "Microsoft / AWS Cloud Fundamentals",
+      "issuer": "Vendor",
+      "year": ""
+    }
+  ],
+  "contact": {
+    "location": "City, Province, Canada",
+    "phone": "(000) 000-0000",
+    "email": "you@email.com",
+    "linkedin": "linkedin.com/in/you",
+    "website": ""
+  }
+}

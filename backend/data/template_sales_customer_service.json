@@ -1,0 +1,77 @@
+{
+  "profile_id": "sales_customer_service",
+  "name": "Your Name",
+  "area": "Sales & Customer Service",
+  "format_type": "Combinado",
+  "description": "Metricas/targets, CRM y comunicacion.",
+  "title": "Sales & Customer Service Professional",
+  "tagline": [
+    "Sales",
+    "Customer Service",
+    "CRM",
+    "Targets",
+    "Relationship Building"
+  ],
+  "summary": [
+    "Results-driven sales and customer service professional with experience meeting targets and building customer relationships.",
+    "Skilled in needs assessment, product knowledge, and CRM tools, with a focus on customer satisfaction and retention."
+  ],
+  "competencies": {
+    "Sales": [
+      "Lead Generation",
+      "Needs Assessment",
+      "Closing",
+      "Upselling / Cross-selling",
+      "Target Achievement"
+    ],
+    "Customer Service": [
+      "Relationship Building",
+      "Complaint Resolution",
+      "Product Knowledge",
+      "Follow-up",
+      "Retention"
+    ],
+    "Tools & Skills": [
+      "CRM (Salesforce/HubSpot)",
+      "POS Systems",
+      "Reporting",
+      "Communication",
+      "Negotiation"
+    ]
+  },
+  "experience": [
+    {
+      "title": "Sales Associate",
+      "company": "Example Retailer",
+      "location": "City, Province",
+      "dates": "2021 - Present",
+      "domain": "sales / retail",
+      "bullets": [
+        "Met and exceeded monthly sales targets through attentive customer service and product knowledge.",
+        "Built lasting customer relationships, driving repeat business and referrals.",
+        "Processed transactions and managed CRM records accurately."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree": "Diploma in Business / Sales",
+      "institution": "Your College",
+      "dates": "Year"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "Customer Service / Sales Certificate",
+      "issuer": "Provider",
+      "year": ""
+    }
+  ],
+  "contact": {
+    "location": "City, Province, Canada",
+    "phone": "(000) 000-0000",
+    "email": "you@email.com",
+    "linkedin": "linkedin.com/in/you",
+    "website": ""
+  }
+}
