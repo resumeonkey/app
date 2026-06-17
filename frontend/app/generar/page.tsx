@@ -23,10 +23,12 @@ export default function GenerarPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("profile");
     listResumeProfiles()
       .then((p) => {
         setProfiles(p);
-        if (p.length && !p.find((x) => x.profile_id === profileId)) setProfileId(p[0].profile_id);
+        if (fromUrl && p.find((x) => x.profile_id === fromUrl)) setProfileId(fromUrl);
+        else if (p.length && !p.find((x) => x.profile_id === profileId)) setProfileId(p[0].profile_id);
       })
       .catch(() => setProfiles([]));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

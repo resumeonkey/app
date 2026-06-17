@@ -16,6 +16,7 @@ import {
 } from "@/lib/api";
 // MasterStatus kept for reference — replaced by ProfilesPanel
 import { MasterUpload } from "@/components/master/MasterUpload";
+import { ResumeTypeChooser } from "@/components/master/ResumeTypeChooser";
 import { ProfilesPanel } from "@/components/master/ProfilesPanel";
 import { JobForm } from "@/components/job/JobForm";
 import { AdaptationResult } from "@/components/result/AdaptationResult";
@@ -202,6 +203,12 @@ export default function HomePage() {
               <p className="text-sm text-gray-400 mb-5">
                 Cada perfil tiene su propio resume y configuración de búsqueda (roles objetivo, exclusiones, industrias).
               </p>
+              <ResumeTypeChooser />
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-xs text-gray-400">o sube tu propio Word</span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
               <MasterUpload onUploaded={handleMasterUploaded} />
               {master && (
                 <button className="btn-secondary mt-3 text-sm" onClick={() => setView("adapt")}>

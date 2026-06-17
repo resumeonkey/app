@@ -1,0 +1,176 @@
+{
+  "contact": {
+    "location": "Osoyoos, BC, Canada",
+    "phone": "(709) 220-8100",
+    "email": "contact@franciscoaleuy.ca",
+    "linkedin": "linkedin.com/in/faleuy",
+    "website": "franciscoaleuy.ca"
+  },
+  "experience": [
+    {
+      "title": "Operations Associate",
+      "company": "Watermark Beach Resort",
+      "location": "Osoyoos, BC, Canada",
+      "dates": "Jun 2024 – Present",
+      "domain": "hospitality / canadian experience",
+      "bullets": [
+        "Canadian work experience in a customer-facing environment, strengthening communication, adaptability, and collaboration skills in an English-speaking workplace."
+      ]
+    },
+    {
+      "title": "Product Owner – HR Systems & Process Initiatives",
+      "company": "Entel",
+      "location": "Chile",
+      "dates": "May 2021 – Jan 2025",
+      "domain": "HR systems / HR process design",
+      "bullets": [
+        "Supported HR process design and service improvement initiatives across a 6,500+ employee enterprise environment, collaborating with HR and technology stakeholders.",
+        "Developed and validated business requirements for HR-related workflows and service management solutions.",
+        "Supported SAP SuccessFactors reporting and HR data validation activities, contributing to reporting requirements, workforce data accuracy, and data quality initiatives.",
+        "Collaborated on API-based integrations that improved access to organizational and HR-related data for reporting and operational decision-making.",
+        "Performed UAT testing, defect validation, and requirements verification for HR and service management system enhancements.",
+        "Validated employee-related data, business rules, and workflow configurations to ensure system accuracy and process consistency.",
+        "Produced documentation, process flows, and operational procedures supporting business adoption and system consistency.",
+        "Coordinated with HR stakeholders, business teams, and technical teams to ensure successful implementation of process and technology improvements."
+      ]
+    },
+    {
+      "title": "Application Support Specialist",
+      "company": "MB Solutions Latam",
+      "location": "Chile",
+      "dates": "May 2020 – Apr 2021",
+      "domain": "application support / telecom",
+      "bullets": [
+        "Provided application support and end-user issue resolution across Linux-based and SQL platforms for telecom clients.",
+        "Performed system troubleshooting, root cause analysis, and data validation activities, reducing recurring issues by 25%.",
+        "Maintained technical documentation, knowledge base articles, and SOPs to support team efficiency and onboarding.",
+        "Executed SQL queries for diagnostics, data validation, and system performance verification."
+      ]
+    },
+    {
+      "title": "Business Systems / Process Analyst",
+      "company": "Accenture",
+      "location": "Chile",
+      "dates": "Dec 2018 – Feb 2020",
+      "domain": "core banking / financial systems",
+      "bullets": [
+        "Supported requirements gathering, process documentation, and stakeholder alignment for large-scale core banking system implementations.",
+        "Performed data validation and system integration testing using SQL and Postman, ensuring accuracy and compliance prior to go-live.",
+        "Collaborated with technical and business teams to coordinate implementation activities, validate business rules, and verify system behavior.",
+        "Improved reporting delivery time by 35% through process optimization and scripting using PowerShell."
+      ]
+    },
+    {
+      "title": "QA Analyst / System Validator",
+      "company": "Allware",
+      "location": "Chile",
+      "dates": "Sep 2009 – Dec 2017",
+      "domain": "QA / testing / telecom",
+      "bullets": [
+        "Designed and executed functional testing, regression testing, and data validation across telecom systems and service deployments.",
+        "Provided UAT support, defect management, requirements verification, and business process validation throughout the testing lifecycle.",
+        "Maintained structured test documentation, validation protocols, and defect tracking records.",
+        "Reduced production defects by 15% and improved data reporting accuracy by 20% through rigorous validation processes."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree": "WES Credential Assessment (Canada)",
+      "institution": "Equivalent to Two Canadian Post-Secondary Diplomas",
+      "dates": ""
+    },
+    {
+      "degree": "Bachelor’s Degree in Industrial Engineering (in progress – 2027)",
+      "institution": "Universidad Andrés Bello, Chile",
+      "dates": ""
+    },
+    {
+      "degree": "Diploma in Industrial Processes Technology",
+      "institution": "Instituto Profesional IACC, Chile",
+      "dates": ""
+    },
+    {
+      "degree": "Diploma in Network and Connectivity Technology",
+      "institution": "Universidad de Ciencias de la Informática, Chile",
+      "dates": ""
+    }
+  ],
+  "certifications": [
+    {
+      "name": "Google Data Analytics Professional Certificate",
+      "issuer": "Google",
+      "year": "2025"
+    },
+    {
+      "name": "Scrum Product Owner Professional Certificate (SPOPC)",
+      "issuer": "CertiProf",
+      "year": "2025"
+    },
+    {
+      "name": "Product Owner Specialist",
+      "issuer": "Pablolledo.com",
+      "year": "2024"
+    },
+    {
+      "name": "Agile Project Management with JIRA",
+      "issuer": "Udemy",
+      "year": "2024"
+    },
+    {
+      "name": "Prompt Engineering",
+      "issuer": "Coursera",
+      "year": "2024"
+    },
+    {
+      "name": "Security Awareness Training",
+      "issuer": "KnowBe4",
+      "year": "2023"
+    },
+    {
+      "name": "Data Science Analyst with Python",
+      "issuer": "Desafío Latam",
+      "year": "2021"
+    }
+  ],
+  "profile_id": "operations_process",
+  "name": "Francisco Aleuy",
+  "title": "Operations & Process Specialist",
+  "tagline": [
+    "Process Design",
+    "Operations Coordination",
+    "Requirements Analysis",
+    "Stakeholder Management",
+    "Documentation"
+  ],
+  "summary": [
+    "Operations and Process professional with 10+ years coordinating cross-functional initiatives, process design, and system implementations across enterprise environments.",
+    "Experienced in requirements gathering, business process documentation, stakeholder alignment, data validation, and continuous improvement.",
+    "Strong record translating business needs into efficient, well-documented processes while ensuring quality and adoption."
+  ],
+  "competencies": {
+    "Operations & Process": [
+      "Process Design",
+      "Process Mapping",
+      "Process Improvement",
+      "Operations Coordination",
+      "Change Management Support",
+      "Workflow Design"
+    ],
+    "Analysis & Systems": [
+      "Requirements Gathering",
+      "Business Analysis",
+      "System Configuration",
+      "Data Validation",
+      "SQL",
+      "UAT Testing"
+    ],
+    "Delivery & People": [
+      "Stakeholder Management",
+      "Documentation & SOPs",
+      "User Training Support",
+      "Agile / Scrum",
+      "Cross-functional Collaboration"
+    ]
+  }
+}
