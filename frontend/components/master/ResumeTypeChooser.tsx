@@ -9,6 +9,7 @@ interface Props {
 export function ResumeTypeChooser({ onCreated }: Props) {
   const [profiles, setProfiles] = useState<ResumeProfile[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [profileName, setProfileName] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
@@ -17,19 +18,22 @@ export function ResumeTypeChooser({ onCreated }: Props) {
     try { setSelected(localStorage.getItem("resumeProfileId")); } catch {}
   }, []);
 
-  const choose = (id: string) => {
+  const choose = (id: string, area: string) => {
     try { localStorage.setItem("resumeProfileId", id); } catch {}
     setSelected(id);
     setError("");
+    // Pre-fill name with area if empty
+    if (!profileName) setProfileName(area);
   };
 
   const handleConfirm = async () => {
     if (!selected) return;
-    const profile = profiles.find((p) => p.profile_id === selected);
+    const name = profileName.trim();
+    if (!name) { setError("Ponle un nombre a este perfil."); return; }
     setCreating(true);
     setError("");
     try {
-      const master = await createMasterFromTemplate(selected, profile?.area || profile?.title);
+      const master = await createMasterFromTemplate(selected, name);
       onCreated?.(master);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } }; message?: string };
@@ -51,10 +55,11 @@ export function ResumeTypeChooser({ onCreated }: Props) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {profiles.map((p) => {
           const active = selected === p.profile_id;
+          const area = p.area || p.title;
           return (
             <button
               key={p.profile_id}
-              onClick={() => choose(p.profile_id)}
+              onClick={() => choose(p.profile_id, area)}
               className={`text-left block border rounded-xl p-4 transition-all ${
                 active
                   ? "border-indigo-500 bg-indigo-50/60 ring-1 ring-indigo-200"
@@ -62,7 +67,7 @@ export function ResumeTypeChooser({ onCreated }: Props) {
               }`}
             >
               <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-gray-800 leading-tight">{p.area || p.title}</div>
+                <div className="text-sm font-semibold text-gray-800 leading-tight">{area}</div>
                 {p.format_type && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 font-medium whitespace-nowrap">
                     {p.format_type}
@@ -78,25 +83,40 @@ export function ResumeTypeChooser({ onCreated }: Props) {
         })}
       </div>
 
-      {error && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2 mt-3">
-          ⚠️ {error}
-        </p>
-      )}
-
       {selected && onCreated && (
-        <div className="mt-4">
+        <div className="mt-4 space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nombre para este perfil
+            </label>
+            <input
+              type="text"
+              className="input w-full"
+              placeholder="Ej: Francisco — IT, María — Hospitalidad…"
+              value={profileName}
+              maxLength={60}
+              onChange={(e) => { setProfileName(e.target.value); setError(""); }}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Úsalo para identificar a quién pertenece o para qué área es.
+            </p>
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+              ⚠️ {error}
+            </p>
+          )}
+
           <button
             className="btn-primary w-full py-3 text-sm"
             onClick={handleConfirm}
             disabled={creating}
           >
-            {creating
-              ? "⟳ Creando perfil base…"
-              : "✓ Usar esta plantilla como mi resume base →"}
+            {creating ? "⟳ Creando perfil base…" : "✓ Crear perfil →"}
           </button>
-          <p className="text-xs text-gray-400 mt-1.5 text-center">
-            Se crea un perfil editable. Puedes personalizarlo desde "Mis Perfiles".
+          <p className="text-xs text-gray-400 text-center">
+            Puedes editar el nombre y configurar roles, skills e industrias desde "Mis Perfiles".
           </p>
         </div>
       )}
@@ -109,3 +129,4 @@ export function ResumeTypeChooser({ onCreated }: Props) {
     </div>
   );
 }
+
