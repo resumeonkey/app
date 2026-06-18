@@ -78,8 +78,27 @@ export const listMasters = () =>
 export const uploadMaster = (formData: FormData) =>
   api.post<MasterDetail>("/api/master/upload", formData).then((r) => r.data);
 
-export const createMasterFromTemplate = (profile_id: string, profile_name?: string) =>
-  api.post<MasterDetail>("/api/master/from-template", { profile_id, profile_name }).then((r) => r.data);
+export const createMasterFromTemplate = async (profile_id: string, profile_name?: string): Promise<MasterDetail> => {
+  // Step 1: generate a DOCX from the built-in template (no LLM adaptation)
+  const genRes = await api.post(
+    "/api/resume/generate",
+    { profile_id, template: "classic", job_description: "", llm_provider: "groq", llm_model: "llama-3.3-70b-versatile" },
+    { responseType: "blob" },
+  );
+
+  // Step 2: upload that DOCX as a master resume via the existing upload endpoint
+  const area = profile_name || profile_id.replace(/_/g, " ");
+  const filename = `${area.replace(/\s+/g, "_")}_template.docx`;
+  const file = new File(
+    [genRes.data],
+    filename,
+    { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+  );
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("notes", `Plantilla: ${profile_name || area}`);
+  return api.post<MasterDetail>("/api/master/upload", fd).then((r) => r.data);
+};
 
 export const activateMaster = (id: string) =>
   api.patch<MasterSummary>(`/api/master/${id}/activate`).then((r) => r.data);
