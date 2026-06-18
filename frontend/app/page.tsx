@@ -204,11 +204,19 @@ export default function HomePage() {
                 a una oferta específica (buscando empleos, pegando el link o el texto de la oferta).
               </p>
               <ResumeTypeChooser />
-              {master && (
-                <button className="btn-secondary mt-4 text-sm" onClick={() => setView("adapt")}>
-                  ← Cancelar
+              <div className="mt-5 flex items-center gap-3 justify-between flex-wrap">
+                {master && (
+                  <button className="btn-secondary text-sm" onClick={() => setView("adapt")}>
+                    ← Cancelar
+                  </button>
+                )}
+                <button
+                  className="btn-primary text-sm py-2.5 px-5 ml-auto"
+                  onClick={() => setView("adapt")}
+                >
+                  {master ? "Confirmar →" : "Continuar a buscar trabajo →"}
                 </button>
-              )}
+              </div>
             </div>
           ) : (
             <ProfilesPanel

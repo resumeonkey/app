@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { ResumeTypeChooser } from "@/components/master/ResumeTypeChooser";
 
 export default function ElegirCVPage() {
@@ -12,6 +13,11 @@ export default function ElegirCVPage() {
         </p>
       </div>
       <ResumeTypeChooser />
+      <div className="flex justify-end">
+        <Link href="/" className="btn-primary py-2.5 px-5 text-sm">
+          Continuar a buscar trabajo →
+        </Link>
+      </div>
     </main>
   );
 }
