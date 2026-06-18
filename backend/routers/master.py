@@ -2,10 +2,12 @@
 Master resume endpoints: upload, get, list versions.
 Only one master is 'active' at a time.
 """
+import json
 import uuid
 import tempfile
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
@@ -16,7 +18,10 @@ from backend.config import get_settings
 from backend.database import get_db
 from backend.models.master import MasterResume
 from backend.services.resume_parser import parse_docx, parse_pdf, pdf_to_docx
+from backend.services.resume_generator import generate_resume_docx
 from backend.services import storage
+
+_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 router   = APIRouter()
 settings = get_settings()
@@ -243,6 +248,64 @@ def activate_master(master_id: str, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(master)
     return _to_summary(master)
+
+
+class FromTemplateRequest(BaseModel):
+    profile_id:   str
+    profile_name: Optional[str] = None
+
+
+@router.post("/from-template", response_model=MasterDetail, status_code=201)
+async def create_master_from_template(
+    body: FromTemplateRequest,
+    db: Session = Depends(get_db),
+):
+    """Create a master resume from a built-in career-area template (no file upload needed)."""
+    template_path = _DATA_DIR / f"template_{body.profile_id}.json"
+    if not template_path.exists():
+        raise HTTPException(404, f"Template '{body.profile_id}' not found.")
+
+    data = json.loads(template_path.read_text(encoding="utf-8"))
+
+    master_id = uuid.uuid4().hex
+    docx_tmp = os.path.join(tempfile.gettempdir(), f"tpl_{master_id}.docx")
+    contents = None
+    try:
+        generate_resume_docx(data, docx_tmp, template="classic")
+        parsed = parse_docx(docx_tmp)
+        with open(docx_tmp, "rb") as fh:
+            contents = fh.read()
+    except Exception as e:
+        raise HTTPException(422, f"No se pudo generar el resume desde la plantilla: {e}")
+    finally:
+        if os.path.exists(docx_tmp):
+            os.remove(docx_tmp)
+
+    storage_path = f"uploads/master_{master_id}.docx"
+    ct = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    file_path = storage.upload_file(contents, storage_path, ct)
+
+    db.query(MasterResume).filter(MasterResume.is_active == True).update({"is_active": False})
+
+    area = data.get("area") or body.profile_id.replace("_", " ").title()
+    profile_name = body.profile_name or area
+
+    master = MasterResume(
+        id=master_id,
+        original_filename=f"{area.replace(' ', '_')}_template.docx",
+        file_path=file_path,
+        file_type="docx",
+        full_text=parsed.get("full_text"),
+        sections=parsed.get("sections"),
+        candidate_name=None,
+        notes=f"Plantilla: {profile_name}",
+        is_active=True,
+        profile_name=profile_name,
+    )
+    db.add(master)
+    db.commit()
+    db.refresh(master)
+    return _to_detail(master)
 
 
 @router.delete("/{master_id}", status_code=204)

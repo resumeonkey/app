@@ -78,6 +78,9 @@ export const listMasters = () =>
 export const uploadMaster = (formData: FormData) =>
   api.post<MasterDetail>("/api/master/upload", formData).then((r) => r.data);
 
+export const createMasterFromTemplate = (profile_id: string, profile_name?: string) =>
+  api.post<MasterDetail>("/api/master/from-template", { profile_id, profile_name }).then((r) => r.data);
+
 export const activateMaster = (id: string) =>
   api.patch<MasterSummary>(`/api/master/${id}/activate`).then((r) => r.data);
 

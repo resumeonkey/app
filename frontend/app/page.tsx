@@ -203,20 +203,14 @@ export default function HomePage() {
                 Elige el formato de tu área. Lo personalizas y descargas una vez que adaptes tu CV
                 a una oferta específica (buscando empleos, pegando el link o el texto de la oferta).
               </p>
-              <ResumeTypeChooser />
-              <div className="mt-5 flex items-center gap-3 justify-between flex-wrap">
-                {master && (
-                  <button className="btn-secondary text-sm" onClick={() => setView("adapt")}>
-                    ← Cancelar
-                  </button>
-                )}
-                <button
-                  className="btn-primary text-sm py-2.5 px-5 ml-auto"
-                  onClick={() => setView("adapt")}
-                >
-                  {master ? "Confirmar →" : "Continuar a buscar trabajo →"}
+              <ResumeTypeChooser
+                onCreated={(m) => { handleMasterUploaded(m); setView("adapt"); }}
+              />
+              {master && (
+                <button className="btn-secondary mt-4 text-sm" onClick={() => setView("adapt")}>
+                  ← Cancelar
                 </button>
-              </div>
+              )}
             </div>
           ) : (
             <ProfilesPanel
