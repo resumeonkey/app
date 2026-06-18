@@ -185,11 +185,11 @@ function BlockDiff({ block }: { block: BlockChanged }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
         <p className="text-xs text-gray-500 italic">
           <span className="font-medium text-gray-700">Razón:</span> {block.reason}
         </p>
-        <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs">
+        <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs self-start sm:self-auto">
           {(["diff", "original", "adapted"] as const).map((v) => (
             <button
               key={v}

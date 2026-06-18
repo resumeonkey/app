@@ -442,10 +442,10 @@ export function SearchPanel({ onSearch, loading, masters = [], activeMasterId = 
           {/* Salary */}
           <div>
             <label className="label">Rango salarial ({params.salary_currency})</label>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <input
                 type="number"
-                className="input w-32"
+                className="input w-28 min-w-0"
                 placeholder="Mínimo"
                 value={params.salary_min ?? ""}
                 onChange={(e) => set("salary_min", e.target.value ? parseInt(e.target.value) : null)}
@@ -453,13 +453,13 @@ export function SearchPanel({ onSearch, loading, masters = [], activeMasterId = 
               <span className="text-gray-400">–</span>
               <input
                 type="number"
-                className="input w-32"
+                className="input w-28 min-w-0"
                 placeholder="Máximo"
                 value={params.salary_max ?? ""}
                 onChange={(e) => set("salary_max", e.target.value ? parseInt(e.target.value) : null)}
               />
               <select
-                className="input w-24"
+                className="input w-20"
                 value={params.salary_currency}
                 onChange={(e) => set("salary_currency", e.target.value as "CAD" | "USD")}
               >

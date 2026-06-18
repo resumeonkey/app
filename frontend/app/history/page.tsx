@@ -41,9 +41,9 @@ export default function HistoryPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800">📂 Historial de adaptaciones</h1>
-        <Link href="/" className="btn-primary">+ Nueva adaptación</Link>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-800">📂 Historial de adaptaciones</h1>
+        <Link href="/" className="btn-primary text-sm">+ Nueva adaptación</Link>
       </div>
 
       {adaptations.length === 0 ? (

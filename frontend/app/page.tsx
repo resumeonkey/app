@@ -172,7 +172,7 @@ export default function HomePage() {
     <div className="space-y-6">
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold text-gray-800">🐵 Resumonkey</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">🐵 Resumonkey</h1>
         <p className="text-gray-500">
           Adapta tu resume canadiense a cada oferta — sin romper el formato.
         </p>
@@ -238,7 +238,7 @@ export default function HomePage() {
       {/* ── Job input section ────────────────────────────────────────────────── */}
       {view === "adapt" && master && (
         <div className="card p-6">
-          <div className="flex items-start justify-between mb-1">
+          <div className="flex flex-wrap items-start justify-between gap-2 mb-1">
             <h2 className="text-base font-semibold text-gray-700">2. Nueva oferta laboral</h2>
             {/* Mode switcher */}
             <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">

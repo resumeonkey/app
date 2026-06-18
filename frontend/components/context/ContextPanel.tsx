@@ -67,7 +67,7 @@ export function ContextPanel() {
   return (
     <div className="card p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-start justify-between gap-2 mb-4">
         <div>
           <h2 className="text-base font-semibold text-gray-700">
             🗂 Mi Contexto Laboral

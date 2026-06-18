@@ -519,7 +519,7 @@ export function ProfilesPanel({
   return (
     <div className="card p-5">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-start justify-between gap-2 mb-4">
         <div>
           <h2 className="text-base font-semibold text-gray-700">👤 Mis Perfiles</h2>
           <p className="text-xs text-gray-400 mt-0.5">
