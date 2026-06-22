@@ -1157,6 +1157,7 @@ async def batch_score_jobs(
     profile_tags: str = "",
     industry_experience: str = "",
     target_industries: str = "",
+    extra_context: str = "",
 ) -> list[dict]:
     """
     Score ALL jobs in a SINGLE LLM call — ~88% fewer tokens than per-job scoring.
@@ -1173,6 +1174,11 @@ async def batch_score_jobs(
     score_model = _scoring_model(provider, model)
 
     profile = _build_profile_text(master_sections, profile_tags=profile_tags)[:_BATCH_PROFILE_CHARS]
+    # Fold in ALL other saved signals about the candidate (context files: LinkedIn,
+    # extra skills, certifications, board roles…) so proximity scoring reflects the
+    # full picture, not just the resume.
+    if extra_context and extra_context.strip():
+        profile += "\n\nADDITIONAL CANDIDATE BACKGROUND (context files):\n" + extra_context.strip()[:1800]
 
     # Build compact 1-line summary per job (title + company + location + snippet)
     job_lines = []

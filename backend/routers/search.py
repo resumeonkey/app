@@ -232,6 +232,14 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
 
     master_sections = master.sections or {}
 
+    # Gather ALL other saved signals about the candidate for proximity scoring:
+    # active "Mi Contexto Laboral" items (LinkedIn export, extra skills, certs, etc.)
+    from backend.models.context import UserContext
+    _ctx_items = db.query(UserContext).filter(UserContext.is_active == True).all()
+    extra_context = "\n\n".join(
+        f"[{c.title}] {c.content}" for c in _ctx_items if c.content
+    ).strip()
+
     # ── Resolve english_level: param > master profile > "any" ─────────────────
     resolved_english_level = params.english_level
     if resolved_english_level == "any" and master.english_level and master.english_level != "any":
@@ -405,6 +413,7 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
         profile_tags=resolved_profile_tags,
         industry_experience=resolved_industry_experience,
         target_industries=resolved_target_industries,
+        extra_context=extra_context,
     )
 
     # ── Step 4: Merge + sort ─────────────────────────────────────────────────
