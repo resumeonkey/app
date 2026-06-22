@@ -279,12 +279,22 @@ async def generate_search_queries(
     target_inds_list    = [i.strip() for i in (target_industries or "").split(",") if i.strip()]
 
     target_roles_hint = ""
-    if target_roles_list:
+    if target_roles_list and not effective_job_title:
+        # No typed title → the profile's target roles DRIVE the queries.
         target_roles_hint = (
             "\n- ROLES OBJETIVO (prioridad alta): el candidato quiere específicamente estos puestos: "
             f"{', '.join(target_roles_list[:12])}. "
             "Genera queries basadas PRINCIPALMENTE en estos títulos y sus variantes cercanas. "
             "NO te desvíes hacia roles genéricos que no estén en esta lista."
+        )
+    elif target_roles_list:
+        # The user TYPED a job title → that intent DOMINATES. Target roles are
+        # only soft context; never let them override what the user actually typed.
+        target_roles_hint = (
+            f"\n- CONTEXTO (roles del perfil, secundario): {', '.join(target_roles_list[:8])}. "
+            "PERO el usuario escribió un puesto específico arriba — ESE puesto MANDA. "
+            "Genera las queries expandiendo el puesto escrito; usa los roles del perfil solo si "
+            "coinciden con ese puesto. NO devuelvas queries de un dominio distinto al que el usuario escribió."
         )
 
     excluded_hint = ""
