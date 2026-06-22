@@ -385,6 +385,7 @@ export interface GenerateResumeBody {
   template: "classic" | "iris";
   job_description?: string;
   user_instructions?: string;
+  use_personal_data?: boolean;
   llm_provider?: string;
   llm_model?: string;
 }

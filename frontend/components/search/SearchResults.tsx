@@ -6,6 +6,7 @@ import {
   toggleApplied,
   saveJob,
   unsaveJob,
+  generateAndDownloadResume,
   type JobResult,
   type Adaptation,
 } from "@/lib/api";
@@ -118,6 +119,7 @@ function JobResultCard({
   const [adaptation, setAdaptation] = useState<Adaptation | null>(existingAdaptation);
   const [applied, setApplied] = useState<boolean>(!!existingAdaptation?.applied_at);
   const [togglingApplied, setTogglingApplied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   // Instructions panel — closed until user clicks "Adaptar →"
   const [showInstructions, setShowInstructions] = useState(false);
   const [instructions, setInstructions] = useState("");
@@ -137,6 +139,42 @@ function JobResultCard({
     score >= 80 ? "Alta compatibilidad" :
     score >= 60 ? "Compatibilidad media" :
                   "Baja compatibilidad";
+
+  // New flow: generate a clean CV from the chosen CV-type, filled with the user's
+  // REAL data and adapted to THIS offer, then download it.
+  const handleDownloadCV = async () => {
+    setDownloading(true);
+    setError("");
+    try {
+      let profileId = "";
+      try { profileId = localStorage.getItem("resumeProfileId") || ""; } catch {}
+      if (!profileId) {
+        setError("Primero elige un CV tipo (menú 'Elegir CV tipo').");
+        setDownloading(false);
+        return;
+      }
+      let jobDescription = job.snippet;
+      try {
+        const extracted = await extractJobFromUrl(job.url, llmProvider, llmModel);
+        if (extracted.job_description && extracted.job_description.length > jobDescription.length) {
+          jobDescription = extracted.job_description;
+        }
+      } catch { /* snippet fallback */ }
+
+      await generateAndDownloadResume({
+        profile_id: profileId,
+        template: "classic",
+        job_description: jobDescription,
+        use_personal_data: true,
+        llm_provider: llmProvider,
+        llm_model: llmModel,
+      });
+    } catch {
+      setError("No se pudo generar el CV. Reintenta en unos segundos.");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const handleAdapt = async () => {
     setAdapting(true);
@@ -343,10 +381,11 @@ function JobResultCard({
                 <div className="flex gap-2">
                   <button
                     className="btn-primary text-xs py-1 px-2"
-                    onClick={() => { setShowInstructions(true); setAwaitingConfirm(true); }}
-                    disabled={adapting || awaitingConfirm}
+                    onClick={handleDownloadCV}
+                    disabled={downloading}
+                    title="Genera tu CV (tipo elegido + tus datos reales) adaptado a esta oferta y lo descarga"
                   >
-                    Adaptar →
+                    {downloading ? "Generando…" : "📄 Descargar CV adaptado"}
                   </button>
                 </div>
               )}
