@@ -282,6 +282,15 @@ async def run_search(params: SearchParams, db: Session = Depends(get_db)):
             target_industries=resolved_target_industries,
         )
 
+    # Respect the user's literal input: whatever they typed in "Puesto que buscas"
+    # MUST be searched verbatim as the first query. The LLM sometimes discards an
+    # unusual term (e.g. a company/product like "Claude") and substitutes profile
+    # roles — this guarantees the typed term is always honoured. (Language keywords
+    # like "Spanish" are excluded; they route to bilingual hints instead.)
+    typed = params.job_title.strip()
+    if typed and not params.custom_query.strip() and not _is_language_keyword(typed):
+        queries = [typed] + [q for q in queries if q.strip().lower() != typed.lower()]
+
     if not queries:
         raise HTTPException(status_code=422, detail="No se pudieron generar consultas de búsqueda.")
 
