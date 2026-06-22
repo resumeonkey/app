@@ -331,7 +331,18 @@ async def generate_search_queries(
 ## Tu tarea
 Genera 2–4 variaciones de búsqueda de keywords para LinkedIn Jobs y Job Bank Canada.
 Las queries deben ser SOLO palabras clave del puesto/skills (sin ciudad ni país).
-Si hay ROLES OBJETIVO definidos, basa las queries en ellos.
+
+## REGLA #1 — EL TÉRMINO ESCRITO MANDA (la más importante)
+Si el "Puesto que busca el usuario" NO está vacío, TODAS las queries deben ser sobre
+ESE término: sus sinónimos, expansiones o títulos directamente relacionados. NO uses
+los roles del perfil ni la experiencia del resume para decidir QUÉ buscar cuando hay
+un término escrito — el perfil es solo trasfondo.
+  - "Claude"     → ["Claude", "Claude AI", "Anthropic"]   (producto/empresa: búscalo literal)
+  - "QA Analyst" → ["QA Analyst", "Quality Assurance Analyst", "QA Tester"]
+  - "HR IT"      → ["HRIS Analyst", "HR Systems Analyst", "HR Technology Analyst"]
+PROHIBIDO devolver roles NO relacionados con el término escrito. Si el usuario escribió
+"Claude", está TERMINANTEMENTE PROHIBIDO devolver "QA Analyst" u otros roles del resume.
+Solo si el "Puesto que busca el usuario" está vacío, usa los ROLES OBJETIVO del perfil.
 
 ## CASO ESPECIAL — EMPRESA EN VEZ DE ROL
 Si el "Puesto que busca el usuario" es claramente el NOMBRE DE UNA EMPRESA/empleador
