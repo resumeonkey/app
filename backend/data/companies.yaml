@@ -1,0 +1,157 @@
+# companies.yaml - employers the bot checks directly through their public job boards.
+# ats: greenhouse | lever | ashby | workday | other
+# board: the company's board slug or careers URL. Verify each slug once; mark verified: true when confirmed.
+# priority: 1 = check daily and score generously, 3 = lower priority.
+
+companies:
+  # Already applied or active (keep watching for NEW roles)
+  - name: Fortinet
+    ats: other            # Oracle Cloud candidate site
+    board: https://edel.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2
+    location_focus: Burnaby, BC
+    priority: 1
+    verified: false
+
+  - name: Computershare
+    ats: other            # Oracle Cloud (talentacquisition@fusion.computershare.com)
+    board: https://www.computershare.com/careers
+    location_focus: Vancouver, BC
+    priority: 1
+    verified: false
+
+  - name: Harris Computer (incl. MediSolution)
+    ats: workday
+    board: https://harriscomputer.wd3.myworkdayjobs.com
+    location_focus: Remote Canada
+    priority: 1
+    verified: false
+
+  - name: VoPay
+    ats: other            # Humi
+    board: https://vopay.applytojobs.ca
+    location_focus: Vancouver, BC
+    priority: 1
+    verified: true
+
+  - name: Motorola Solutions
+    ats: workday
+    board: https://motorolasolutions.wd5.myworkdayjobs.com/Careers
+    location_focus: Vancouver / Richmond, BC
+    priority: 1
+    verified: true
+
+  - name: Clariti Cloud
+    ats: greenhouse
+    board: clariticloudinc
+    location_focus: Remote Canada
+    priority: 1
+    verified: true
+
+  - name: Henry Schein One
+    ats: other            # Teamtailor
+    board: https://henryscheinone.teamtailor.com
+    location_focus: Remote Canada
+    priority: 2
+    verified: false
+
+  - name: Brex
+    ats: other
+    board: https://www.brex.com/careers
+    location_focus: Vancouver / Remote Canada
+    priority: 2
+    verified: false
+
+  - name: Technical Safety BC
+    ats: other            # UltiPro
+    board: https://recruiting.ultipro.ca/BRI5000/JobBoard/70d2813a-3f44-e8eb-07c7-d55d82a0f98a/
+    location_focus: Vancouver, BC
+    priority: 1
+    verified: true
+
+  # Good-fit companies to watch
+  - name: Zafin
+    ats: greenhouse
+    board: zafinlabsamericasinc
+    location_focus: Canada (check Vancouver/remote)
+    priority: 2
+    verified: true
+
+  - name: Procurify
+    ats: ashby
+    board: procurify
+    location_focus: Remote Canada
+    priority: 1
+    verified: true
+
+  - name: Upshop
+    ats: greenhouse
+    board: upshop
+    location_focus: Remote Canada
+    priority: 3
+    verified: true
+
+  - name: Quadbridge
+    ats: greenhouse
+    board: quadbridge
+    location_focus: Vancouver, BC
+    priority: 3
+    verified: true
+
+  - name: Thales
+    ats: workday
+    board: https://careers.thalesgroup.com
+    location_focus: Vancouver, BC
+    priority: 2
+    verified: false
+
+  - name: Terra Dygital Solutions
+    ats: other            # Humi
+    board: https://terradygital.applytojobs.ca
+    location_focus: Vancouver, BC
+    priority: 2
+    verified: false
+
+  - name: Seequent
+    ats: other
+    board: https://www.seequent.com/careers
+    location_focus: Vancouver, BC
+    priority: 2
+    verified: false
+    note: Referral contact Carlos Millan
+
+  - name: CrowdStrike
+    ats: workday
+    board: https://crowdstrike.wd5.myworkdayjobs.com
+    location_focus: Remote Canada
+    priority: 3
+    verified: false
+    note: Referral contact Alex
+
+  - name: Clio
+    ats: other
+    board: https://www.clio.com/about/careers
+    location_focus: Vancouver / Remote Canada
+    priority: 2
+    verified: false
+
+  - name: Telus
+    ats: workday
+    board: https://telus.wd3.myworkdayjobs.com
+    location_focus: Vancouver / Remote
+    priority: 1
+    verified: false
+    note: Telecom BSS overlap
+
+  - name: Fellow
+    ats: other
+    board: https://fellow.app/careers
+    location_focus: Remote Canada
+    priority: 3
+    verified: false
+
+  - name: BIS Safety Software
+    ats: other
+    board: https://www.bissafety.com/careers
+    location_focus: Canada
+    priority: 2
+    verified: false

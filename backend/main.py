@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.config import get_settings
 from backend.database import init_db
-from backend.routers import master, adaptations, export, context, search, saved_jobs, resume_v2
+from backend.routers import master, adaptations, export, context, search, saved_jobs, resume_v2, digest
 
 settings = get_settings()
 
@@ -67,6 +67,7 @@ app.include_router(context.router,      prefix="/api/context",      tags=["conte
 app.include_router(search.router,       prefix="/api/search",        tags=["search"])
 app.include_router(saved_jobs.router,   prefix="/api/jobs/saved",    tags=["saved_jobs"])
 app.include_router(resume_v2.router,     prefix="/api/resume",        tags=["resume_v2"])
+app.include_router(digest.router,        prefix="/api/digest",        tags=["digest"])
 
 
 @app.get("/api/health")
