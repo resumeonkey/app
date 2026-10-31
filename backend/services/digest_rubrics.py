@@ -263,7 +263,7 @@ def postfilter_chile(job: dict, f: dict) -> str | None:
         return "no_es_oferta"
     loc = job.get("location", "")
     rm_fact = f.get("in_metropolitan_region")
-    rm_known = in_metropolitan_region(loc) or _b(rm_fact)
+    rm_known = in_metropolitan_region(loc) or _b(rm_fact) or "santiago" in (job.get("url") or "").lower()
     outside = (rm_fact is False or _s(rm_fact) == "false" or bool(_CL_OTHER_CITY.search(loc))) and not rm_known
     if _modality(f) == "onsite" and outside:
         return "presencial_fuera_de_RM"
@@ -291,7 +291,7 @@ def score_chile(job: dict, f: dict) -> dict:
         sal, sal_note = 0, f"${net:,.0f} líquido".replace(",", ".")
     mod = _modality(f)
     loc = job.get("location", "")
-    rm = in_metropolitan_region(loc) or _b(f.get("in_metropolitan_region"))
+    rm = in_metropolitan_region(loc) or _b(f.get("in_metropolitan_region")) or "santiago" in (job.get("url") or "").lower()
     if mod == "remote":
         mp, mn = 2, "remoto"
     elif mod == "hybrid":
