@@ -1,0 +1,20 @@
+name: Digest Backfill Job Text
+
+on:
+  workflow_dispatch:
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BACKEND_URL: https://resume-adapter-api.onrender.com
+    steps:
+      - name: Fetch and store the text of already-emailed offers
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${BACKEND_URL}/api/digest/backfill-jobs" \
+            -H "X-Digest-Key: ${{ secrets.DIGEST_API_KEY }}" --max-time 300)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          echo "HTTP status: $HTTP_CODE"
+          echo "$RESPONSE" | head -n -1
+          [ "$HTTP_CODE" = "200" ]
