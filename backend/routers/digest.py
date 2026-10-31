@@ -149,6 +149,30 @@ async def calibrate(llm_provider: str = "gemini", llm_model: str = "gemini-3.8-f
     return {"all_passed": all(r["passed"] for r in rows), "results": rows}
 
 
+@router.get("/models", dependencies=[Depends(_require_digest_key)])
+async def list_models():
+    """Model ids each configured provider key can actually call (ids only, never keys)."""
+    import httpx
+    s = get_settings()
+    targets = {
+        "groq": ("https://api.groq.com/openai/v1/models", s.groq_api_key),
+        "gemini": ("https://generativelanguage.googleapis.com/v1beta/openai/models", s.gemini_api_key),
+    }
+    out: dict = {}
+    async with httpx.AsyncClient(timeout=20) as client:
+        for name, (url, key) in targets.items():
+            if not key:
+                out[name] = "no key configured"
+                continue
+            try:
+                r = await client.get(url, headers={"Authorization": f"Bearer {key}"})
+                r.raise_for_status()
+                out[name] = sorted(m.get("id", "") for m in r.json().get("data", []))
+            except Exception as exc:
+                out[name] = f"error: {str(exc)[:200]}"
+    return out
+
+
 @router.get("/sent", dependencies=[Depends(_require_digest_key)])
 def list_sent(limit: int = 50, db: Session = Depends(get_db)):
     rows = db.query(DigestSent).order_by(DigestSent.sent_at.desc()).limit(limit).all()
