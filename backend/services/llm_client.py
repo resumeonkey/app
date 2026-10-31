@@ -93,7 +93,7 @@ async def call_llm(
                 return result
             except Exception as e:
                 last_error = e
-                log.warning("LLM %s/%s attempt %d failed: %s", p, m, attempt + 1, str(e)[:300])
+                log.warning("LLM %s/%s attempt %d failed: %s", p, m, attempt + 1, str(e)[:700])
                 # Permanent errors (no credits/quota/rate-limit/bad key) won't be
                 # fixed by retrying the same provider — break to the next provider.
                 if _is_permanent(e):
