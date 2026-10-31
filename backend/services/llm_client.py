@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 _FALLBACK_ORDER = ["groq", "gemini", "anthropic", "openai"]
 _DEFAULT_MODELS = {
     "groq":      "llama-3.3-70b-versatile",
-    "gemini":    "gemini-2.0-flash",
+    "gemini":    "gemini-3.8-flash",
     "anthropic": "claude-haiku-4-5",
     "openai":    "gpt-4o-mini",
 }

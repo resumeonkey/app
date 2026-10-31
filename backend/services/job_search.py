@@ -1374,8 +1374,14 @@ Return ONLY this JSON (one entry per job, same index order):
             provider, model, e,
         )
         # Per-job fallback (original behaviour, also uses lighter model)
+        sem = asyncio.Semaphore(3)
+
+        async def _limited(coro):
+            async with sem:
+                return await coro
+
         tasks = [
-            score_job(
+            _limited(score_job(
                 job_text=(
                     f"{r.get('title','')} at {r.get('company','')} — {r.get('location','')}"
                     f"\n\n{r.get('snippet','')}"
@@ -1389,7 +1395,7 @@ Return ONLY this JSON (one entry per job, same index order):
                 profile_tags=profile_tags,
                 industry_experience=industry_experience,
                 target_industries=target_industries,
-            )
+            ))
             for r in raw_jobs
         ]
         return await asyncio.gather(*tasks)  # type: ignore[return-value]
