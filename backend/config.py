@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     digest_recipient_email: str = "faleuy@gmail.com"
     digest_from_email: str = "Resumonkey Digest <digest@resumonkey.dev>"
     digest_api_key: str = ""          # Secret for protecting /api/digest/run
+    llm_fallback_exclude: str = ""    # comma-separated providers never used as fallback, e.g. "anthropic"
 
     # LLM defaults
     default_llm_provider: str = "openai"

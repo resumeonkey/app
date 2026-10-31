@@ -3,6 +3,7 @@ Direct ATS board clients for Greenhouse and Ashby.
 These boards expose free public JSON APIs — no auth required.
 Only verified companies with known board slugs are queried.
 """
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any
@@ -85,53 +86,58 @@ def _normalize_ashby(job: dict, company_name: str) -> dict | None:
     }
 
 
+async def _fetch_company(co: dict) -> list[dict]:
+    ats   = co.get("ats", "").lower()
+    board = co.get("board", "")
+    name  = co.get("name", "")
+    if not board or not name:
+        return []
+    out: list[dict] = []
+    try:
+        if ats == "greenhouse":
+            data = await _get_json(
+                f"https://boards-api.greenhouse.io/v1/boards/{board}/jobs?content=true"
+            )
+            for j in (data.get("jobs") or []):
+                n = _normalize_greenhouse(j, name)
+                if n:
+                    out.append(n)
+        elif ats == "ashby":
+            data = await _get_json(
+                f"https://api.ashbyhq.com/posting-api/job-board/{board}"
+            )
+            for j in (data.get("jobPostings") or []):
+                n = _normalize_ashby(j, name)
+                if n:
+                    out.append(n)
+        elif ats == "lever":
+            jobs = await _get_json(
+                f"https://api.lever.co/v0/postings/{board}?mode=json"
+            )
+            for j in (jobs or []):
+                title = (j.get("text") or "").strip()
+                url   = j.get("hostedUrl") or j.get("applyUrl") or ""
+                loc   = (j.get("categories") or {}).get("location", "")
+                if title and url:
+                    out.append({
+                        "id": j.get("id", ""),
+                        "title": title, "company": name,
+                        "location": loc, "url": url,
+                        "source": "lever",
+                        "snippet": (j.get("descriptionPlain") or "")[:800],
+                    })
+    except Exception as exc:
+        log.warning("ats_client: %s (%s/%s): %s", name, ats, board, exc)
+    return out
+
+
 async def fetch_ats_jobs() -> list[dict]:
     """Fetch jobs from all verified ATS-accessible companies in companies.yaml."""
-    companies  = _load_companies()
-    all_jobs: list[dict] = []
+    sem = asyncio.Semaphore(4)
 
-    for co in companies:
-        ats   = co.get("ats", "").lower()
-        board = co.get("board", "")
-        name  = co.get("name", "")
-        if not board or not name:
-            continue
-        # Only hit APIs we know are public and don't require scraping
-        try:
-            if ats == "greenhouse":
-                data = await _get_json(
-                    f"https://boards-api.greenhouse.io/v1/boards/{board}/jobs?content=true"
-                )
-                for j in (data.get("jobs") or []):
-                    n = _normalize_greenhouse(j, name)
-                    if n:
-                        all_jobs.append(n)
-            elif ats == "ashby":
-                data = await _get_json(
-                    f"https://api.ashbyhq.com/posting-api/job-board/{board}"
-                )
-                for j in (data.get("jobPostings") or []):
-                    n = _normalize_ashby(j, name)
-                    if n:
-                        all_jobs.append(n)
-            # Lever public API: https://api.lever.co/v0/postings/{slug}
-            elif ats == "lever":
-                jobs = await _get_json(
-                    f"https://api.lever.co/v0/postings/{board}?mode=json"
-                )
-                for j in (jobs or []):
-                    title = (j.get("text") or "").strip()
-                    url   = j.get("hostedUrl") or j.get("applyUrl") or ""
-                    loc   = (j.get("categories") or {}).get("location", "")
-                    if title and url:
-                        all_jobs.append({
-                            "id": j.get("id", ""),
-                            "title": title, "company": name,
-                            "location": loc, "url": url,
-                            "source": "lever",
-                            "snippet": (j.get("descriptionPlain") or "")[:800],
-                        })
-        except Exception as exc:
-            log.warning("ats_client: %s (%s/%s): %s", name, ats, board, exc)
+    async def _guarded(co: dict) -> list[dict]:
+        async with sem:
+            return await _fetch_company(co)
 
-    return all_jobs
+    results = await asyncio.gather(*(_guarded(co) for co in _load_companies()))
+    return [j for jobs in results for j in jobs]
