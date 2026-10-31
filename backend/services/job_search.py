@@ -126,8 +126,8 @@ _BATCH_SNIPPET_CHARS = 600  # snippet chars per job in batch mode — enough to 
 
 # Lighter models for scoring (vs generation). Saves tokens on rate-limited tiers.
 _SCORE_MODEL_MAP: dict[str, str] = {
-    # Groq: llama-3.1-8b has 500K TPD vs 100K for llama-3.3-70b (5× more headroom)
-    "groq": "llama-3.1-8b-instant",
+    # Groq: llama-3.1-8b-instant was retired; 70b-versatile has a smaller daily token budget
+    "groq": "llama-3.3-70b-versatile",
     # anthropic: claude-haiku is already the lightest — keep as-is
     # gemini: gemini-2.0-flash is already cheap — keep as-is
 }
