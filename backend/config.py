@@ -44,7 +44,8 @@ class Settings(BaseSettings):
     digest_max_per_list: int = 5
     digest_max_age_days: int = 21
     digest_max_llm_jobs_per_list: int = 60
-    digest_residence_country: str = "Chile"
+    digest_title_keywords: str = ("implementation,onboarding,solutions,qa,quality,tester,support,analyst,product owner,functional,"
+                                  "implementación,funcional,analista,consultor,soporte,calidad,product manager,customer success")
     chile_min_salary_clp: int = 2_000_000      # net monthly; published below this is discarded
     chile_good_salary_clp: int = 2_500_000     # net monthly; published at/above this scores +2
     remote_min_usd: int = 2_500                # monthly; published below this is discarded

@@ -123,6 +123,60 @@ def in_metropolitan_region(loc: str) -> bool:
     return bool(_RM_TOKENS.search(loc))
 
 
+# ── title helpers ─────────────────────────────────────────────────────────────
+
+def normalize(text: str) -> str:
+    import unicodedata
+    t = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]+", " ", t).strip()
+
+
+def _keywords() -> list[str]:
+    return [normalize(k) for k in get_settings().digest_title_keywords.split(",") if k.strip()]
+
+
+def title_keyword_hits(title: str) -> int:
+    """How many of the configured keywords appear in the title (accent-insensitive)."""
+    t = " " + normalize(title) + " "
+    hits = 0
+    for kw in _keywords():
+        pat = r"(?<![a-z0-9])" + re.escape(kw) + (r"(?![a-z0-9])" if len(kw) <= 3 else "")
+        if re.search(pat, t):
+            hits += 1
+    return hits
+
+
+_SENIOR_TITLE = re.compile(r"(?<![a-z])(senior|sr|lead|staff|principal|manager|director|head)(?![a-z])")
+_NOC_22222 = re.compile(r"(?<![a-z])(qa|quality assurance|quality analyst|quality engineer|software quality|tester|testing|test analyst|uat)(?![a-z])")
+_NOC_22221 = re.compile(r"(help ?desk|service desk|technical support|tech support|application support|it support|desktop support|"
+                        r"support (analyst|engineer|specialist|technician)|soporte (tecnico|de aplicaciones)|tier [123]|l[123] support)")
+_NOC_22220 = re.compile(r"(system(s)? administrator|sysadmin|network (administrator|technician|engineer|analyst)|noc (analyst|technician)|"
+                        r"web (technician|administrator)|infrastructure technician)")
+_IMPLEMENTATION = re.compile(r"(implementation|implementacion|onboarding|solutions? (consultant|engineer|architect|analyst|specialist)|"
+                             r"deployment|integration (specialist|consultant|analyst)|business (systems )?analyst|systems analyst|"
+                             r"functional (analyst|consultant)|technical consultant)")
+
+
+def visa_from_title(title: str) -> tuple[int, str]:
+    """Visa component 0-2 from fixed title rules (company size is not checked)."""
+    t = normalize(title)
+    if _SENIOR_TITLE.search(t):
+        return 0, "senior"
+    if _NOC_22222.search(t):
+        return 2, "NOC 22222"
+    if _NOC_22221.search(t):
+        return 2, "NOC 22221"
+    if _NOC_22220.search(t):
+        return 2, "NOC 22220"
+    if _IMPLEMENTATION.search(t):
+        return 1, "implementación TEER 1"
+    return 0, "sin vía clara"
+
+
+def title_prefilter(job: dict) -> str | None:
+    return None if title_keyword_hits(job.get("title", "")) else "titulo_sin_palabras_clave"
+
+
 # ── language / title heuristics ───────────────────────────────────────────────
 
 _FR_TITLE = re.compile(
@@ -167,6 +221,9 @@ def _modality(f: dict) -> str:
 
 def prefilter_canada(job: dict) -> str | None:
     s = get_settings()
+    kw = title_prefilter(job)
+    if kw:
+        return kw
     if _TOO_SENIOR.search(job.get("title", "")):
         return "titulo_demasiado_senior"
     days = job.get("days_posted")
@@ -209,14 +266,7 @@ def score_canada(job: dict, f: dict) -> dict:
     domain = _b(f.get("domain_match"))
     diff = 2 if sp in ("required", "asset") else (1 if domain else 0)
     diff_note = {"required": "español requerido", "asset": "español asset"}.get(sp, "dominio afín" if domain else "sin diferenciador")
-    if _b(f.get("senior")):
-        visa, visa_note = 0, "senior"
-    elif _s(f.get("noc")) in ("22222", "22221", "22220"):
-        visa, visa_note = 2, f"NOC {_s(f.get('noc'))}"
-    elif _b(f.get("teer1_impl_midlarge")):
-        visa, visa_note = 1, "implementación TEER 1"
-    else:
-        visa, visa_note = 0, "sin vía clara"
+    visa, visa_note = visa_from_title(job.get("title", ""))
     prac, prac_note = _canada_practicality(job, f)
     pen, pen_notes = 0, []
     if _b(f.get("bachelor_no_equiv")):
@@ -251,6 +301,9 @@ def _chile_salary_net_clp(f: dict) -> int | None:
 
 def prefilter_chile(job: dict) -> str | None:
     s = get_settings()
+    kw = title_prefilter(job)
+    if kw:
+        return kw
     days = job.get("days_posted")
     if days is not None and days > s.digest_max_age_days:
         return "mas_de_21_dias"
@@ -311,6 +364,9 @@ def score_chile(job: dict, f: dict) -> dict:
 
 def prefilter_remote(job: dict) -> str | None:
     s = get_settings()
+    kw = title_prefilter(job)
+    if kw:
+        return kw
     days = job.get("days_posted")
     if days is not None and days > s.digest_max_age_days:
         return "mas_de_21_dias"
@@ -330,13 +386,23 @@ def _remote_pay_monthly_usd(f: dict) -> float | None:
     return v if v > 0 else None
 
 
+_COUNTRY_LABEL = {"canada": "Canadá", "chile": "Chile"}
+
+
+def _eligible_countries(f: dict) -> list[str]:
+    raw = f.get("eligible_for") or []
+    if isinstance(raw, str):
+        raw = [raw]
+    return [c for c in dict.fromkeys(_s(x) for x in raw) if c in _COUNTRY_LABEL]
+
+
 def postfilter_remote(job: dict, f: dict) -> str | None:
     s = get_settings()
     if not _b(f.get("is_job", True)):
         return "no_es_oferta"
     if _modality(f) in ("hybrid", "onsite"):
         return "no_es_100_remoto"
-    if _s(f.get("eligibility")) == "restricted":
+    if _s(f.get("eligibility")) == "restricted" or (_s(f.get("eligibility")) == "explicit" and not _eligible_countries(f)):
         return "exige_residencia_no_elegible"
     if _b(f.get("not_tech_role")):
         return "no_es_rol_tecnologico"
@@ -366,8 +432,10 @@ def score_remote(job: dict, f: dict) -> dict:
     diff_note = "inglés y español requeridos" if langs == "en_es" else ("dominio afín" if domain else "sin diferenciador")
     total = max(0, min(10, fit + elig + pp + diff))
     parts = [f"Ajuste {fit}/4", f"Elegibilidad {elig}/2 ({elig_note})", f"Pago {pp}/2 ({pn})", f"Dif {diff}/2 ({diff_note})"]
+    countries = [_COUNTRY_LABEL[c] for c in _eligible_countries(f)]
+    applies_to = countries if countries else ["Canadá o Chile (por confirmar)"]
     return {"score": total, "components": {"ajuste": fit, "elegibilidad": elig, "pago": pp, "diferenciador": diff},
-            "reason": " | ".join(parts)}
+            "reason": " | ".join(parts), "applies_to": applies_to}
 
 
 # ── dispatch ──────────────────────────────────────────────────────────────────

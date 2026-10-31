@@ -8,6 +8,7 @@ Protected by the X-Digest-Key header (DIGEST_API_KEY in the environment).
 import asyncio
 import csv
 import logging
+import re
 import time
 from pathlib import Path
 
@@ -20,7 +21,7 @@ from backend.database import get_db
 from backend.models.digest import DigestSent
 from backend.services.digest_fixtures import FIXTURES, check
 from backend.services.digest_pipeline import extract_facts, process_list  # noqa: F401
-from backend.services.digest_rubrics import LIST_KEYS
+from backend.services.digest_rubrics import LIST_KEYS, normalize
 from backend.services.digest_sources import fetch_list_jobs
 from backend.services.email_service import send_digest_email
 
@@ -36,20 +37,32 @@ def _require_digest_key(x_digest_key: str = Header(default="")):
         raise HTTPException(status_code=401, detail="Invalid digest key")
 
 
-def _load_applied_companies() -> set[str]:
+def _load_applied() -> list[tuple[str, str]]:
+    """(company, title) pairs from applied.csv, normalised. A blank title excludes the whole company."""
     path = _DATA_DIR / "applied.csv"
     if not path.exists():
-        return set()
-    applied: set[str] = set()
+        return []
+    rows: list[tuple[str, str]] = []
     try:
         with open(path, newline="") as f:
             for row in csv.DictReader(f):
-                company = (row.get("company") or "").strip().lower()
+                company = normalize(re.sub(r"\(.*?\)", "", row.get("company") or ""))
                 if company:
-                    applied.add(company)
+                    rows.append((company, normalize(row.get("title") or "")))
     except Exception as exc:
         log.warning("digest: could not read applied.csv: %s", exc)
-    return applied
+    return rows
+
+
+def _is_applied(job: dict, applied: list[tuple[str, str]]) -> bool:
+    company, title = normalize(job.get("company") or ""), normalize(job.get("title") or "")
+    if not company:
+        return False
+    for a_company, a_title in applied:
+        if a_company in company or company in a_company:
+            if not a_title or a_title in title or title in a_title:
+                return True
+    return False
 
 
 def _already_sent_urls(db: Session) -> set[str]:
@@ -87,23 +100,19 @@ async def run_digest(
     rubric score (0-10) -> top N. dry_run=true skips the email and the sent-history write.
     """
     s = get_settings()
-    applied = _load_applied_companies()
+    applied = _load_applied()
     sent_urls = _already_sent_urls(db)
 
     lists: dict[str, list[dict]] = {}
     stats: dict = {"limits": {"max_per_list": s.digest_max_per_list, "max_llm_jobs_per_list": s.digest_max_llm_jobs_per_list,
                               "max_age_days": s.digest_max_age_days}}
-    found = scored = 0
+    found = scored = unscored = 0
 
     async def one_list(key: str):
         t0 = time.monotonic()
         jobs, source_counts = await fetch_list_jobs(key)
         log.warning("digest %s: fetched %d jobs in %.0fs %s", key, len(jobs), time.monotonic() - t0, source_counts)
-        fresh = [
-            j for j in jobs
-            if j["url"] not in sent_urls
-            and not (j["company"] and any(a == j["company"].lower() or a in j["company"].lower() for a in applied))
-        ]
+        fresh = [j for j in jobs if j["url"] not in sent_urls and not _is_applied(j, applied)]
         items, list_stats, _ = await process_list(key, fresh, llm_provider, llm_model)
         list_stats["sources"] = source_counts
         list_stats["excluded_applied_or_sent"] = len(jobs) - len(fresh)
@@ -115,11 +124,13 @@ async def run_digest(
         lists[key] = [i for i in items if i["score"] >= min_score][: s.digest_max_per_list]
         found += n_jobs
         scored += list_stats["scored"]
+        unscored += list_stats.get("unscored_llm_failed", 0)
 
+    stats["unscored_llm_failed_total"] = unscored
     emailed = [i for v in lists.values() for i in v]
     email_sent = False
     if emailed and not dry_run:
-        email_sent = await send_digest_email(lists)
+        email_sent = await send_digest_email(lists, unscored)
         if email_sent:
             _record_sent(db, emailed)
 

@@ -12,7 +12,7 @@ from collections import Counter
 from backend.config import get_settings
 from backend.services.digest_rubrics import (
     CANADA, CHILE, POSTFILTERS, PREFILTERS, REMOTE, SCORERS, _chile_salary_net_clp,
-    _remote_pay_monthly_usd, _s,
+    _remote_pay_monthly_usd, _s, title_keyword_hits,
 )
 from backend.services.llm_client import call_llm
 
@@ -40,9 +40,7 @@ Keys:
 "remote_canada" (bool; fully remote role open to people in Canada), "french_required" (bool; French required or listed as bilingual French, or the posting is written in French),
 "posting_language" ("en"|"fr"|"es"|"other"), "spanish" ("required"|"asset"|"none"; Spanish named as required/asset),
 "domain_match" (bool; contact centre, ITSM, field service/maintenance, telecom or AI domain),
-"noc" ("22222" testing technician/QA tester roles | "22221" user/application support technician roles | "22220" network/web/systems technician roles | "none"),
-"teer1_impl_midlarge" (bool; an implementation/onboarding/solutions role, TEER 1 professional level, at a medium or large company),
-"senior" (bool; Senior/Lead/Staff/Manager level), "bachelor_no_equiv" (bool; requires a Bachelor's degree and the text does NOT say "or equivalent" experience).""",
+"bachelor_no_equiv" (bool; requires a Bachelor's degree and the text does NOT say "or equivalent" experience).""",
     CHILE: """LIST: CHILE. Target titles: Product Owner, Product Manager (only if it does not require experience the candidate lacks, e.g. financial industry), Analista QA,
 Analista funcional, Consultor/Especialista de implementación, Analista de sistemas, Business Analyst. Senior roles ARE fine here.
 Keys:
@@ -53,21 +51,18 @@ Keys:
 "salary_currency" ("CLP"|"USD"|"other"), "salary_basis" ("net"|"gross"|"unknown"; líquido=net, bruto=gross),
 "agency" (bool; posted by a recruitment agency / selection consultancy rather than the end employer).""",
     REMOTE: """LIST: REMOTE INTERNATIONAL (English as an advantage). Roles: implementation, onboarding, QA, bilingual technical support, technical customer success, product owner.
-The candidate lives in {residence}. Keys:
+The candidate can work from Canada OR from Chile. Keys:
 "fit" (int 0-4): 4 = exact target role for the profile; 3 = close; 2 = adjacent; 1 = loose; 0 = unrelated.
-"eligibility" ("explicit"|"ambiguous"|"restricted"): explicit = text names LATAM / Latin America / Chile / Canada / worldwide / anywhere; restricted = requires living in the US or in a country other than {residence};
- ambiguous = unclear. "not_tech_role" (bool; voice recording, per-task data labeling, surveys, micro-tasks),
+"eligibility" ("explicit"|"ambiguous"|"restricted"): explicit = text names LATAM / Latin America / Chile / Canada / North America / Americas / worldwide / anywhere;
+ restricted = requires living in the US or in any country that is neither Canada nor Chile (e.g. "US only", "EU only"); ambiguous = unclear.
+"eligible_for" (list): include "canada" if residents of Canada are accepted (Canada, North America, Americas, worldwide, anywhere); include "chile" if residents of Chile are accepted
+ (Chile, LATAM, Latin America, South America, Americas, worldwide, anywhere); [] if neither or unclear. "not_tech_role" (bool; voice recording, per-task data labeling, surveys, micro-tasks),
 "scam_signals" (bool; asks for payment, bank data, or to apply through Telegram/WhatsApp), "company_verifiable" (true|false|null; false only if there is no identifiable real company; null if unsure),
 "pay_usd_monthly" (number or null; convert hourly x160 and annual /12; null if unpublished or not convertible), "employment_type" ("employee_eor"|"employee"|"contractor"|"unknown"; EOR/Deel/Remote.com = employee_eor),
 "timezone" (string or null), "languages_required" ("en_es"|"en"|"es"|"other"|"unknown"; en_es = BOTH English and Spanish required),
 "domain_match" (bool; contact centre, ITSM, AI or telecom domain).""",
 }
 
-_RELEVANCE = {
-    CANADA: re.compile(r"(implement|onboard|solutions?|spanish|español|bilingual|\bqa\b|quality|tester|uat|support|helpdesk|help desk|application|analyst|consultant)", re.I),
-    CHILE: re.compile(r"(product owner|product manager|\bpo\b|\bqa\b|quality|funcional|implement|business analyst|analista|consultor|sistemas|scrum)", re.I),
-    REMOTE: re.compile(r"(implement|onboard|solutions?|\bqa\b|quality|tester|uat|support|customer success|product owner|product manager|spanish|bilingual|integration)", re.I),
-}
 _BATCH = 10
 _LLM_SEM = asyncio.Semaphore(2)   # free-tier LLM quotas are per minute: few concurrent calls across the three lists
 # Each model has its own rate-limit bucket (Groq free tier: 8,000 tokens/min per model), so batches are spread round-robin.
@@ -76,8 +71,7 @@ _RETRY_WAITS = (0, 25, 50)     # seconds before each attempt; waits out per-minu
 
 
 def _system_prompt(list_key: str) -> str:
-    schema = _SCHEMAS[list_key].replace("{residence}", get_settings().digest_residence_country)
-    return f"{PROFILE}\n\n{_COMMON}\n\n{schema}"
+    return f"{PROFILE}\n\n{_COMMON}\n\n{_SCHEMAS[list_key]}"
 
 
 def _job_block(i: int, j: dict) -> str:
@@ -162,6 +156,7 @@ def build_item(list_key: str, job: dict, f: dict, scored: dict) -> dict:
     if list_key == CHILE:
         item["agency"] = bool(scored.get("agency"))
     if list_key == REMOTE:
+        item["applies_to"] = scored.get("applies_to")
         item["employment_type"] = _s(f.get("employment_type")) or "unknown"
         item["timezone"] = f.get("timezone")
     return item
@@ -187,11 +182,9 @@ async def process_list(list_key: str, jobs: list[dict], provider: str, model: st
 
     t0 = time.monotonic()
     cands = pre(jobs)
-    rel = _RELEVANCE[list_key]
-    cands.sort(key=lambda j: (-len(rel.findall(j.get("title", ""))), j.get("days_posted") if j.get("days_posted") is not None else 99))
+    cands.sort(key=lambda j: (-title_keyword_hits(j.get("title", "")), j.get("days_posted") if j.get("days_posted") is not None else 999))
     if len(cands) > s.digest_max_llm_jobs_per_list:
         stats["capped_out"] = len(cands) - s.digest_max_llm_jobs_per_list
-        stats["capped_out_with_zero_title_match"] = sum(1 for j in cands[s.digest_max_llm_jobs_per_list:] if not rel.search(j.get("title", "")))
         for j in cands[s.digest_max_llm_jobs_per_list:]:
             outcomes[j["url"]] = ("discard", "fuera_del_tope_de_candidatos", None)
         cands = cands[:s.digest_max_llm_jobs_per_list]
@@ -220,4 +213,5 @@ async def process_list(list_key: str, jobs: list[dict], provider: str, model: st
     scored_items.sort(key=lambda x: x["score"], reverse=True)
     stats["scored"] = len(scored_items)
     stats["dropped"] = dict(drops)
+    stats["unscored_llm_failed"] = drops.get("llm_sin_respuesta", 0)
     return scored_items, stats, outcomes

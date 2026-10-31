@@ -54,6 +54,8 @@ def check(expect: dict, outcome: tuple) -> bool:
     kind = outcome[0]
     if expect.get("discard"):
         return kind == "discard"
+    if kind == "discard" and "max" in expect:
+        return True   # an offer that never reaches the lists is at or below any maximum
     if kind != "score":
         return False
     score = outcome[1]["score"]
