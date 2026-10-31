@@ -122,6 +122,22 @@ def _prefilter_jobs(jobs: list[dict], roles: list[str]) -> list[dict]:
     return [j for _, j in ranked[:_MAX_SCORE_CANDIDATES]]
 
 
+def _merge_score(job: dict, scored: dict) -> dict:
+    """Combine an ATS/search job with its LLM score into the shape the email expects (score 1-10)."""
+    pct = int(scored.get("compatibility_score") or 0)
+    gaps = scored.get("blockers") or scored.get("missing_skills") or []
+    why = scored.get("score_summary") or "; ".join(scored.get("why_relevant") or [])
+    merged = {k: v for k, v in job.items() if k != "snippet"}
+    merged.update(
+        score=round(pct / 10),
+        compatibility_score=pct,
+        why_fit=why,
+        main_gap=gaps[0] if gaps else "",
+        matched_skills=scored.get("matched_skills", []),
+    )
+    return merged
+
+
 # ── Response models ───────────────────────────────────────────────────────────
 
 class DigestResult(BaseModel):
@@ -235,6 +251,8 @@ async def run_digest(
         industry_experience=master.industry_experience or "",
         target_industries=master.target_industries or "",
     )
+
+    scored = [_merge_score(job, sc) for job, sc in zip(fresh_jobs, scored)]
 
     # 7. Sort by score and take top N above threshold
     top = sorted(
