@@ -2,6 +2,11 @@ name: Digest Backfill Job Text
 
 on:
   workflow_dispatch:
+    inputs:
+      refresh:
+        description: "refresh=true refetches and re-cleans every stored offer"
+        type: boolean
+        default: false
 
 jobs:
   backfill:
@@ -10,10 +15,25 @@ jobs:
     env:
       BACKEND_URL: https://resume-adapter-api.onrender.com
     steps:
-      - name: Fetch and store the text of already-emailed offers
+      - name: Security check - digest endpoints must reject requests without the key
         run: |
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${BACKEND_URL}/api/digest/backfill-jobs" \
-            -H "X-Digest-Key: ${{ secrets.DIGEST_API_KEY }}" --max-time 300)
+          curl -s -o /dev/null --max-time 120 "${BACKEND_URL}/api/health" || true
+          for path in jobs "job?url=x" sent models; do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 "${BACKEND_URL}/api/digest/${path}")
+            echo "GET /api/digest/${path} without key -> HTTP ${CODE}"
+            if [ "$CODE" != "401" ] && [ "$CODE" != "403" ] && [ "$CODE" != "503" ]; then
+              echo "::error::/api/digest/${path} answered HTTP ${CODE} without the key"; exit 1
+            fi
+          done
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 -H "X-Digest-Key: wrong-key" "${BACKEND_URL}/api/digest/jobs")
+          echo "GET /api/digest/jobs with a wrong key -> HTTP ${CODE}"
+          [ "$CODE" = "401" ]
+
+      - name: Fetch and store the clean text of already-emailed offers
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${BACKEND_URL}/api/digest/backfill-jobs?refresh=${{ github.event.inputs.refresh || 'false' }}" \
+            -H "X-Digest-Key: ${{ secrets.DIGEST_API_KEY }}" --max-time 400)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           echo "HTTP status: $HTTP_CODE"
           echo "$RESPONSE" | head -n -1

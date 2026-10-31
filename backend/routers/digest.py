@@ -8,7 +8,9 @@ Protected by the X-Digest-Key header (DIGEST_API_KEY in the environment).
 import asyncio
 import csv
 import logging
+import json
 import re
+import secrets
 import time
 from pathlib import Path
 
@@ -32,8 +34,11 @@ _DATA_DIR = Path(__file__).parent.parent / "data"
 
 
 def _require_digest_key(x_digest_key: str = Header(default="")):
+    """Every /api/digest endpoint needs the X-Digest-Key header. With no key configured the endpoints stay closed."""
     expected = get_settings().digest_api_key
-    if expected and x_digest_key != expected:
+    if not expected:
+        raise HTTPException(status_code=503, detail="DIGEST_API_KEY is not configured on the server")
+    if not secrets.compare_digest(x_digest_key.encode(), expected.encode()):
         raise HTTPException(status_code=401, detail="Invalid digest key")
 
 
@@ -78,8 +83,20 @@ def _record_sent(db: Session, jobs: list[dict]) -> None:
     db.commit()
 
 
+_SOURCE_BY_HOST = [
+    ("linkedin.com", "linkedin"), ("greenhouse.io", "greenhouse"), ("ashbyhq.com", "ashby"), ("lever.co", "lever"),
+    ("getonbrd.com", "getonboard"), ("himalayas.app", "himalayas"), ("weworkremotely.com", "weworkremotely"),
+    ("remoteok", "remoteok"), ("computrabajo", "computrabajo"), ("laborum", "laborum"), ("trabajando", "trabajando"),
+]
+
+
+def _source_from_url(url: str) -> str | None:
+    u = (url or "").lower()
+    return next((name for host, name in _SOURCE_BY_HOST if host in u), None)
+
+
 def _save_jobs(db: Session, items: list[dict]) -> None:
-    """Keep the full posting text of every emailed offer (upsert by URL)."""
+    """Upsert the clean posting text, list, source and application questions of every emailed offer (by URL)."""
     for j in items:
         url = j.get("url")
         if not url:
@@ -88,16 +105,22 @@ def _save_jobs(db: Session, items: list[dict]) -> None:
         if row is None:
             row = DigestJob(job_url=url)
             db.add(row)
-        row.list_key, row.title, row.company = j.get("list"), j.get("title"), j.get("company")
-        row.location, row.source, row.score, row.reason = j.get("location"), j.get("source"), j.get("score"), j.get("reason")
-        if j.get("description"):
+        for field, value in (("list_key", j.get("list")), ("title", j.get("title")), ("company", j.get("company")),
+                             ("location", j.get("location")), ("score", j.get("score")), ("reason", j.get("reason"))):
+            if value not in (None, ""):
+                setattr(row, field, value)                       # never overwrite a known value with an empty one
+        row.source = j.get("source") or row.source or _source_from_url(url)
+        if j.get("description") is not None and (j["description"] or not row.description):
             row.description = j["description"]
+        if j.get("application_questions") is not None:
+            row.application_questions = json.dumps(j["application_questions"], ensure_ascii=False)
     db.commit()
 
 
 def _without_text(lists: dict[str, list[dict]]) -> dict[str, list[dict]]:
     """The HTTP response (and the workflow log) stays small: the full text lives in the database."""
-    return {k: [{f: v for f, v in i.items() if f != "description"} for i in items] for k, items in lists.items()}
+    heavy = {"description", "application_questions"}
+    return {k: [{f: v for f, v in i.items() if f not in heavy} for i in items] for k, items in lists.items()}
 
 
 class DigestResult(BaseModel):
@@ -244,39 +267,47 @@ async def list_models():
 def list_jobs(limit: int = 30, db: Session = Depends(get_db)):
     """Offers that were emailed, newest first, without the long text."""
     rows = db.query(DigestJob).order_by(DigestJob.first_sent.desc()).limit(limit).all()
-    return [{"url": r.job_url, "list": r.list_key, "title": r.title, "company": r.company, "location": r.location,
-             "score": r.score, "has_description": bool(r.description), "first_sent": r.first_sent} for r in rows]
+    return [{"url": r.job_url, "list": r.list_key, "source": r.source, "title": r.title, "company": r.company,
+             "location": r.location, "score": r.score, "has_description": bool(r.description),
+             "has_questions": bool(r.application_questions), "first_sent": r.first_sent} for r in rows]
 
 
 @router.get("/job", dependencies=[Depends(_require_digest_key)])
 def get_job(url: str, db: Session = Depends(get_db)):
-    """Full stored posting text for one emailed offer."""
+    """Stored clean posting text and application questions for one emailed offer."""
     r = db.query(DigestJob).filter(DigestJob.job_url == url).first()
     if r is None:
         raise HTTPException(status_code=404, detail="Offer not found")
+    try:
+        questions = json.loads(r.application_questions) if r.application_questions else None
+    except ValueError:
+        questions = None
     return {"url": r.job_url, "list": r.list_key, "title": r.title, "company": r.company, "location": r.location,
-            "source": r.source, "score": r.score, "reason": r.reason, "description": r.description, "first_sent": r.first_sent}
+            "source": r.source, "score": r.score, "reason": r.reason, "description": r.description,
+            "application_questions": questions, "first_sent": r.first_sent}
 
 
 @router.post("/backfill-jobs", dependencies=[Depends(_require_digest_key)])
-async def backfill_jobs(limit: int = 40, db: Session = Depends(get_db)):
-    """Fetch and store the posting text of offers that were already emailed before descriptions were kept."""
-    # Offers never stored, plus stored ones whose text is empty or only a login wall / bot check.
+async def backfill_jobs(limit: int = 40, refresh: bool = False, db: Session = Depends(get_db)):
+    """
+    Fetch and store the clean posting text of offers that were already emailed.
+    Default: only offers never stored or stored with a blocked page. refresh=true refetches and re-cleans all of them.
+    """
     stored = {r.job_url: r for r in db.query(DigestJob).all()}
     bad = {u for u, r in stored.items() if looks_blocked(r.description or "")}
     sent = [r for r in db.query(DigestSent).order_by(DigestSent.sent_at.desc()).limit(limit * 3).all()
-            if r.job_url not in stored or r.job_url in bad][:limit]
-    items = [{"url": r.job_url, "title": r.title, "company": r.company, "score": r.score,
-              "description": "", "list": getattr(stored.get(r.job_url), "list_key", None)} for r in sent]
-    await complete_descriptions(items)
-    for i in items:                       # overwrite stale junk with what we have now (empty if still blocked)
-        row = stored.get(i["url"])
-        if row is not None:
-            row.description = i.get("description") or ""
-    db.commit()
-    _save_jobs(db, [i for i in items if i["url"] not in stored])
+            if refresh or r.job_url not in stored or r.job_url in bad][:limit]
+    items = []
+    for r in sent:
+        old = stored.get(r.job_url)
+        items.append({"url": r.job_url, "title": r.title, "company": r.company, "score": r.score,
+                      "description": (old.description if old else "") or "",
+                      "list": old.list_key if old else None, "source": (old.source if old else None) or _source_from_url(r.job_url)})
+    await complete_descriptions(items, refresh=refresh)
+    _save_jobs(db, items)
     return {"processed": len(items), "with_text": sum(1 for i in items if i.get("description")),
-            "still_blocked": [f"{i['company']} - {i['title']}" for i in items if not i.get("description")]}
+            "with_questions": sum(1 for i in items if i.get("application_questions")),
+            "still_empty": [f"{i['company']} - {i['title']}" for i in items if not i.get("description")]}
 
 
 @router.get("/sent", dependencies=[Depends(_require_digest_key)])

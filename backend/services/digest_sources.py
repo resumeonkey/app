@@ -169,7 +169,7 @@ async def _himalayas(queries: list[str]) -> list[dict]:
             if r.get("minSalary") or r.get("maxSalary"):
                 sal = f"Salary published: {r.get('currency') or 'USD'} {r.get('minSalary')}-{r.get('maxSalary')} per year. "
             snippet = (f"Location restrictions: {loc}. Timezones: {tz or 'not stated'}. Employment type: {r.get('employmentType')}. "
-                       f"{sal}") + _clean(r.get("description") or r.get("excerpt") or "")
+                       f"{sal}") + _clean(r.get("description") or r.get("excerpt") or "", limit=15000)
             j = _norm(r.get("title"), r.get("companyName"), loc, r.get("applicationLink") or r.get("guid"), "himalayas",
                       snippet, r.get("pubDate"))
             if j:
