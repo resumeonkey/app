@@ -1,0 +1,17 @@
+name: Digest Models
+
+on:
+  workflow_dispatch:
+
+jobs:
+  models:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BACKEND_URL: https://resume-adapter-api.onrender.com
+    steps:
+      - name: Wake backend
+        run: curl -s -o /dev/null --max-time 120 --retry 3 --retry-delay 10 "${BACKEND_URL}/api/health" || true
+      - name: List models available to each provider key
+        run: |
+          curl -s --max-time 60 "${BACKEND_URL}/api/digest/models" -H "X-Digest-Key: ${{ secrets.DIGEST_API_KEY }}" | jq .
