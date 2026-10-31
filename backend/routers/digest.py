@@ -18,9 +18,9 @@ from sqlalchemy.orm import Session
 
 from backend.config import get_settings
 from backend.database import get_db
-from backend.models.digest import DigestSent
+from backend.models.digest import DigestJob, DigestSent
 from backend.services.digest_fixtures import FIXTURES, check
-from backend.services.digest_pipeline import extract_facts, process_list  # noqa: F401
+from backend.services.digest_pipeline import complete_descriptions, extract_facts, process_list  # noqa: F401
 from backend.services.digest_rubrics import LIST_KEYS, normalize
 from backend.services.digest_sources import fetch_list_jobs
 from backend.services.email_service import get_email_status, send_digest_email, send_test_email
@@ -78,6 +78,28 @@ def _record_sent(db: Session, jobs: list[dict]) -> None:
     db.commit()
 
 
+def _save_jobs(db: Session, items: list[dict]) -> None:
+    """Keep the full posting text of every emailed offer (upsert by URL)."""
+    for j in items:
+        url = j.get("url")
+        if not url:
+            continue
+        row = db.query(DigestJob).filter(DigestJob.job_url == url).first()
+        if row is None:
+            row = DigestJob(job_url=url)
+            db.add(row)
+        row.list_key, row.title, row.company = j.get("list"), j.get("title"), j.get("company")
+        row.location, row.source, row.score, row.reason = j.get("location"), j.get("source"), j.get("score"), j.get("reason")
+        if j.get("description"):
+            row.description = j["description"]
+    db.commit()
+
+
+def _without_text(lists: dict[str, list[dict]]) -> dict[str, list[dict]]:
+    """The HTTP response (and the workflow log) stays small: the full text lives in the database."""
+    return {k: [{f: v for f, v in i.items() if f != "description"} for i in items] for k, items in lists.items()}
+
+
 class DigestResult(BaseModel):
     jobs_found: int
     jobs_scored: int
@@ -131,6 +153,9 @@ async def run_digest(
 
     stats["unscored_llm_failed_total"] = unscored
     emailed = [i for v in lists.values() for i in v]
+    await complete_descriptions(emailed)
+    if emailed and not dry_run:
+        _save_jobs(db, emailed)
     email_sent, email_id, email_error, delivery = False, None, None, None
     if emailed and not dry_run:
         result = await send_digest_email(lists, unscored)
@@ -145,7 +170,7 @@ async def run_digest(
                     break
 
     return DigestResult(jobs_found=found, jobs_scored=scored, jobs_emailed=len(emailed) if email_sent else 0,
-                        email_sent=email_sent, lists=lists, stats=stats,
+                        email_sent=email_sent, lists=_without_text(lists), stats=stats,
                         email_id=email_id, email_error=email_error, email_delivery=delivery)
 
 
@@ -213,6 +238,35 @@ async def list_models():
             except Exception as exc:
                 out[name] = f"error: {str(exc)[:200]}"
     return out
+
+
+@router.get("/jobs", dependencies=[Depends(_require_digest_key)])
+def list_jobs(limit: int = 30, db: Session = Depends(get_db)):
+    """Offers that were emailed, newest first, without the long text."""
+    rows = db.query(DigestJob).order_by(DigestJob.first_sent.desc()).limit(limit).all()
+    return [{"url": r.job_url, "list": r.list_key, "title": r.title, "company": r.company, "location": r.location,
+             "score": r.score, "has_description": bool(r.description), "first_sent": r.first_sent} for r in rows]
+
+
+@router.get("/job", dependencies=[Depends(_require_digest_key)])
+def get_job(url: str, db: Session = Depends(get_db)):
+    """Full stored posting text for one emailed offer."""
+    r = db.query(DigestJob).filter(DigestJob.job_url == url).first()
+    if r is None:
+        raise HTTPException(status_code=404, detail="Offer not found")
+    return {"url": r.job_url, "list": r.list_key, "title": r.title, "company": r.company, "location": r.location,
+            "source": r.source, "score": r.score, "reason": r.reason, "description": r.description, "first_sent": r.first_sent}
+
+
+@router.post("/backfill-jobs", dependencies=[Depends(_require_digest_key)])
+async def backfill_jobs(limit: int = 40, db: Session = Depends(get_db)):
+    """Fetch and store the posting text of offers that were already emailed before descriptions were kept."""
+    have = {r.job_url for r in db.query(DigestJob.job_url).all()}
+    sent = [r for r in db.query(DigestSent).order_by(DigestSent.sent_at.desc()).limit(limit * 3).all() if r.job_url not in have][:limit]
+    items = [{"url": r.job_url, "title": r.title, "company": r.company, "score": r.score, "description": ""} for r in sent]
+    await complete_descriptions(items)
+    _save_jobs(db, items)
+    return {"processed": len(items), "with_text": sum(1 for i in items if i.get("description"))}
 
 
 @router.get("/sent", dependencies=[Depends(_require_digest_key)])
