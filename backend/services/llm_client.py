@@ -27,7 +27,7 @@ _DEFAULT_MODELS = {
 _PERMANENT_MARKERS = (
     "not configured", "invalid x-api-key", "authentication", "401", "402", "403",
     "429", "quota", "insufficient", "credit balance", "billing", "exceeded",
-    "404", "not found", "decommissioned", "model_not_found", "does not exist",
+    "404", "not found", "decommissioned", "model_not_found", "does not exist", "json_validate_failed",
 )
 
 

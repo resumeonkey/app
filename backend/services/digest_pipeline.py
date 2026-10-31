@@ -70,6 +70,8 @@ _RELEVANCE = {
 }
 _BATCH = 10
 _LLM_SEM = asyncio.Semaphore(2)   # free-tier LLM quotas are per minute: few concurrent calls across the three lists
+# Each model has its own rate-limit bucket (Groq free tier: 8,000 tokens/min per model), so batches are spread round-robin.
+_MODEL_POOL = [("groq", "openai/gpt-oss-20b"), ("groq", "openai/gpt-oss-120b"), ("gemini", "gemini-3.1-flash-lite")]
 _RETRY_WAITS = (0, 25, 50)     # seconds before each attempt; waits out per-minute quota errors
 
 
@@ -82,7 +84,7 @@ def _job_block(i: int, j: dict) -> str:
     days = j.get("days_posted")
     return (f"### {i}\nTitle: {j.get('title')}\nCompany: {j.get('company')}\nLocation: {j.get('location')}\n"
             f"Source: {j.get('source')}\nPosted: {'unknown' if days is None else f'{days} days ago'}\n"
-            f"Text: {(j.get('snippet') or '')[:900]}")
+            f"Text: {(j.get('snippet') or '')[:700]}")
 
 
 def _parse(raw: str) -> list[dict]:
@@ -95,15 +97,18 @@ def _parse(raw: str) -> list[dict]:
 async def extract_facts(list_key: str, jobs: list[dict], provider: str, model: str) -> list[dict | None]:
     system = _system_prompt(list_key)
     facts: list[dict | None] = [None] * len(jobs)
+    pool = [(provider, model)] + [m for m in _MODEL_POOL if m != (provider, model)]
+
     async def run(start: int) -> None:
         chunk = jobs[start:start + _BATCH]
+        prov, mod = pool[(start // _BATCH) % len(pool)]
         user = "\n\n".join(_job_block(k, j) for k, j in enumerate(chunk))
         async with _LLM_SEM:
             for attempt, wait in enumerate(_RETRY_WAITS, start=1):
                 if wait:
                     await asyncio.sleep(wait)
                 try:
-                    raw = await call_llm(provider, model, system, user, json_mode=True, temperature=0.0)
+                    raw = await call_llm(prov, mod, system, user, json_mode=True, temperature=0.0)
                     for row in _parse(raw):
                         idx = int(row.get("i", -1))
                         if 0 <= idx < len(chunk):
