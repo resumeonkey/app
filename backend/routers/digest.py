@@ -20,7 +20,7 @@ from backend.config import get_settings
 from backend.database import get_db
 from backend.models.digest import DigestJob, DigestSent
 from backend.services.digest_fixtures import FIXTURES, check
-from backend.services.digest_pipeline import complete_descriptions, extract_facts, process_list  # noqa: F401
+from backend.services.digest_pipeline import complete_descriptions, looks_blocked, extract_facts, process_list  # noqa: F401
 from backend.services.digest_rubrics import LIST_KEYS, normalize
 from backend.services.digest_sources import fetch_list_jobs
 from backend.services.email_service import get_email_status, send_digest_email, send_test_email
@@ -261,12 +261,22 @@ def get_job(url: str, db: Session = Depends(get_db)):
 @router.post("/backfill-jobs", dependencies=[Depends(_require_digest_key)])
 async def backfill_jobs(limit: int = 40, db: Session = Depends(get_db)):
     """Fetch and store the posting text of offers that were already emailed before descriptions were kept."""
-    have = {r.job_url for r in db.query(DigestJob.job_url).all()}
-    sent = [r for r in db.query(DigestSent).order_by(DigestSent.sent_at.desc()).limit(limit * 3).all() if r.job_url not in have][:limit]
-    items = [{"url": r.job_url, "title": r.title, "company": r.company, "score": r.score, "description": ""} for r in sent]
+    # Offers never stored, plus stored ones whose text is empty or only a login wall / bot check.
+    stored = {r.job_url: r for r in db.query(DigestJob).all()}
+    bad = {u for u, r in stored.items() if looks_blocked(r.description or "")}
+    sent = [r for r in db.query(DigestSent).order_by(DigestSent.sent_at.desc()).limit(limit * 3).all()
+            if r.job_url not in stored or r.job_url in bad][:limit]
+    items = [{"url": r.job_url, "title": r.title, "company": r.company, "score": r.score,
+              "description": "", "list": getattr(stored.get(r.job_url), "list_key", None)} for r in sent]
     await complete_descriptions(items)
-    _save_jobs(db, items)
-    return {"processed": len(items), "with_text": sum(1 for i in items if i.get("description"))}
+    for i in items:                       # overwrite stale junk with what we have now (empty if still blocked)
+        row = stored.get(i["url"])
+        if row is not None:
+            row.description = i.get("description") or ""
+    db.commit()
+    _save_jobs(db, [i for i in items if i["url"] not in stored])
+    return {"processed": len(items), "with_text": sum(1 for i in items if i.get("description")),
+            "still_blocked": [f"{i['company']} - {i['title']}" for i in items if not i.get("description")]}
 
 
 @router.get("/sent", dependencies=[Depends(_require_digest_key)])

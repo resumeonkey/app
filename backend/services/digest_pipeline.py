@@ -115,18 +115,53 @@ async def extract_facts(list_key: str, jobs: list[dict], provider: str, model: s
     return facts
 
 
-async def _enrich(jobs: list[dict], limit: int = 25) -> int:
-    """Fetch full text for postings that came without a description (mostly LinkedIn)."""
+_BLOCKED_MARKERS = (
+    "just a moment", "performing security verification", "captcha", "enable javascript", "access denied",
+    "attention required", "sign in to view", "join now to see", "authwall", "expand search", "skip to main content",
+    "verify you are human", "unusual traffic",
+)
+
+
+def looks_blocked(text: str) -> bool:
+    """True when the fetched page is a login wall / bot check / site chrome instead of the posting."""
+    t = (text or "").lower()
+    if len(t) < 200:
+        return True
+    head = t[:1500]
+    return any(m in head for m in _BLOCKED_MARKERS)
+
+
+def _linkedin_guest_url(url: str) -> str | None:
+    """Public (no-login) endpoint of a LinkedIn posting, built from the numeric id at the end of the job URL."""
+    m = re.search(r"linkedin\.com/jobs/view/(?:[^?#]*?-)?(\d{6,})", url or "")
+    return f"https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{m.group(1)}" if m else None
+
+
+async def fetch_posting_text(url: str) -> str:
+    """Posting text through Jina. Returns "" when every attempt only gives a login wall or bot check."""
     from backend.services.job_search import _jina_get
     from backend.services.digest_sources import JINA_SEM
-    todo = [j for j in jobs if len(j.get("snippet") or "") < 250][:limit]
-    async def one(j: dict) -> None:
+    candidates = [c for c in (_linkedin_guest_url(url), url) if c]
+    for c in candidates:
         async with JINA_SEM:
             try:
-                md = await _jina_get(j["url"], retries=1)
+                md = await _jina_get(c, retries=1)
             except Exception:
-                return
-        j["snippet"] = clean_markdown(md)[:FULL_TEXT_LIMIT]
+                continue
+        text = clean_markdown(md)
+        if not looks_blocked(text):
+            return text[:FULL_TEXT_LIMIT]
+    return ""
+
+
+async def _enrich(jobs: list[dict], limit: int = 25) -> int:
+    """Fetch full text for postings that came without a description (mostly LinkedIn). Blocked pages are ignored."""
+    todo = [j for j in jobs if len(j.get("snippet") or "") < 250][:limit]
+
+    async def one(j: dict) -> None:
+        text = await fetch_posting_text(j["url"])
+        if text:
+            j["snippet"] = text
 
     await asyncio.gather(*(one(j) for j in todo))
     return len(todo)
@@ -142,20 +177,16 @@ def clean_markdown(md: str) -> str:
 
 
 async def complete_descriptions(items: list[dict], min_chars: int = 900) -> int:
-    """Make sure every offer that will be emailed carries its full posting text (fetched through Jina if it is short)."""
-    from backend.services.job_search import _jina_get
-    from backend.services.digest_sources import JINA_SEM
-
+    """Make sure every offer that will be emailed carries its real posting text (never a login wall or bot check)."""
     async def one(it: dict) -> None:
-        if len(it.get("description") or "") >= min_chars:
+        current = it.get("description") or ""
+        if looks_blocked(current):
+            it["description"] = ""
+            current = ""
+        if len(current) >= min_chars:
             return
-        async with JINA_SEM:
-            try:
-                md = await _jina_get(it["url"], retries=1)
-            except Exception:
-                return
-        text = clean_markdown(md)[:FULL_TEXT_LIMIT]
-        if len(text) > len(it.get("description") or ""):
+        text = await fetch_posting_text(it["url"])
+        if len(text) > len(current):
             it["description"] = text
 
     todo = [i for i in items if len(i.get("description") or "") < min_chars]
