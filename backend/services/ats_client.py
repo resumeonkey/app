@@ -65,6 +65,7 @@ def _normalize_greenhouse(job: dict, company_name: str) -> dict | None:
         "location": location,
         "url":      url,
         "source":   "greenhouse",
+        "posted":   job.get("first_published") or job.get("updated_at"),
         "snippet":  (job.get("content") or "")[:800],
     }
 
@@ -82,6 +83,7 @@ def _normalize_ashby(job: dict, company_name: str) -> dict | None:
         "location": location,
         "url":      url,
         "source":   "ashby",
+        "posted":   job.get("publishedAt") or job.get("publishedDate"),
         "snippet":  (job.get("descriptionPlain") or "")[:800],
     }
 
@@ -124,6 +126,7 @@ async def _fetch_company(co: dict) -> list[dict]:
                         "title": title, "company": name,
                         "location": loc, "url": url,
                         "source": "lever",
+                        "posted": j.get("createdAt"),
                         "snippet": (j.get("descriptionPlain") or "")[:800],
                     })
     except Exception as exc:

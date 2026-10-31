@@ -2,6 +2,7 @@
 Email delivery via Resend (resend.com).
 Free tier: 3 000 emails/month, 100/day.
 """
+import html
 import logging
 from datetime import date
 
@@ -53,41 +54,56 @@ def _score_badge(score: int) -> str:
     return f'<span class="badge" style="background:#fee2e2;color:#b91c1c">{score}/10</span>'
 
 
+_LIST_TITLES = {
+    "canada": "🇨🇦 Canadá",
+    "chile": "🇨🇱 Chile",
+    "remote": "🌎 Remoto internacional",
+}
+_MODALITY = {"remote": "Remoto", "hybrid": "Híbrido", "onsite": "Presencial", "unknown": "Modalidad no indicada"}
+
+
 def _job_card(job: dict) -> str:
-    score   = job.get("score", 0)
-    title   = job.get("title", "")
-    company = job.get("company", "")
-    loc     = job.get("location", "") or ""
-    why     = job.get("why_fit", "") or ""
-    gap     = job.get("main_gap", "") or ""
-    url     = job.get("url", "#")
-
-    loc_html = f'<p class="card-loc">📍 {loc}</p>' if loc else ""
-    why_html = f'<p class="card-why">✅ {why}</p>' if why else ""
-    gap_html = f'<p class="card-gap">⚠️ {gap}</p>' if gap else ""
-
+    e = lambda v: html.escape(str(v)) if v not in (None, "") else ""  # noqa: E731
+    days = job.get("days_posted")
+    meta = [e(job.get("location")), _MODALITY.get(job.get("modality") or "unknown", ""),
+            "fecha desconocida" if days is None else ("hoy" if days == 0 else f"hace {days} día{'s' if days != 1 else ''}")]
+    if job.get("salary"):
+        meta.append("💰 " + e(job["salary"]))
+    tags = []
+    if job.get("agency"):
+        tags.append("🏢 Agencia de reclutamiento")
+    if job.get("employment_type") and job["employment_type"] != "unknown":
+        tags.append({"employee_eor": "Empleado (EOR)", "employee": "Empleado", "contractor": "Contractor"}.get(job["employment_type"], ""))
+    if job.get("timezone"):
+        tags.append("🕒 " + e(job["timezone"]))
+    tags_html = f'<p class="card-gap">{" · ".join(t for t in tags if t)}</p>' if tags else ""
     return f"""
 <div class="card">
   <div class="card-top">
     <div>
-      <p class="card-title">{title}</p>
-      <p class="card-company">{company}</p>
+      <p class="card-title">{e(job.get("title"))}</p>
+      <p class="card-company">{e(job.get("company"))}</p>
     </div>
-    {_score_badge(score)}
+    {_score_badge(int(job.get("score") or 0))}
   </div>
-  {loc_html}
-  {why_html}
-  {gap_html}
-  <a class="btn" href="{url}" target="_blank">Ver oferta →</a>
+  <p class="card-loc">📍 {" · ".join(m for m in meta if m)}</p>
+  {tags_html}
+  <p class="card-why">{e(job.get("reason"))}</p>
+  <a class="btn" href="{html.escape(str(job.get("url") or "#"), quote=True)}" target="_blank">Postular →</a>
 </div>"""
 
 
-def build_digest_html(jobs: list[dict]) -> str:
-    today   = date.today().strftime("%d %b %Y")
-    count   = len(jobs)
-    subject_line = f"{count} oferta{'s' if count != 1 else ''} nuevas para ti hoy"
-    cards   = "\n".join(_job_card(j) for j in jobs)
+def _section(key: str, jobs: list[dict]) -> str:
+    body = "\n".join(_job_card(j) for j in jobs) if jobs else \
+        '<p class="intro">Sin ofertas hoy que pasen los filtros.</p>'
+    return f'<h2 style="font-size:17px;margin:22px 0 8px">{_LIST_TITLES.get(key, key)} ({len(jobs)})</h2>\n{body}'
 
+
+def build_digest_html(lists: dict[str, list[dict]]) -> str:
+    today = date.today().strftime("%d %b %Y")
+    count = sum(len(v) for v in lists.values())
+    subject_line = f"{count} ofertas en 3 listas"
+    sections = "\n".join(_section(k, lists.get(k, [])) for k in ("canada", "chile", "remote"))
     return f"""<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -103,9 +119,8 @@ def build_digest_html(jobs: list[dict]) -> str:
     <p>Digest diario · {today}</p>
   </div>
   <div class="body">
-    <p class="intro">Hola — encontré <strong>{count} oferta{'s' if count != 1 else ''} nueva{'s' if count != 1 else ''}</strong>
-      que encajan con tu perfil. Ordenadas por puntaje.</p>
-    {cards}
+    <p class="intro">Tres listas, máximo 5 ofertas cada una, ordenadas por puntaje (0 a 10).</p>
+    {sections}
   </div>
   <div class="footer">
     Resumonkey · <a href="https://resumonkey.dev">resumonkey.dev</a> ·
@@ -118,22 +133,22 @@ def build_digest_html(jobs: list[dict]) -> str:
 
 # ── Resend sender ─────────────────────────────────────────────────────────────
 
-async def send_digest_email(jobs: list[dict]) -> bool:
+async def send_digest_email(lists: dict[str, list[dict]]) -> bool:
     """Send digest email via Resend. Returns True on success."""
     settings = get_settings()
     if not settings.resend_api_key:
         log.warning("email_service: RESEND_API_KEY not set — skipping send")
         return False
 
-    count = len(jobs)
+    c = {k: len(lists.get(k, [])) for k in ("canada", "chile", "remote")}
     today = date.today().strftime("%d %b %Y")
-    subject = f"🐵 {count} oferta{'s' if count != 1 else ''} para ti — {today}"
+    subject = f"🐵 Digest: Canadá {c['canada']} · Chile {c['chile']} · Remoto {c['remote']} — {today}"
 
     payload = {
         "from": settings.digest_from_email,
         "to":   [settings.digest_recipient_email],
         "subject": subject,
-        "html": build_digest_html(jobs),
+        "html": build_digest_html(lists),
     }
 
     try:

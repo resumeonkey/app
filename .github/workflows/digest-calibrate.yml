@@ -1,0 +1,27 @@
+name: Digest Calibration
+
+on:
+  workflow_dispatch:
+
+jobs:
+  calibrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BACKEND_URL: https://resume-adapter-api.onrender.com
+
+    steps:
+      - name: Wake backend
+        run: curl -s -o /dev/null --max-time 120 --retry 3 --retry-delay 10 "${BACKEND_URL}/api/health" || true
+
+      - name: Run calibration fixtures
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${BACKEND_URL}/api/digest/calibrate" \
+            -H "X-Digest-Key: ${{ secrets.DIGEST_API_KEY }}" --max-time 600)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "HTTP status: $HTTP_CODE"
+          echo "$BODY" | jq -r '.results[] | "\(if .passed then "PASS" else "FAIL" end) | \(.label) | \(if .outcome=="score" then "score=\(.score)" else "descartada: \(.discarded_because)" end) | esperado=\(.expected|tojson)"' || echo "$BODY"
+          echo "---- detalle ----"
+          echo "$BODY" | jq -c '.results[] | {label, reason, facts}' || true
+          [ "$HTTP_CODE" = "200" ]

@@ -12,13 +12,13 @@ on:
         type: boolean
         default: false
       min_score:
-        description: "Minimum LLM score to include (1-10)"
-        default: "5"
+        description: "Minimum score (0-10) for an offer to be listed"
+        default: "0"
 
 jobs:
   send-digest:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     env:
       BACKEND_URL: https://resume-adapter-api.onrender.com
@@ -30,13 +30,13 @@ jobs:
       - name: Trigger digest endpoint
         run: |
           DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
-          MIN_SCORE="${{ github.event.inputs.min_score || '5' }}"
+          MIN_SCORE="${{ github.event.inputs.min_score || '0' }}"
 
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST "${BACKEND_URL}/api/digest/run?dry_run=${DRY_RUN}&min_score=${MIN_SCORE}" \
             -H "X-Digest-Key: ${{ secrets.DIGEST_API_KEY }}" \
             -H "Content-Type: application/json" \
-            --max-time 300)
+            --max-time 720)
 
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -n -1)
