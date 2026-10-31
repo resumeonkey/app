@@ -137,7 +137,7 @@ class DigestResult(BaseModel):
 @router.post("/run", response_model=DigestResult, dependencies=[Depends(_require_digest_key)])
 async def run_digest(
     llm_provider: str = "groq",
-    llm_model: str = "llama-3.1-8b-instant",
+    llm_model: str = "llama-3.3-70b-versatile",
     min_score: int = 5,
     max_jobs: int = 8,
     dry_run: bool = False,
