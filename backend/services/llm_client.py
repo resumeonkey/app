@@ -138,7 +138,16 @@ async def _call_once(provider, model, system, user, json_mode, temperature) -> s
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
 
-    response = await client.chat.completions.create(**kwargs)
+    if provider == "gemini":
+        kwargs["reasoning_effort"] = "low"   # extraction is simple; thinking time dominated latency
+    try:
+        response = await client.chat.completions.create(**kwargs)
+    except Exception as e:
+        if provider == "gemini" and "reasoning" in str(e).lower():
+            kwargs.pop("reasoning_effort", None)
+            response = await client.chat.completions.create(**kwargs)
+        else:
+            raise
     return response.choices[0].message.content or ""
 
 

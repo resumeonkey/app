@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from collections import Counter
 
 from backend.config import get_settings
@@ -67,7 +68,8 @@ _RELEVANCE = {
     CHILE: re.compile(r"(product owner|product manager|\bpo\b|\bqa\b|quality|funcional|implement|business analyst|analista|consultor|sistemas|scrum)", re.I),
     REMOTE: re.compile(r"(implement|onboard|solutions?|\bqa\b|quality|tester|uat|support|customer success|product owner|product manager|spanish|bilingual|integration)", re.I),
 }
-_BATCH = 10
+_BATCH = 6
+_LLM_SEM = asyncio.Semaphore(6)   # global cap on concurrent extraction calls across the three lists
 
 
 def _system_prompt(list_key: str) -> str:
@@ -92,12 +94,10 @@ def _parse(raw: str) -> list[dict]:
 async def extract_facts(list_key: str, jobs: list[dict], provider: str, model: str) -> list[dict | None]:
     system = _system_prompt(list_key)
     facts: list[dict | None] = [None] * len(jobs)
-    sem = asyncio.Semaphore(3)
-
     async def run(start: int) -> None:
         chunk = jobs[start:start + _BATCH]
         user = "\n\n".join(_job_block(k, j) for k, j in enumerate(chunk))
-        async with sem:
+        async with _LLM_SEM:
             for attempt in (1, 2):
                 try:
                     raw = await call_llm(provider, model, system, user, json_mode=True, temperature=0.0)
@@ -116,11 +116,10 @@ async def extract_facts(list_key: str, jobs: list[dict], provider: str, model: s
 async def _enrich(jobs: list[dict], limit: int = 25) -> int:
     """Fetch full text for postings that came without a description (mostly LinkedIn)."""
     from backend.services.job_search import _jina_get
+    from backend.services.digest_sources import JINA_SEM
     todo = [j for j in jobs if len(j.get("snippet") or "") < 250][:limit]
-    sem = asyncio.Semaphore(4)
-
     async def one(j: dict) -> None:
-        async with sem:
+        async with JINA_SEM:
             try:
                 md = await _jina_get(j["url"], retries=1)
             except Exception:
@@ -178,6 +177,7 @@ async def process_list(list_key: str, jobs: list[dict], provider: str, model: st
                 kept.append(j)
         return kept
 
+    t0 = time.monotonic()
     cands = pre(jobs)
     rel = _RELEVANCE[list_key]
     cands.sort(key=lambda j: (-len(rel.findall(j.get("title", ""))), j.get("days_posted") if j.get("days_posted") is not None else 99))
@@ -190,8 +190,10 @@ async def process_list(list_key: str, jobs: list[dict], provider: str, model: st
         stats["enriched"] = await _enrich(cands)
         cands = pre(cands)
     stats["sent_to_llm"] = len(cands)
+    t1 = time.monotonic()
 
     facts = await extract_facts(list_key, cands, provider, model)
+    log.warning("digest %s: enrich %.0fs, llm extraction %.0fs for %d jobs", list_key, t1 - t0, time.monotonic() - t1, len(cands))
     scored_items: list[dict] = []
     for job, f in zip(cands, facts):
         if f is None:

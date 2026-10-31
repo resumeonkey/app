@@ -19,6 +19,7 @@ from backend.services.job_search import _jina_get, search_jobs_via_jina
 
 log = logging.getLogger(__name__)
 
+JINA_SEM = asyncio.Semaphore(4)   # Jina free tier throttles bursts; shared by every list
 _UA = {"User-Agent": "Mozilla/5.0 (compatible; ResumonkeyDigest/1.0)", "Accept": "application/json, */*"}
 _TIMEOUT = 25
 
@@ -67,10 +68,8 @@ async def _get_json(url: str, params: dict | None = None, method: str = "GET", j
 # ── LinkedIn (via Jina) ───────────────────────────────────────────────────────
 
 async def _linkedin(queries: list[str], location: str, remote: str, source: str) -> list[dict]:
-    sem = asyncio.Semaphore(2)
-
     async def one(q: str) -> list[dict]:
-        async with sem:
+        async with JINA_SEM:
             try:
                 rows = await search_jobs_via_jina(q, num_results=10, location=location, remote=remote, date_posted="30d")
             except Exception as exc:
@@ -179,7 +178,7 @@ async def _himalayas(queries: list[str]) -> list[dict]:
     return out
 
 
-_WWR_FEEDS = ["remote-customer-support-jobs", "remote-product-jobs", "remote-devops-sysadmin-jobs", "remote-all-other-jobs"]
+_WWR_FEEDS = ["remote-customer-support-jobs", "remote-product-jobs", "remote-devops-sysadmin-jobs"]
 
 
 async def _weworkremotely() -> list[dict]:
@@ -219,11 +218,10 @@ _MD_LINK = re.compile(r"\[([^\]\n]{8,160})\]\((https?://[^)\s]+)\)")
 
 async def _chile_portals(queries: list[str]) -> list[dict]:
     out: list[dict] = []
-    sem = asyncio.Semaphore(2)
 
     async def one(source: str, tmpl: str, link_re: str, q: str) -> None:
         url = tmpl.format(slug=quote_plus(q.lower()).replace("+", "-"))
-        async with sem:
+        async with JINA_SEM:
             try:
                 md = await _jina_get(url, retries=1)
             except Exception as exc:
