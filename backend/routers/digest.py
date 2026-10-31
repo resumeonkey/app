@@ -5,8 +5,10 @@ POST /api/digest/run        full pipeline; emails the top offers of each list
 POST /api/digest/calibrate  scores the calibration fixtures and compares them with expectations
 Protected by the X-Digest-Key header (DIGEST_API_KEY in the environment).
 """
+import asyncio
 import csv
 import logging
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -93,8 +95,10 @@ async def run_digest(
                               "max_age_days": s.digest_max_age_days}}
     found = scored = 0
 
-    for key in LIST_KEYS:
+    async def one_list(key: str):
+        t0 = time.monotonic()
         jobs, source_counts = await fetch_list_jobs(key)
+        log.warning("digest %s: fetched %d jobs in %.0fs %s", key, len(jobs), time.monotonic() - t0, source_counts)
         fresh = [
             j for j in jobs
             if j["url"] not in sent_urls
@@ -103,9 +107,13 @@ async def run_digest(
         items, list_stats, _ = await process_list(key, fresh, llm_provider, llm_model)
         list_stats["sources"] = source_counts
         list_stats["excluded_applied_or_sent"] = len(jobs) - len(fresh)
+        list_stats["seconds"] = round(time.monotonic() - t0)
+        return key, len(jobs), items, list_stats
+
+    for key, n_jobs, items, list_stats in await asyncio.gather(*(one_list(k) for k in LIST_KEYS)):
         stats[key] = list_stats
         lists[key] = [i for i in items if i["score"] >= min_score][: s.digest_max_per_list]
-        found += len(jobs)
+        found += n_jobs
         scored += list_stats["scored"]
 
     emailed = [i for v in lists.values() for i in v]
