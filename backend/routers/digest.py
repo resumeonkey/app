@@ -10,6 +10,7 @@ Protected by X-Digest-Key header (set DIGEST_API_KEY in environment).
 """
 import csv
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -103,6 +104,24 @@ def _dedupe_by_url(jobs: list[dict]) -> list[dict]:
     return result
 
 
+_MAX_SCORE_CANDIDATES = 40
+_ATS_SOURCES = {"greenhouse", "ashby", "lever"}
+_STOPWORDS = {"canada", "senior", "junior", "remote", "with", "and", "the"}
+
+
+def _prefilter_jobs(jobs: list[dict], roles: list[str]) -> list[dict]:
+    """Keep ATS jobs whose title shares a keyword with the target roles, capped for LLM scoring."""
+    words = {w for r in roles for w in re.findall(r"[a-z]{4,}", r.lower())} - _STOPWORDS
+    ranked = []
+    for j in jobs:
+        title = (j.get("title") or "").lower()
+        hits = sum(1 for w in words if w in title)
+        if hits or j.get("source") not in _ATS_SOURCES:
+            ranked.append((hits, j))
+    ranked.sort(key=lambda t: t[0], reverse=True)
+    return [j for _, j in ranked[:_MAX_SCORE_CANDIDATES]]
+
+
 # ── Response models ───────────────────────────────────────────────────────────
 
 class DigestResult(BaseModel):
@@ -191,6 +210,9 @@ async def run_digest(
 
     fresh_jobs = [j for j in all_jobs if not _is_excluded(j)]
     log.info("digest: %d fresh jobs after dedup filter", len(fresh_jobs))
+
+    fresh_jobs = _prefilter_jobs(fresh_jobs, roles)
+    log.info("digest: %d candidates after role prefilter", len(fresh_jobs))
 
     if not fresh_jobs:
         log.info("digest: nothing new to email")
