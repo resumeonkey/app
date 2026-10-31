@@ -246,12 +246,16 @@ async def run_digest(
     log.info("digest: %d jobs above min_score=%d", len(top), min_score)
 
     if not top:
+        preview = (
+            sorted(scored, key=lambda j: j.get("score") or 0, reverse=True)[:max_jobs]
+            if dry_run else []
+        )
         return DigestResult(
             jobs_found=len(all_jobs),
             jobs_scored=len(scored),
             jobs_emailed=0,
             email_sent=False,
-            top_jobs=[],
+            top_jobs=preview,
         )
 
     # 8. Send email
