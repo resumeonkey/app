@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     # key from jina.ai raises the limit dramatically.
     jina_api_key: str = ""
 
+    # Daily digest email — Resend (resend.com)
+    resend_api_key: str = ""
+    digest_recipient_email: str = "faleuy@gmail.com"
+    digest_from_email: str = "Resumonkey Digest <digest@resumonkey.dev>"
+    digest_api_key: str = ""          # Secret for protecting /api/digest/run
+
     # LLM defaults
     default_llm_provider: str = "openai"
     default_llm_model: str = "gpt-4o"

@@ -1,0 +1,57 @@
+name: Daily Job Digest
+
+on:
+  # 7:00 AM Pacific (15:00 UTC) on weekdays
+  schedule:
+    - cron: "0 15 * * 1-5"
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "dry_run (no email sent, no DB write)"
+        type: boolean
+        default: false
+      min_score:
+        description: "Minimum LLM score to include (1-10)"
+        default: "5"
+
+jobs:
+  send-digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Trigger digest endpoint
+        run: |
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+          MIN_SCORE="${{ github.event.inputs.min_score || '5' }}"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST "${{ secrets.BACKEND_URL }}/api/digest/run?dry_run=${DRY_RUN}&min_score=${MIN_SCORE}" \
+            -H "X-Digest-Key: ${{ secrets.DIGEST_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            --max-time 300)
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+
+          echo "HTTP status: $HTTP_CODE"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Digest endpoint returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+          # Surface key metrics in the job summary
+          JOBS_FOUND=$(echo "$BODY" | grep -o '"jobs_found":[0-9]*' | cut -d: -f2 || echo "?")
+          JOBS_EMAILED=$(echo "$BODY" | grep -o '"jobs_emailed":[0-9]*' | cut -d: -f2 || echo "?")
+          EMAIL_SENT=$(echo "$BODY" | grep -o '"email_sent":true' || echo '"email_sent":false')
+
+          echo "### 🐵 Digest result" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Jobs found | $JOBS_FOUND |" >> $GITHUB_STEP_SUMMARY
+          echo "| Jobs emailed | $JOBS_EMAILED |" >> $GITHUB_STEP_SUMMARY
+          echo "| Email sent | $EMAIL_SENT |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dry run | $DRY_RUN |" >> $GITHUB_STEP_SUMMARY
