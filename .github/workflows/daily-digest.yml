@@ -20,14 +20,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    env:
+      BACKEND_URL: https://resume-adapter-api.onrender.com
+
     steps:
+      - name: Wake backend (free-tier cold start)
+        run: curl -s -o /dev/null --max-time 120 --retry 3 --retry-delay 10 "${BACKEND_URL}/api/health" || true
+
       - name: Trigger digest endpoint
         run: |
           DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
           MIN_SCORE="${{ github.event.inputs.min_score || '5' }}"
 
           RESPONSE=$(curl -s -w "\n%{http_code}" \
-            -X POST "${{ secrets.BACKEND_URL }}/api/digest/run?dry_run=${DRY_RUN}&min_score=${MIN_SCORE}" \
+            -X POST "${BACKEND_URL}/api/digest/run?dry_run=${DRY_RUN}&min_score=${MIN_SCORE}" \
             -H "X-Digest-Key: ${{ secrets.DIGEST_API_KEY }}" \
             -H "Content-Type: application/json" \
             --max-time 300)
