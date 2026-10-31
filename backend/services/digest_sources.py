@@ -19,7 +19,7 @@ from backend.services.job_search import _jina_get, search_jobs_via_jina
 
 log = logging.getLogger(__name__)
 
-JINA_SEM = asyncio.Semaphore(4)   # Jina free tier throttles bursts; shared by every list
+JINA_SEM = asyncio.Semaphore(2)   # Jina free tier throttles bursts; shared by every list
 _UA = {"User-Agent": "Mozilla/5.0 (compatible; ResumonkeyDigest/1.0)", "Accept": "application/json, */*"}
 _TIMEOUT = 25
 

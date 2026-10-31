@@ -68,8 +68,9 @@ _RELEVANCE = {
     CHILE: re.compile(r"(product owner|product manager|\bpo\b|\bqa\b|quality|funcional|implement|business analyst|analista|consultor|sistemas|scrum)", re.I),
     REMOTE: re.compile(r"(implement|onboard|solutions?|\bqa\b|quality|tester|uat|support|customer success|product owner|product manager|spanish|bilingual|integration)", re.I),
 }
-_BATCH = 6
-_LLM_SEM = asyncio.Semaphore(6)   # global cap on concurrent extraction calls across the three lists
+_BATCH = 10
+_LLM_SEM = asyncio.Semaphore(2)   # free-tier LLM quotas are per minute: few concurrent calls across the three lists
+_RETRY_WAITS = (0, 25, 50)     # seconds before each attempt; waits out per-minute quota errors
 
 
 def _system_prompt(list_key: str) -> str:
@@ -98,7 +99,9 @@ async def extract_facts(list_key: str, jobs: list[dict], provider: str, model: s
         chunk = jobs[start:start + _BATCH]
         user = "\n\n".join(_job_block(k, j) for k, j in enumerate(chunk))
         async with _LLM_SEM:
-            for attempt in (1, 2):
+            for attempt, wait in enumerate(_RETRY_WAITS, start=1):
+                if wait:
+                    await asyncio.sleep(wait)
                 try:
                     raw = await call_llm(provider, model, system, user, json_mode=True, temperature=0.0)
                     for row in _parse(raw):
@@ -183,6 +186,7 @@ async def process_list(list_key: str, jobs: list[dict], provider: str, model: st
     cands.sort(key=lambda j: (-len(rel.findall(j.get("title", ""))), j.get("days_posted") if j.get("days_posted") is not None else 99))
     if len(cands) > s.digest_max_llm_jobs_per_list:
         stats["capped_out"] = len(cands) - s.digest_max_llm_jobs_per_list
+        stats["capped_out_with_zero_title_match"] = sum(1 for j in cands[s.digest_max_llm_jobs_per_list:] if not rel.search(j.get("title", "")))
         for j in cands[s.digest_max_llm_jobs_per_list:]:
             outcomes[j["url"]] = ("discard", "fuera_del_tope_de_candidatos", None)
         cands = cands[:s.digest_max_llm_jobs_per_list]
