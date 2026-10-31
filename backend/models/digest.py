@@ -30,5 +30,6 @@ class DigestJob(Base):
     source      = Column(String, nullable=True)
     score       = Column(Integer, nullable=True)
     reason      = Column(Text, nullable=True)
-    description = Column(Text, nullable=True)         # full posting text (empty if the source blocked it)
+    description = Column(Text, nullable=True)         # clean posting text (empty if the source blocked it)
+    application_questions = Column(Text, nullable=True)   # JSON list of application-form questions (Greenhouse)
     first_sent  = Column(DateTime, default=lambda: datetime.now(timezone.utc))

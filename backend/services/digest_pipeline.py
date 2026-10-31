@@ -3,9 +3,12 @@ Digest pipeline for the three lists: pre-filter -> cap -> enrich -> LLM fact ext
 post-filter -> deterministic scoring -> top N. The LLM never assigns the final score.
 """
 import asyncio
+import html
 import json
 import logging
 import re
+
+import httpx
 import time
 from collections import Counter
 
@@ -115,6 +118,8 @@ async def extract_facts(list_key: str, jobs: list[dict], provider: str, model: s
     return facts
 
 
+FULL_TEXT_LIMIT = 15000   # applied after cleaning
+
 _BLOCKED_MARKERS = (
     "just a moment", "performing security verification", "captcha", "enable javascript", "access denied",
     "attention required", "sign in to view", "join now to see", "authwall", "expand search", "skip to main content",
@@ -137,6 +142,103 @@ def _linkedin_guest_url(url: str) -> str | None:
     return f"https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{m.group(1)}" if m else None
 
 
+# ── text cleaning ─────────────────────────────────────────────────────────────
+
+_IMG_MD = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+_NOISE = [
+    re.compile(r"Join or sign in to save this job.*?Report this job", re.I),                     # LinkedIn login box
+    re.compile(r"Email or phone Password Show Forgot password.*?Cookie Policy\s*\.?", re.I),
+    re.compile(r"New to LinkedIn\?\s*Join now.*?Cookie Policy\s*\.?", re.I),
+    re.compile(r"See who .{1,60}? has hired for this role", re.I),
+    re.compile(r"Referrals increase your chances of interviewing at .{1,80}? by 2x\s*See who you know", re.I),
+    re.compile(r"Direct message the job poster from", re.I),
+    re.compile(r"\b(Show more Show less|Show more|Show less)\b", re.I),
+    re.compile(r"^Title:.{0,400}?Markdown Content:\s*", re.I),                                  # Jina header
+    re.compile(r"\b(Final URL|Published Time|Warning):[^ ]*( [^ ]+){0,12}?(?= [A-Z])", re.I),
+    # runs of phone country codes ("Afghanistan +93 Albania +355 ...")
+    re.compile(r"(?:[A-Z][\w.'’()-]*(?: [A-Za-z][\w.'’()-]*){0,3} \+\d{1,4}(?:\s+|$)){4,}"),
+    re.compile(r"\bApply Save\b"),
+]
+
+
+def clean_markdown(md: str) -> str:
+    """Markdown -> single-line text with images and link targets removed (no site-specific noise rules yet)."""
+    text = _IMG_MD.sub(" ", md or "")
+    text = re.sub(r"\]\(https?://[^)]*\)", "]", text)
+    text = re.sub(r"[#*_>\[\]`]", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def clean_posting(text: str) -> str:
+    """Strip login notices, applicant counters, phone-code lists and Jina headers from posting text."""
+    for rx in _NOISE:
+        text = rx.sub(" ", text or "")
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _html_to_text(h: str) -> str:
+    h = re.sub(r"(?i)<\s*(br|/p|/li|/h\d|/div|/ul|/ol)[^>]*>", "\n", h or "")
+    h = re.sub(r"(?i)<li[^>]*>", "• ", h)
+    h = re.sub(r"<[^>]+>", " ", h)
+    h = html.unescape(h)
+    h = re.sub(r"[ \t]+", " ", h)
+    return re.sub(r"\n\s*\n+", "\n\n", h).strip()
+
+
+# ── per-source fetchers ───────────────────────────────────────────────────────
+
+_UA = {"User-Agent": "Mozilla/5.0 (compatible; ResumonkeyDigest/1.0)", "Accept": "application/json, */*"}
+_GH_URL = re.compile(r"greenhouse\.io/(?:embed/job_app\?for=)?([\w-]+)/jobs/(\d+)")
+
+
+async def fetch_greenhouse(url: str) -> tuple[str, list]:
+    """Greenhouse public boards API: clean description + application form questions."""
+    m = _GH_URL.search(url or "")
+    if not m:
+        return "", []
+    board, job_id = m.group(1), m.group(2)
+    try:
+        async with httpx.AsyncClient(timeout=25, headers=_UA, follow_redirects=True) as client:
+            r = await client.get(f"https://boards-api.greenhouse.io/v1/boards/{board}/jobs/{job_id}", params={"questions": "true"})
+        r.raise_for_status()
+        data = r.json()
+    except Exception as exc:
+        log.warning("greenhouse api %s/%s failed: %s", board, job_id, str(exc)[:150])
+        return "", []
+    description = _html_to_text(html.unescape(data.get("content") or ""))[:FULL_TEXT_LIMIT]
+    questions = []
+    for q in (data.get("questions") or []) + (data.get("location_questions") or []):
+        fields = []
+        for f in q.get("fields") or []:
+            values = [v.get("label") for v in (f.get("values") or []) if v.get("label")]
+            entry = {"name": f.get("name"), "type": f.get("type")}
+            if values:
+                entry["options"] = values if len(values) <= 15 else f"{len(values)} opciones"
+            fields.append(entry)
+        questions.append({"label": q.get("label") or q.get("description"), "required": bool(q.get("required")), "fields": fields})
+    return description, questions
+
+
+async def fetch_himalayas(url: str, title: str, company: str) -> str:
+    """Himalayas pages sit behind Cloudflare; its public search API carries the description instead."""
+    slug = (url or "").split("?")[0].rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=25, headers=_UA, follow_redirects=True) as client:
+            r = await client.get("https://himalayas.app/jobs/api/search", params={"q": title or slug.rsplit("/", 1)[-1], "sort": "recent"})
+        r.raise_for_status()
+        rows = r.json().get("jobs", [])
+    except Exception as exc:
+        log.warning("himalayas api '%s' failed: %s", title, str(exc)[:150])
+        return ""
+    for row in rows:
+        link = (row.get("guid") or row.get("applicationLink") or "").split("?")[0].rstrip("/")
+        same_job = link == slug or (title and row.get("title") == title and company and row.get("companyName") == company)
+        if same_job:
+            text = _html_to_text(row.get("description") or row.get("excerpt") or "")
+            return text[:FULL_TEXT_LIMIT]
+    return ""
+
+
 async def fetch_posting_text(url: str) -> str:
     """Posting text through Jina. Returns "" when every attempt only gives a login wall or bot check."""
     from backend.services.job_search import _jina_get
@@ -150,8 +252,23 @@ async def fetch_posting_text(url: str) -> str:
                 continue
         text = clean_markdown(md)
         if not looks_blocked(text):
-            return text[:FULL_TEXT_LIMIT]
+            return clean_posting(text)[:FULL_TEXT_LIMIT]
     return ""
+
+
+async def fetch_posting(url: str, title: str = "", company: str = "") -> dict:
+    """{"description": clean text or "", "questions": list|None} using the best source for this URL."""
+    out: dict = {"description": "", "questions": None}
+    if "greenhouse.io" in (url or ""):
+        desc, questions = await fetch_greenhouse(url)
+        if desc:
+            return {"description": desc, "questions": questions}
+    elif "himalayas.app" in (url or ""):
+        desc = await fetch_himalayas(url, title, company)
+        if desc:
+            return {"description": desc, "questions": None}
+    out["description"] = await fetch_posting_text(url)
+    return out
 
 
 async def _enrich(jobs: list[dict], limit: int = 25) -> int:
@@ -159,37 +276,34 @@ async def _enrich(jobs: list[dict], limit: int = 25) -> int:
     todo = [j for j in jobs if len(j.get("snippet") or "") < 250][:limit]
 
     async def one(j: dict) -> None:
-        text = await fetch_posting_text(j["url"])
-        if text:
-            j["snippet"] = text
+        got = await fetch_posting(j["url"], j.get("title", ""), j.get("company", ""))
+        if got["description"]:
+            j["snippet"] = got["description"]
 
     await asyncio.gather(*(one(j) for j in todo))
     return len(todo)
 
 
-FULL_TEXT_LIMIT = 8000
-
-
-def clean_markdown(md: str) -> str:
-    text = re.sub(r"\]\(https?://[^)]*\)", "]", md or "")
-    text = re.sub(r"[#*_>\[\]`]", " ", text)
-    return re.sub(r"\s+", " ", text).strip()
-
-
-async def complete_descriptions(items: list[dict], min_chars: int = 900) -> int:
-    """Make sure every offer that will be emailed carries its real posting text (never a login wall or bot check)."""
+async def complete_descriptions(items: list[dict], min_chars: int = 900, refresh: bool = False) -> int:
+    """
+    Make sure every offer that will be emailed carries its real, clean posting text (never a login wall or bot check).
+    Greenhouse offers are always fetched so their application questions are kept; refresh=True refetches everything.
+    """
     async def one(it: dict) -> None:
-        current = it.get("description") or ""
+        current = clean_posting(it.get("description") or "")
         if looks_blocked(current):
-            it["description"] = ""
             current = ""
-        if len(current) >= min_chars:
+        it["description"] = current
+        is_gh = "greenhouse.io" in (it.get("url") or "")
+        if len(current) >= min_chars and not refresh and not is_gh:
             return
-        text = await fetch_posting_text(it["url"])
-        if len(text) > len(current):
-            it["description"] = text
+        got = await fetch_posting(it["url"], it.get("title", ""), it.get("company", ""))
+        if got["description"] and (refresh or len(got["description"]) > len(current)):
+            it["description"] = got["description"]
+        if got["questions"] is not None:
+            it["application_questions"] = got["questions"]
 
-    todo = [i for i in items if len(i.get("description") or "") < min_chars]
+    todo = [i for i in items if refresh or "greenhouse.io" in (i.get("url") or "") or len(i.get("description") or "") < min_chars]
     await asyncio.gather(*(one(i) for i in todo))
     return len(todo)
 
