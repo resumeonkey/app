@@ -126,11 +126,40 @@ async def _enrich(jobs: list[dict], limit: int = 25) -> int:
                 md = await _jina_get(j["url"], retries=1)
             except Exception:
                 return
-        text = re.sub(r"\]\(https?://[^)]*\)", "]", md)
-        text = re.sub(r"[#*_>\[\]`]", " ", text)
-        j["snippet"] = re.sub(r"\s+", " ", text).strip()[:1800]
+        j["snippet"] = clean_markdown(md)[:FULL_TEXT_LIMIT]
 
     await asyncio.gather(*(one(j) for j in todo))
+    return len(todo)
+
+
+FULL_TEXT_LIMIT = 8000
+
+
+def clean_markdown(md: str) -> str:
+    text = re.sub(r"\]\(https?://[^)]*\)", "]", md or "")
+    text = re.sub(r"[#*_>\[\]`]", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+async def complete_descriptions(items: list[dict], min_chars: int = 900) -> int:
+    """Make sure every offer that will be emailed carries its full posting text (fetched through Jina if it is short)."""
+    from backend.services.job_search import _jina_get
+    from backend.services.digest_sources import JINA_SEM
+
+    async def one(it: dict) -> None:
+        if len(it.get("description") or "") >= min_chars:
+            return
+        async with JINA_SEM:
+            try:
+                md = await _jina_get(it["url"], retries=1)
+            except Exception:
+                return
+        text = clean_markdown(md)[:FULL_TEXT_LIMIT]
+        if len(text) > len(it.get("description") or ""):
+            it["description"] = text
+
+    todo = [i for i in items if len(i.get("description") or "") < min_chars]
+    await asyncio.gather(*(one(i) for i in todo))
     return len(todo)
 
 
@@ -152,6 +181,7 @@ def build_item(list_key: str, job: dict, f: dict, scored: dict) -> dict:
         "location": f.get("city_country") or job.get("location"), "modality": _s(f.get("modality")) or "unknown",
         "days_posted": job.get("days_posted"), "salary": _salary_display(list_key, job, f),
         "url": job.get("url"), "reason": scored["reason"], "components": scored["components"], "source": job.get("source"),
+        "description": (job.get("snippet") or "")[:FULL_TEXT_LIMIT],
     }
     if list_key == CHILE:
         item["agency"] = bool(scored.get("agency"))
