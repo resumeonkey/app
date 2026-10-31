@@ -76,8 +76,8 @@ class DigestResult(BaseModel):
 
 @router.post("/run", response_model=DigestResult, dependencies=[Depends(_require_digest_key)])
 async def run_digest(
-    llm_provider: str = "gemini",
-    llm_model: str = "gemini-3.8-flash",
+    llm_provider: str = "groq",
+    llm_model: str = "openai/gpt-oss-20b",
     min_score: int = 0,
     dry_run: bool = False,
     db: Session = Depends(get_db),
@@ -128,7 +128,7 @@ async def run_digest(
 
 
 @router.post("/calibrate", dependencies=[Depends(_require_digest_key)])
-async def calibrate(llm_provider: str = "gemini", llm_model: str = "gemini-3.8-flash"):
+async def calibrate(llm_provider: str = "groq", llm_model: str = "openai/gpt-oss-20b"):
     """Run every fixture through the real pipeline (real LLM extraction, no fetching, no email)."""
     outcomes: dict = {}
     for key in LIST_KEYS:
