@@ -134,7 +134,7 @@ async def _enrich(jobs: list[dict], limit: int = 25) -> int:
 
 
 def _salary_display(list_key: str, job: dict, f: dict) -> str | None:
-    if f.get("salary_text"):
+    if f.get("salary_text") and re.search(r"\d", str(f["salary_text"])):
         return str(f["salary_text"])
     if list_key == CHILE:
         net = _chile_salary_net_clp(f)
