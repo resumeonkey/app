@@ -17,8 +17,8 @@ log = logging.getLogger(__name__)
 # A default model per provider is used for fallback hops.
 _FALLBACK_ORDER = ["groq", "gemini", "anthropic", "openai"]
 _DEFAULT_MODELS = {
-    "groq":      "llama-3.3-70b-versatile",
-    "gemini":    "gemini-3.8-flash",
+    "groq":      "openai/gpt-oss-20b",
+    "gemini":    "gemini-3.1-flash-lite",
     "anthropic": "claude-haiku-4-5",
     "openai":    "gpt-4o-mini",
 }
@@ -138,12 +138,13 @@ async def _call_once(provider, model, system, user, json_mode, temperature) -> s
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
 
-    if provider == "gemini":
+    wants_effort = provider == "gemini" or (provider == "groq" and "gpt-oss" in model)
+    if wants_effort:
         kwargs["reasoning_effort"] = "low"   # extraction is simple; thinking time dominated latency
     try:
         response = await client.chat.completions.create(**kwargs)
     except Exception as e:
-        if provider == "gemini" and "reasoning" in str(e).lower():
+        if wants_effort and "reasoning" in str(e).lower():
             kwargs.pop("reasoning_effort", None)
             response = await client.chat.completions.create(**kwargs)
         else:
