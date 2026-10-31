@@ -76,6 +76,8 @@ def _job_card(job: dict) -> str:
         tags.append({"employee_eor": "Empleado (EOR)", "employee": "Empleado", "contractor": "Contractor"}.get(job["employment_type"], ""))
     if job.get("timezone"):
         tags.append("🕒 " + e(job["timezone"]))
+    if job.get("applies_to"):
+        tags.append("Aplica desde: " + e(", ".join(job["applies_to"])))
     tags_html = f'<p class="card-gap">{" · ".join(t for t in tags if t)}</p>' if tags else ""
     return f"""
 <div class="card">
@@ -99,11 +101,12 @@ def _section(key: str, jobs: list[dict]) -> str:
     return f'<h2 style="font-size:17px;margin:22px 0 8px">{_LIST_TITLES.get(key, key)} ({len(jobs)})</h2>\n{body}'
 
 
-def build_digest_html(lists: dict[str, list[dict]]) -> str:
+def build_digest_html(lists: dict[str, list[dict]], unscored: int = 0) -> str:
     today = date.today().strftime("%d %b %Y")
     count = sum(len(v) for v in lists.values())
     subject_line = f"{count} ofertas en 3 listas"
     sections = "\n".join(_section(k, lists.get(k, [])) for k in ("canada", "chile", "remote"))
+    note = f'<p class="intro">⚠️ {unscored} oferta{"s" if unscored != 1 else ""} no pudo{"ieron" if unscored != 1 else ""} puntuarse hoy por fallos del servicio de IA.</p>' if unscored else ""
     return f"""<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -121,6 +124,7 @@ def build_digest_html(lists: dict[str, list[dict]]) -> str:
   <div class="body">
     <p class="intro">Tres listas, máximo 5 ofertas cada una, ordenadas por puntaje (0 a 10).</p>
     {sections}
+    {note}
   </div>
   <div class="footer">
     Resumonkey · <a href="https://resumonkey.dev">resumonkey.dev</a> ·
@@ -133,7 +137,7 @@ def build_digest_html(lists: dict[str, list[dict]]) -> str:
 
 # ── Resend sender ─────────────────────────────────────────────────────────────
 
-async def send_digest_email(lists: dict[str, list[dict]]) -> bool:
+async def send_digest_email(lists: dict[str, list[dict]], unscored: int = 0) -> bool:
     """Send digest email via Resend. Returns True on success."""
     settings = get_settings()
     if not settings.resend_api_key:
@@ -148,7 +152,7 @@ async def send_digest_email(lists: dict[str, list[dict]]) -> bool:
         "from": settings.digest_from_email,
         "to":   [settings.digest_recipient_email],
         "subject": subject,
-        "html": build_digest_html(lists),
+        "html": build_digest_html(lists, unscored),
     }
 
     try:
