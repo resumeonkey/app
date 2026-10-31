@@ -77,8 +77,9 @@ async def call_llm(
     # have a key configured. If the active provider runs out of credits / hits a
     # quota or rate limit, we transparently switch to the next available one.
     chain: list[tuple[str, str]] = [(provider, model)]
+    excluded = {x.strip() for x in settings.llm_fallback_exclude.split(",") if x.strip()}
     for p in _FALLBACK_ORDER:
-        if p != provider and _has_key(p):
+        if p != provider and p not in excluded and _has_key(p):
             chain.append((p, _DEFAULT_MODELS[p]))
 
     last_error: Exception | None = None
