@@ -23,7 +23,7 @@ from backend.services.digest_fixtures import FIXTURES, check
 from backend.services.digest_pipeline import extract_facts, process_list  # noqa: F401
 from backend.services.digest_rubrics import LIST_KEYS, normalize
 from backend.services.digest_sources import fetch_list_jobs
-from backend.services.email_service import send_digest_email
+from backend.services.email_service import get_email_status, send_digest_email, send_test_email
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -85,6 +85,9 @@ class DigestResult(BaseModel):
     email_sent: bool
     lists: dict[str, list[dict]]
     stats: dict
+    email_id: str | None = None
+    email_error: str | None = None
+    email_delivery: str | None = None
 
 
 @router.post("/run", response_model=DigestResult, dependencies=[Depends(_require_digest_key)])
@@ -128,14 +131,41 @@ async def run_digest(
 
     stats["unscored_llm_failed_total"] = unscored
     emailed = [i for v in lists.values() for i in v]
-    email_sent = False
+    email_sent, email_id, email_error, delivery = False, None, None, None
     if emailed and not dry_run:
-        email_sent = await send_digest_email(lists, unscored)
+        result = await send_digest_email(lists, unscored)
+        email_sent, email_id, email_error = result["sent"], result["id"], result["error"]
         if email_sent:
             _record_sent(db, emailed)
+            # Resend usually reports "delivered" within seconds; check it so the caller sees the real state.
+            for _ in range(6):
+                await asyncio.sleep(5)
+                delivery = (await get_email_status(email_id)).get("last_event")
+                if delivery in ("delivered", "bounced", "complained", "failed"):
+                    break
 
     return DigestResult(jobs_found=found, jobs_scored=scored, jobs_emailed=len(emailed) if email_sent else 0,
-                        email_sent=email_sent, lists=lists, stats=stats)
+                        email_sent=email_sent, lists=lists, stats=stats,
+                        email_id=email_id, email_error=email_error, email_delivery=delivery)
+
+
+@router.post("/test-email", dependencies=[Depends(_require_digest_key)])
+async def test_email():
+    """Send a tiny test message and report Resend's answer (and the delivery state a few seconds later)."""
+    result = await send_test_email()
+    if result["sent"]:
+        for _ in range(6):
+            await asyncio.sleep(5)
+            status = await get_email_status(result["id"])
+            if status.get("last_event") in ("delivered", "bounced", "complained", "failed"):
+                break
+        result["delivery"] = status.get("last_event")
+    return result
+
+
+@router.get("/email-status/{email_id}", dependencies=[Depends(_require_digest_key)])
+async def email_status(email_id: str):
+    return await get_email_status(email_id)
 
 
 @router.post("/calibrate", dependencies=[Depends(_require_digest_key)])

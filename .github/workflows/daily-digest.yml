@@ -61,3 +61,19 @@ jobs:
           echo "| Jobs emailed | $JOBS_EMAILED |" >> $GITHUB_STEP_SUMMARY
           echo "| Email sent | $EMAIL_SENT |" >> $GITHUB_STEP_SUMMARY
           echo "| Dry run | $DRY_RUN |" >> $GITHUB_STEP_SUMMARY
+
+          # Email delivery check: fail the run (GitHub then notifies you) when Resend rejected or bounced the email.
+          EMAIL_ERROR=$(echo "$BODY" | jq -r '.email_error // empty')
+          DELIVERY=$(echo "$BODY" | jq -r '.email_delivery // empty')
+          EMAIL_ID=$(echo "$BODY" | jq -r '.email_id // empty')
+          echo "| Email id | ${EMAIL_ID:-n/a} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Delivery state | ${DELIVERY:-n/a} |" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$EMAIL_ERROR" ]; then
+            echo "| Email error | $EMAIL_ERROR |" >> $GITHUB_STEP_SUMMARY
+            echo "::error::Email was not sent: $EMAIL_ERROR"
+            exit 1
+          fi
+          if [ "$DELIVERY" = "bounced" ] || [ "$DELIVERY" = "failed" ] || [ "$DELIVERY" = "complained" ]; then
+            echo "::error::Email delivery state: $DELIVERY"
+            exit 1
+          fi

@@ -137,35 +137,65 @@ def build_digest_html(lists: dict[str, list[dict]], unscored: int = 0) -> str:
 
 # ── Resend sender ─────────────────────────────────────────────────────────────
 
-async def send_digest_email(lists: dict[str, list[dict]], unscored: int = 0) -> bool:
-    """Send digest email via Resend. Returns True on success."""
+async def _post_email(payload: dict) -> dict:
+    """POST to Resend. Returns {"sent": bool, "id": str|None, "error": str|None} and keeps Resend's own error text."""
     settings = get_settings()
     if not settings.resend_api_key:
         log.warning("email_service: RESEND_API_KEY not set — skipping send")
-        return False
+        return {"sent": False, "id": None, "error": "RESEND_API_KEY no está configurada"}
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(_RESEND_URL, json=payload,
+                                     headers={"Authorization": f"Bearer {settings.resend_api_key}"})
+        if resp.status_code >= 400:
+            msg = resp.text[:400]
+            log.error("email_service: Resend rejected the email (HTTP %s): %s", resp.status_code, msg)
+            return {"sent": False, "id": None, "error": f"Resend HTTP {resp.status_code}: {msg}"}
+        email_id = resp.json().get("id")
+        log.info("email_service: accepted by Resend id=%s to %s", email_id, payload["to"])
+        return {"sent": True, "id": email_id, "error": None}
+    except Exception as exc:
+        log.error("email_service: send failed: %s", exc)
+        return {"sent": False, "id": None, "error": str(exc)[:300]}
 
+
+async def send_digest_email(lists: dict[str, list[dict]], unscored: int = 0) -> dict:
+    """Send the digest via Resend. Returns {"sent", "id", "error"}."""
+    settings = get_settings()
     c = {k: len(lists.get(k, [])) for k in ("canada", "chile", "remote")}
     today = date.today().strftime("%d %b %Y")
     subject = f"🐵 Digest: Canadá {c['canada']} · Chile {c['chile']} · Remoto {c['remote']} — {today}"
-
-    payload = {
+    return await _post_email({
         "from": settings.digest_from_email,
-        "to":   [settings.digest_recipient_email],
+        "to": [settings.digest_recipient_email],
         "subject": subject,
         "html": build_digest_html(lists, unscored),
-    }
+    })
 
+
+async def send_test_email() -> dict:
+    """Tiny message to check the sender/recipient pair works, without running the digest."""
+    settings = get_settings()
+    return await _post_email({
+        "from": settings.digest_from_email,
+        "to": [settings.digest_recipient_email],
+        "subject": "🐵 Resumonkey: correo de prueba",
+        "html": "<p>Si lees esto, el envío del digest funciona.</p>",
+    })
+
+
+async def get_email_status(email_id: str) -> dict:
+    """Delivery state from Resend. last_event: queued, sent, delivered, delivery_delayed, bounced, complained..."""
+    settings = get_settings()
+    if not settings.resend_api_key:
+        return {"id": email_id, "last_event": None, "error": "RESEND_API_KEY no está configurada"}
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                _RESEND_URL,
-                json=payload,
-                headers={"Authorization": f"Bearer {settings.resend_api_key}"},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            log.info("email_service: sent id=%s to %s", data.get("id"), settings.digest_recipient_email)
-            return True
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.get(f"{_RESEND_URL}/{email_id}",
+                                    headers={"Authorization": f"Bearer {settings.resend_api_key}"})
+        if resp.status_code >= 400:
+            return {"id": email_id, "last_event": None, "error": f"Resend HTTP {resp.status_code}: {resp.text[:300]}"}
+        d = resp.json()
+        return {"id": email_id, "last_event": d.get("last_event"), "to": d.get("to"), "created_at": d.get("created_at"), "error": None}
     except Exception as exc:
-        log.error("email_service: send failed: %s", exc)
-        return False
+        return {"id": email_id, "last_event": None, "error": str(exc)[:300]}

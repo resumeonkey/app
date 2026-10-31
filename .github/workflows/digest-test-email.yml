@@ -1,0 +1,24 @@
+name: Digest Test Email
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-email:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BACKEND_URL: https://resume-adapter-api.onrender.com
+    steps:
+      - name: Send test email and report delivery state
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${BACKEND_URL}/api/digest/test-email" \
+            -H "X-Digest-Key: ${{ secrets.DIGEST_API_KEY }}" --max-time 120)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "HTTP status: $HTTP_CODE"
+          echo "Response: $BODY"
+          [ "$HTTP_CODE" = "200" ] || exit 1
+          [ "$(echo "$BODY" | jq -r '.sent')" = "true" ] || { echo "::error::Resend did not accept the email"; exit 1; }
+          D=$(echo "$BODY" | jq -r '.delivery // empty')
+          [ "$D" = "delivered" ] || { echo "::error::Delivery state: ${D:-unknown}"; exit 1; }
