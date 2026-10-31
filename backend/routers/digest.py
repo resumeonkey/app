@@ -160,6 +160,7 @@ async def test_email():
             if status.get("last_event") in ("delivered", "bounced", "complained", "failed"):
                 break
         result["delivery"] = status.get("last_event")
+        result["status_error"] = status.get("error")   # e.g. a send-only Resend key cannot read email status
     return result
 
 
