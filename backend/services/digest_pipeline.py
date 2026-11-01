@@ -15,7 +15,7 @@ from collections import Counter
 from backend.config import get_settings
 from backend.services.digest_rubrics import (
     CANADA, CHILE, POSTFILTERS, PREFILTERS, REMOTE, SCORERS, _chile_salary_net_clp,
-    _remote_pay_monthly_usd, _s, title_keyword_hits,
+    _remote_pay_monthly_usd, _s, apply_fit_floor, title_keyword_hits,
 )
 from backend.services.llm_client import call_llm
 
@@ -432,6 +432,7 @@ async def process_list(list_key: str, jobs: list[dict], provider: str, model: st
             drops["llm_sin_respuesta"] += 1
             outcomes[job["url"]] = ("discard", "llm_sin_respuesta", None)
             continue
+        apply_fit_floor(job, f)
         reason = POSTFILTERS[list_key](job, f)
         if reason:
             drops[reason] += 1

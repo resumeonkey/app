@@ -199,6 +199,24 @@ _FRENCH_REQUIRED = re.compile(
     r"(english\s*(and|&|/)\s*french|french\s*(and|&|/)\s*english|french\s+(is\s+)?(required|mandatory|essential)|"
     r"fluent\s+in\s+french|(bilingual|bilingue)\s*\(?\s*(english|french|anglais|fran[cç]ais)[\s/&-]+(french|english|fran[cç]ais|anglais))", re.I)
 
+# Titles that are the candidate's target roles: the model's fit score can never fall below this floor for them,
+# so one bad extraction cannot drop an obviously relevant offer. The model can still score above it.
+_TARGET_ROLE_TITLE = re.compile(
+    r"(product owner|product manager|\bqa\b|quality (assurance|analyst|engineer)|\btester\b|\buat\b|calidad|"
+    r"implementation|implementaci[oó]n|onboarding|solutions? (consultant|engineer|analyst)|functional analyst|"
+    r"analista funcional|business analyst|analista de negocio|systems analyst|analista de sistemas)", re.I)
+TARGET_ROLE_FIT_FLOOR = 3
+
+
+def apply_fit_floor(job: dict, f: dict) -> None:
+    """Raise fit / fit_base to the floor when the title is a target role (modifies the extracted facts in place)."""
+    if not _TARGET_ROLE_TITLE.search(normalize(job.get("title", ""))):
+        return
+    for key in ("fit", "fit_base"):
+        if key in f:
+            f[key] = max(_i(f.get(key), 0, 4), TARGET_ROLE_FIT_FLOOR)
+
+
 _TOO_SENIOR = re.compile(r"\b(director|head of|head,|vp|vice[- ]president|principal)\b", re.I)
 _NOT_TECH = re.compile(
     r"(voice (record|actor|over)|grabaci[oó]n de voz|data label|labell?ing|annotation|annotator|survey|encuesta|"
