@@ -63,6 +63,7 @@ The candidate can work from Canada OR from Chile. Keys:
 "scam_signals" (bool; asks for payment, bank data, or to apply through Telegram/WhatsApp), "company_verifiable" (true|false|null; false only if there is no identifiable real company; null if unsure),
 "pay_usd_monthly" (number or null; convert hourly x160 and annual /12; null if unpublished or not convertible), "employment_type" ("employee_eor"|"employee"|"contractor"|"unknown"; EOR/Deel/Remote.com = employee_eor),
 "timezone" (string or null), "languages_required" ("en_es"|"en"|"es"|"other"|"unknown"; en_es = BOTH English and Spanish required),
+"french_required" (bool; French is required, or the role is bilingual English-French, or the posting is written in French), "posting_language" (string, e.g. "en"),
 "domain_match" (bool; contact centre, ITSM, AI or telecom domain).""",
 }
 
