@@ -103,18 +103,24 @@ async def extract_facts(list_key: str, jobs: list[dict], provider: str, model: s
     async def run(start: int) -> None:
         chunk = jobs[start:start + _BATCH]
         prov, mod = pool[(start // _BATCH) % len(pool)]
-        user = "\n\n".join(_job_block(k, j) for k, j in enumerate(chunk))
+        pending = list(range(len(chunk)))          # offers of this batch still without facts
         async with _LLM_SEM:
             for attempt, wait in enumerate(_RETRY_WAITS, start=1):
+                if not pending:
+                    return
                 if wait:
                     await asyncio.sleep(wait)
+                user = "\n\n".join(_job_block(k, chunk[p]) for k, p in enumerate(pending))
                 try:
                     raw = await call_llm(prov, mod, system, user, json_mode=True, temperature=0.0)
                     for row in _parse(raw):
-                        idx = int(row.get("i", -1))
-                        if 0 <= idx < len(chunk):
-                            facts[start + idx] = row
-                    return
+                        k = int(row.get("i", -1))
+                        if 0 <= k < len(pending):
+                            facts[start + pending[k]] = row
+                    pending = [p for p in pending if facts[start + p] is None]
+                    if pending:   # a valid JSON that skips offers is not a success: ask again for the skipped ones only
+                        log.warning("digest facts batch %s@%d attempt %d: model skipped %d of %d offers",
+                                    list_key, start, attempt, len(pending), len(chunk))
                 except Exception as exc:
                     log.warning("digest facts batch %s@%d attempt %d failed: %s", list_key, start, attempt, str(exc)[:200])
 
