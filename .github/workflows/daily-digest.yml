@@ -1,9 +1,12 @@
 name: Daily Job Digest
 
 on:
-  # 7:00 AM Pacific (15:00 UTC) on weekdays
+  # 11:17 UTC on weekdays (not on the hour: GitHub delays crons that start at :00).
+  # Why: job postings peak around 11 AM local time and 2-4 PM, and most applicants apply 10 AM-2 PM, so the digest
+  # lands before that wave but after the previous day's North American postings are in.
+  # ~8:25 AM in Chile (UTC-3, summer) / 7:25 AM (UTC-4, winter); ~6:25 AM Toronto; ~3:25 AM Vancouver.
   schedule:
-    - cron: "0 15 * * 1-5"
+    - cron: "17 11 * * 1-5"
   # Allow manual trigger from the Actions tab
   workflow_dispatch:
     inputs:
