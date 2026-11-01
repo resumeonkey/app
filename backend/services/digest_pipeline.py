@@ -30,7 +30,8 @@ PROFILE = """CANDIDATE PROFILE (applies to every list)
 - Has NO experience in the financial industry (banking, fintech, credit, insurance)."""
 
 _COMMON = """You extract FACTS about job postings. Base every fact ONLY on the text provided; when the text does not say, use the neutral default.
-Never infer a language requirement from the company name or country. Return ONLY JSON: {"results":[{"i":0, ...}, ...]} with one object per job, in order.
+Never infer a language requirement from the company name or country. Return ONLY JSON: {"results":[{"i":0, ...}, ...]} with EXACTLY one object per job, in order.
+Never skip, merge or drop a job: an irrelevant, duplicated or non-job posting still gets its own object (set "is_job" to false and use neutral defaults).
 Common keys: "i" (int), "is_job" (bool; false if the text is not a real single job posting), "modality" ("remote"|"hybrid"|"onsite"|"unknown"),
 "city_country" (string), "salary_text" (string or null; copy the published salary as written).
 IMPORTANT for every fit score: the candidate works in SOFTWARE / IT systems. Quality, QA or "calidad" roles in manufacturing, food processing, meat/fish plants, mining, construction,
@@ -70,7 +71,7 @@ The candidate can work from Canada OR from Chile. Keys:
 "domain_match" (bool; contact centre, ITSM, AI or telecom domain).""",
 }
 
-_BATCH = 10
+_BATCH = 6   # smaller batches: with 10 offers the model often returned valid JSON but skipped several
 _LLM_SEM = asyncio.Semaphore(2)   # free-tier LLM quotas are per minute: few concurrent calls across the three lists
 # Each model has its own rate-limit bucket (Groq free tier: 8,000 tokens/min per model), so batches are spread round-robin.
 _MODEL_POOL = [("groq", "openai/gpt-oss-20b"), ("groq", "openai/gpt-oss-120b"), ("gemini", "gemini-3.1-flash-lite")]
