@@ -310,6 +310,34 @@ async def backfill_jobs(limit: int = 40, refresh: bool = False, db: Session = De
             "still_empty": [f"{i['company']} - {i['title']}" for i in items if not i.get("description")]}
 
 
+@router.get("/audit-dates", dependencies=[Depends(_require_digest_key)])
+async def audit_dates(db: Session = Depends(get_db)):
+    """Compare the dates Greenhouse reports (single-job API vs. what the board listing gave us) for stored offers."""
+    import httpx
+    from backend.services.digest_pipeline import _GH_URL
+    from backend.services.digest_rubrics import parse_days
+    out = []
+    async with httpx.AsyncClient(timeout=25, follow_redirects=True, headers={"User-Agent": "ResumonkeyDigest/1.0"}) as client:
+        for r in db.query(DigestJob).filter(DigestJob.source == "greenhouse").all():
+            m = _GH_URL.search(r.job_url or "")
+            row = {"company": r.company, "title": r.title, "url": r.job_url}
+            try:
+                d = (await client.get(f"https://boards-api.greenhouse.io/v1/boards/{m.group(1)}/jobs/{m.group(2)}")).json()
+                row.update(first_published=d.get("first_published"), updated_at=d.get("updated_at"),
+                           days_if_first_published=parse_days(d.get("first_published")), days_if_updated_at=parse_days(d.get("updated_at")))
+            except Exception as exc:
+                row["error"] = str(exc)[:120]
+            try:
+                lst = (await client.get(f"https://boards-api.greenhouse.io/v1/boards/{m.group(1)}/jobs")).json().get("jobs", [])
+                hit = next((j for j in lst if str(j.get("id")) == m.group(2)), None)
+                row["listing_fields"] = sorted(hit.keys()) if hit else "not in listing"
+                row["listing_first_published"] = hit.get("first_published") if hit else None
+            except Exception as exc:
+                row["listing_error"] = str(exc)[:120]
+            out.append(row)
+    return out
+
+
 @router.get("/sent", dependencies=[Depends(_require_digest_key)])
 def list_sent(limit: int = 50, db: Session = Depends(get_db)):
     rows = db.query(DigestSent).order_by(DigestSent.sent_at.desc()).limit(limit).all()
