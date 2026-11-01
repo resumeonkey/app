@@ -146,7 +146,8 @@ def _linkedin_guest_url(url: str) -> str | None:
 
 _IMG_MD = re.compile(r"!\[[^\]]*\]\([^)]*\)")
 _NOISE = [
-    re.compile(r"Join or sign in to save this job.*?Report this job", re.I),                     # LinkedIn login box
+    re.compile(r"Join or sign in to (?:save this job|find your next job).*?Report this job", re.I),  # LinkedIn login box
+    re.compile(r"Get AI-powered advice on this job.*?tailor your resume", re.I),
     re.compile(r"Email or phone Password Show Forgot password.*?Cookie Policy\s*\.?", re.I),
     re.compile(r"New to LinkedIn\?\s*Join now.*?Cookie Policy\s*\.?", re.I),
     re.compile(r"See who .{1,60}? has hired for this role", re.I),
@@ -239,6 +240,50 @@ async def fetch_himalayas(url: str, title: str, company: str) -> str:
     return ""
 
 
+async def fetch_getonboard(url: str, title: str) -> str:
+    """Get on Board public API (search by title, match by URL): clean description + published salary."""
+    target = (url or "").split("?")[0].rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=25, headers=_UA, follow_redirects=True) as client:
+            r = await client.get("https://www.getonbrd.com/api/v0/search/jobs",
+                                 params={"query": title or target.rsplit("/", 1)[-1], "per_page": 25, "page": 1, "expand": '["company"]'})
+        r.raise_for_status()
+        rows = r.json().get("data", [])
+    except Exception as exc:
+        log.warning("getonboard api '%s' failed: %s", title, str(exc)[:150])
+        return ""
+    for d in rows:
+        if ((d.get("links") or {}).get("public_url") or "").split("?")[0].rstrip("/") != target:
+            continue
+        a = d.get("attributes") or {}
+        parts = [_html_to_text(str(a.get(k) or "")) for k in ("description_headline", "description", "functions", "desirable", "benefits")]
+        sal = f"Salary published: USD {a.get('min_salary') or '?'}-{a.get('max_salary') or '?'} per month." if (a.get("min_salary") or a.get("max_salary")) else ""
+        return "\n\n".join(x for x in [sal, *parts] if x)[:FULL_TEXT_LIMIT]
+    return ""
+
+
+_WWR_FEEDS = ["remote-customer-support-jobs", "remote-product-jobs", "remote-devops-sysadmin-jobs", "remote-programming-jobs"]
+
+
+async def fetch_weworkremotely(url: str) -> str:
+    """We Work Remotely RSS items carry the full description; match by link."""
+    import xml.etree.ElementTree as ET
+    target = (url or "").split("?")[0].rstrip("/")
+    async with httpx.AsyncClient(timeout=25, headers=_UA, follow_redirects=True) as client:
+        for feed in _WWR_FEEDS:
+            try:
+                r = await client.get(f"https://weworkremotely.com/categories/{feed}.rss")
+                r.raise_for_status()
+                root = ET.fromstring(r.text)
+            except Exception as exc:
+                log.warning("wwr feed %s failed: %s", feed, str(exc)[:120])
+                continue
+            for it in root.iter("item"):
+                if (it.findtext("link") or "").split("?")[0].rstrip("/") == target:
+                    return _html_to_text(it.findtext("description") or "")[:FULL_TEXT_LIMIT]
+    return ""
+
+
 async def fetch_posting_text(url: str) -> str:
     """Posting text through Jina. Returns "" when every attempt only gives a login wall or bot check."""
     from backend.services.job_search import _jina_get
@@ -265,6 +310,14 @@ async def fetch_posting(url: str, title: str = "", company: str = "") -> dict:
             return {"description": desc, "questions": questions}
     elif "himalayas.app" in (url or ""):
         desc = await fetch_himalayas(url, title, company)
+        if desc:
+            return {"description": desc, "questions": None}
+    elif "getonbrd.com" in (url or ""):
+        desc = await fetch_getonboard(url, title)
+        if desc:
+            return {"description": desc, "questions": None}
+    elif "weworkremotely.com" in (url or ""):
+        desc = await fetch_weworkremotely(url)
         if desc:
             return {"description": desc, "questions": None}
     out["description"] = await fetch_posting_text(url)
