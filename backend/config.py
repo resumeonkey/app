@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     remote_min_usd: int = 2_500                # monthly; published below this is discarded
     remote_good_usd: int = 3_500               # monthly; published at/above this scores +2
     usd_clp_rate: int = 950
+    # Fixed conversion rates to USD for the remote pay rubric (the code converts, not the LLM). Editable by env var.
+    cad_usd_rate: float = 0.72
+    eur_usd_rate: float = 1.08
+    gbp_usd_rate: float = 1.27
+    digest_min_fit: int = 2                    # offers whose role fit is below this (0-4) never reach the lists
     gross_to_net_factor: float = 0.8           # used only when a Chilean salary is stated as gross (bruto)
 
     # LLM defaults

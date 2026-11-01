@@ -26,6 +26,17 @@ _TELUS_TEXT = (
     "member will be asked, on a regular basis, to interact in English with external or internal parties."
 )
 
+# Real posting text from digest_jobs (BNamericas, Get on Board): a pure sales role that once scored 7/10 only for being remote and well paid.
+_BNAMERICAS_TEXT = (
+    "Salary published: USD 4000-5000 per month. Requisitos / Requirements: Más de 4 años de éxito demostrado en ventas B2B SaaS, con un "
+    "historial de cumplimiento o superación de cuotas. / 4+ years of proven success in B2B SaaS sales, with a track record of meeting or "
+    "exceeding quotas. Idiomas: español fluido e inglés nivel avanzado. Experiencia en tecnología de ventas: conocimientos avanzados de "
+    "Salesforce, HubSpot, Outreach, Gong o Salesloft. Fuertes habilidades de negociación, comunicación y presentación. Conocimientos de IA: "
+    "capacidad para comprender, posicionar y vender soluciones SaaS basadas en IA. Altamente proactivo, ambicioso y orientado a los "
+    "resultados. Capacidad para prosperar en un entorno de ventas consultivo y gestionar acuerdos complejos. Impulsar ciclos de ventas "
+    "integrales, desde la prospección hasta la negociación y el cierre, dentro del espacio B2B SaaS."
+)
+
 FIXTURES = [
     {"label": "SysAid Implementation Specialist (English/Spanish), Toronto", "list": CANADA, "expect": {"min": 8},
      "job": _job("Implementation Specialist (English/Spanish)", "SysAid", "Toronto, Ontario, Canada",
@@ -59,6 +70,8 @@ FIXTURES = [
                  "en la industria financiera o fintech (crédito, factoring o pagos). Trabajo presencial en Santiago centro. Renta a convenir.", "4 días")},
     {"label": "TELUS Bilingual Systems Quality Analyst (texto real: exige francés e inglés; descartada)", "list": REMOTE, "expect": {"discard": True},
      "job": _job("Bilingual Systems Quality Analyst I (100% Remote)", "TELUS", "Canada", _TELUS_TEXT, "6 days ago")},
+    {"label": "BNamericas Account Executive (texto real: ventas puras, remoto USD 4000-5000; debe descartarse por encaje bajo)", "list": CHILE, "expect": {"discard": True},
+     "job": _job("Ejecutivo/a de Cuentas / Account Executive – SaaS Solutions", "BNamericas", "Remote", _BNAMERICAS_TEXT, "4 días")},
     {"label": "DatoviaPlayhouse grabación de voz en español, USD 20 (descartada)", "list": REMOTE, "expect": {"discard": True},
      "job": _job("Spanish voice recording contributor (remote)", "DatoviaPlayhouse", "Remote",
                  "Record your voice in Spanish for an AI dataset. Paid USD 20 per recording session. Work from home, flexible hours. "
