@@ -1,0 +1,20 @@
+name: Digest Audit
+
+on:
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BACKEND_URL: https://resume-adapter-api.onrender.com
+    steps:
+      - name: Greenhouse dates - what the API reports vs what the digest uses
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" "${BACKEND_URL}/api/digest/audit-dates" \
+            -H "X-Digest-Key: ${{ secrets.DIGEST_API_KEY }}" --max-time 120)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          echo "HTTP status: $HTTP_CODE"
+          echo "$RESPONSE" | head -n -1 | jq -c '.[]' || echo "$RESPONSE" | head -n -1
+          [ "$HTTP_CODE" = "200" ]
