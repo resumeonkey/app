@@ -82,11 +82,32 @@ def _system_prompt(list_key: str) -> str:
     return f"{PROFILE}\n\n{_COMMON}\n\n{_SCHEMAS[list_key]}"
 
 
+_KEY_FACTS = re.compile(
+    r"(french|fran[cç]ais|fran[cç]ais|franc[eé]s|spanish|espa[nñ]ol|bilingual|biling[uü]e|english|ingl[eé]s|degree|bachelor|diploma|licenciatura|titulaci[oó]n|"
+    r"ingenier|years?\b|a[nñ]os?\b|experience|experiencia|salary|salario|sueldo|renta|remuneraci|remote|remoto|hybrid|h[ií]brid|on-?site|presencial|in-office|"
+    r"visa|citizen|residen|work permit|timezone|time zone|contractor|contrato|employer of record|\bEOR\b|agency|consultora|financ|bank|fintech|industry|industria)", re.I)
+
+
+def _excerpt(text: str, limit: int = 1500, head: int = 400) -> str:
+    """Model input: the start of the posting plus the sentences that carry the decisive facts (language, degree, years, modality, pay)."""
+    text = re.sub(r"\s+", " ", text or "").strip()
+    if len(text) <= limit:
+        return text
+    out, used = [text[:head]], head
+    for sent in re.split(r"(?<=[.!?:;])\s+", text[head:]):
+        if _KEY_FACTS.search(sent):
+            if used + len(sent) + 1 > limit:
+                break
+            out.append(sent)
+            used += len(sent) + 1
+    return " ".join(out)
+
+
 def _job_block(i: int, j: dict) -> str:
     days = j.get("days_posted")
     return (f"### {i}\nTitle: {j.get('title')}\nCompany: {j.get('company')}\nLocation: {j.get('location')}\n"
             f"Source: {j.get('source')}\nPosted: {'unknown' if days is None else f'{days} days ago'}\n"
-            f"Text: {(j.get('snippet') or '')[:700]}")
+            f"Text: {_excerpt(j.get('snippet') or '')}")
 
 
 def _parse(raw: str) -> list[dict]:
