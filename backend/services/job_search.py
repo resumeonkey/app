@@ -509,7 +509,7 @@ _JOB_BLOCK_RE = re.compile(
     #   ### Actual Job Title
     #   #### [Company Name](https://...)
     #   Location text  status text
-    r'\*\s+\[.*?\]\((https://(?:ca\.|www\.)?linkedin\.com/jobs/view/[^\)]+)\)'
+    r'\*\s+\[.*?\]\((https://(?:[a-z]{2,3}\.|www\.)?linkedin\.com/jobs/view/[^\)]+)\)'
     r'.*?###\s+(.+?)\n'          # ### Job Title
     r'.*?####\s+\[(.+?)\]'      # #### [Company]
     r'.+?\n\s*(.+?)(?:\s{2,})', # location (two spaces separate fields)
