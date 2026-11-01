@@ -119,7 +119,7 @@ async def _getonboard(queries: list[str], remote_only: bool = False) -> list[dic
             if a.get("min_salary") or a.get("max_salary"):
                 sal = f"Salary published: USD {a.get('min_salary') or '?'}-{a.get('max_salary') or '?'} per month. "
             snippet = f"Modality: {mod}. Countries: {', '.join(map(str, countries))}. {sal}" + _clean(
-                " ".join(str(a.get(k) or "") for k in ("description_headline", "description", "functions", "desirable")))
+                " ".join(str(a.get(k) or "") for k in ("description_headline", "description", "functions", "desirable")), limit=15000)
             j = _norm(a.get("title"), comp.get("name") if isinstance(comp, dict) else "", ", ".join(map(str, countries)),
                       (d.get("links") or {}).get("public_url"), "getonboard", snippet, a.get("published_at"))
             if j:
@@ -144,7 +144,7 @@ async def _remoteok() -> list[dict]:
         if not _REMOTE_TITLE_RE.search(f"{r.get('position', '')} {' '.join(r.get('tags') or [])}"):
             continue
         sal = f"Salary published: USD {r.get('salary_min')}-{r.get('salary_max')} per year. " if r.get("salary_min") else ""
-        snippet = f"Remote region: {r.get('location') or 'unspecified'}. {sal}" + _clean(r.get("description", ""))
+        snippet = f"Remote region: {r.get('location') or 'unspecified'}. {sal}" + _clean(r.get("description", ""), limit=15000)
         j = _norm(r.get("position"), r.get("company"), r.get("location") or "Remote", r.get("url") or r.get("apply_url"),
                   "remoteok", snippet, r.get("epoch") or r.get("date"))
         if j:
@@ -199,7 +199,7 @@ async def _weworkremotely() -> list[dict]:
             if not _REMOTE_TITLE_RE.search(title or raw):
                 continue
             j = _norm(title or raw, company if title else "", region, it.findtext("link"), "weworkremotely",
-                      f"Remote region: {region}. " + _clean(it.findtext("description") or ""), it.findtext("pubDate"))
+                      f"Remote region: {region}. " + _clean(it.findtext("description") or "", limit=15000), it.findtext("pubDate"))
             if j:
                 out.append(j)
 
