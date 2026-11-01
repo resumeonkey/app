@@ -22,7 +22,7 @@ from backend.config import get_settings
 from backend.database import get_db
 from backend.models.digest import DigestJob, DigestSent
 from backend.services.digest_fixtures import FIXTURES, check
-from backend.services.digest_pipeline import complete_descriptions, looks_blocked, extract_facts, process_list  # noqa: F401
+from backend.services.digest_pipeline import complete_descriptions, fetch_posting, looks_blocked, extract_facts, process_list  # noqa: F401
 from backend.services.digest_rubrics import LIST_KEYS, normalize
 from backend.services.digest_sources import fetch_list_jobs
 from backend.services.email_service import get_email_status, send_digest_email, send_test_email
@@ -366,6 +366,14 @@ async def audit_dates(db: Session = Depends(get_db)):
                 row["listing_error"] = str(exc)[:120]
             out.append(row)
     return out
+
+
+@router.get("/fetch-posting", dependencies=[Depends(_require_digest_key)])
+async def fetch_posting_endpoint(url: str, title: str = "", company: str = ""):
+    """Clean text (and Greenhouse application questions) of any job posting URL, using the same fetchers as the digest."""
+    got = await fetch_posting(url, title, company)
+    return {"url": url, "chars": len(got["description"]), "description": got["description"],
+            "application_questions": got["questions"]}
 
 
 @router.get("/sent", dependencies=[Depends(_require_digest_key)])

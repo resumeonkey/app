@@ -1,0 +1,29 @@
+name: Digest Fetch Posting
+
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "Job posting URLs separated by spaces"
+        required: true
+      max_chars:
+        description: "Characters of text to print per posting"
+        default: "3500"
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BACKEND_URL: https://resume-adapter-api.onrender.com
+      URLS: ${{ github.event.inputs.urls }}
+      MAX_CHARS: ${{ github.event.inputs.max_chars }}
+    steps:
+      - name: Fetch each posting through the digest fetchers
+        run: |
+          for U in $URLS; do
+            echo "=================== $U"
+            R=$(curl -s -G "${BACKEND_URL}/api/digest/fetch-posting" --data-urlencode "url=$U" \
+                -H "X-Digest-Key: ${{ secrets.DIGEST_API_KEY }}" --max-time 120)
+            echo "$R" | jq -r '"chars: \(.chars)\n" + (.description[0:('"${MAX_CHARS:-3500}"')] // "(sin texto)")' || echo "$R" | head -c 500
+          done
