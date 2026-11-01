@@ -12,6 +12,20 @@ def _job(title, company, location, snippet, posted="3 days ago"):
             "source": "fixture", "snippet": snippet, "posted": posted, "days_posted": parse_days(posted)}
 
 
+# Real posting text taken from digest_jobs (TELUS, Himalayas). Verbatim, with the long company boilerplate left out.
+_TELUS_TEXT = (
+    "Bilingual Systems Quality Analyst II (100% Remote) As Systems Quality Analyst, you will be responsible for analyzing business and "
+    "technical requirements, developing test scenarios and test cases, and executing tests to ensure the quality and reliability of our "
+    "solutions. This is a remote position with the option for in-person attendance at a TELUS Health office, if available in your area. "
+    "Responsibilities: analyze business and technical documentation to identify testing requirements, scenarios, and test cases; develop and "
+    "document test scenarios and test cases using established testing tools; execute tests within integrated solutions; identify, document, "
+    "and report defects. Qualifications and Skills: Degree in Quality Assurance, Business Administration, or equivalent work experience. "
+    "Strong attention to detail, analytical thinking. Excellent verbal and written communication skills in both French and English. "
+    "Annual salary range $50,000 to $65,000. Intermediate knowledge of English is required because you will on a regular basis interact in "
+    "English with external parties. Note for Quebec candidates: if knowledge of English is required for this position, it is because the team "
+    "member will be asked, on a regular basis, to interact in English with external or internal parties."
+)
+
 FIXTURES = [
     {"label": "SysAid Implementation Specialist (English/Spanish), Toronto", "list": CANADA, "expect": {"min": 8},
      "job": _job("Implementation Specialist (English/Spanish)", "SysAid", "Toronto, Ontario, Canada",
@@ -43,6 +57,8 @@ FIXTURES = [
      "job": _job("Product Manager", "Cumplo", "Santiago, Chile",
                  "Buscamos Product Manager para nuestra plataforma de financiamiento. Requisitos: mínimo 4 años de experiencia como Product Manager "
                  "en la industria financiera o fintech (crédito, factoring o pagos). Trabajo presencial en Santiago centro. Renta a convenir.", "4 días")},
+    {"label": "TELUS Bilingual Systems Quality Analyst (texto real: exige francés e inglés; descartada)", "list": REMOTE, "expect": {"discard": True},
+     "job": _job("Bilingual Systems Quality Analyst I (100% Remote)", "TELUS", "Canada", _TELUS_TEXT, "6 days ago")},
     {"label": "DatoviaPlayhouse grabación de voz en español, USD 20 (descartada)", "list": REMOTE, "expect": {"discard": True},
      "job": _job("Spanish voice recording contributor (remote)", "DatoviaPlayhouse", "Remote",
                  "Record your voice in Spanish for an AI dataset. Paid USD 20 per recording session. Work from home, flexible hours. "

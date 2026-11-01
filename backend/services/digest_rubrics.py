@@ -195,6 +195,10 @@ def looks_french(title: str, text: str = "") -> bool:
     return False
 
 
+_FRENCH_REQUIRED = re.compile(
+    r"(english\s*(and|&|/)\s*french|french\s*(and|&|/)\s*english|french\s+(is\s+)?(required|mandatory|essential)|"
+    r"fluent\s+in\s+french|(bilingual|bilingue)\s*\(?\s*(english|french|anglais|fran[cç]ais)[\s/&-]+(french|english|fran[cç]ais|anglais))", re.I)
+
 _TOO_SENIOR = re.compile(r"\b(director|head of|head,|vp|vice[- ]president|principal)\b", re.I)
 _NOT_TECH = re.compile(
     r"(voice (record|actor|over)|grabaci[oó]n de voz|data label|labell?ing|annotation|annotator|survey|encuesta|"
@@ -370,7 +374,11 @@ def prefilter_remote(job: dict) -> str | None:
     days = job.get("days_posted")
     if days is not None and days > s.digest_max_age_days:
         return "mas_de_21_dias"
+    if _TOO_SENIOR.search(job.get("title", "")):
+        return "titulo_demasiado_senior"
     blob = f"{job.get('title', '')} {job.get('snippet', '')}"
+    if _FRENCH_REQUIRED.search(blob):
+        return "frances_requerido"
     if _NOT_TECH.search(blob):
         return "no_es_rol_tecnologico"
     if _SCAM.search(blob):
@@ -404,6 +412,8 @@ def postfilter_remote(job: dict, f: dict) -> str | None:
         return "no_es_100_remoto"
     if _s(f.get("eligibility")) == "restricted" or (_s(f.get("eligibility")) == "explicit" and not _eligible_countries(f)):
         return "exige_residencia_no_elegible"
+    if _b(f.get("french_required")) or _s(f.get("posting_language")) in ("fr", "french", "francés"):
+        return "frances_requerido"
     if _b(f.get("not_tech_role")):
         return "no_es_rol_tecnologico"
     if _b(f.get("scam_signals")) or f.get("company_verifiable") is False or _s(f.get("company_verifiable")) == "false":
