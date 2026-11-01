@@ -244,6 +244,8 @@ def prefilter_canada(job: dict) -> str | None:
 def postfilter_canada(job: dict, f: dict) -> str | None:
     if not _b(f.get("is_job", True)):
         return "no_es_oferta"
+    if _i(f.get("fit"), 0, 4) < get_settings().digest_min_fit:
+        return "encaje_bajo"
     if _b(f.get("french_required")) or _s(f.get("posting_language")) in ("fr", "french", "francés"):
         return "frances_requerido"
     if not is_canadian_location(job.get("location", "")) and not _b(f.get("remote_canada")):
@@ -318,6 +320,8 @@ def postfilter_chile(job: dict, f: dict) -> str | None:
     s = get_settings()
     if not _b(f.get("is_job", True)):
         return "no_es_oferta"
+    if _i(f.get("fit_base"), 0, 4) < s.digest_min_fit:
+        return "encaje_bajo"
     loc = job.get("location", "")
     rm_fact = f.get("in_metropolitan_region")
     rm_known = in_metropolitan_region(loc) or _b(rm_fact) or "santiago" in (job.get("url") or "").lower()
@@ -386,12 +390,37 @@ def prefilter_remote(job: dict) -> str | None:
     return None
 
 
-def _remote_pay_monthly_usd(f: dict) -> float | None:
+_PERIOD_TO_MONTH = {"year": 1 / 12, "annual": 1 / 12, "month": 1.0, "week": 52 / 12, "day": 21.0, "hour": 160.0}
+
+
+def _usd_rate(currency: str) -> float | None:
+    s = get_settings()
+    return {"usd": 1.0, "cad": s.cad_usd_rate, "eur": s.eur_usd_rate, "gbp": s.gbp_usd_rate,
+            "clp": 1.0 / s.usd_clp_rate}.get((currency or "").lower())
+
+
+def _num(x: Any) -> float | None:
     try:
-        v = float(f.get("pay_usd_monthly"))
+        v = float(x)
     except (TypeError, ValueError):
         return None
     return v if v > 0 else None
+
+
+def _remote_pay_monthly_usd(f: dict) -> float | None:
+    """
+    Monthly USD pay computed by code from what the posting states: pay_min / pay_max (as written), pay_currency, pay_period.
+    A range is valued at its midpoint. Falls back to a model-supplied pay_usd_monthly only when no raw amount is present.
+    """
+    lo, hi = _num(f.get("pay_min")), _num(f.get("pay_max"))
+    amount = (lo + hi) / 2 if lo and hi else (lo or hi)
+    if amount:
+        rate = _usd_rate(_s(f.get("pay_currency")))
+        factor = _PERIOD_TO_MONTH.get(_s(f.get("pay_period")))
+        if rate and factor:
+            return round(amount * rate * factor, 2)
+        return None                       # unknown currency or period: treated as unpublished, never guessed
+    return _num(f.get("pay_usd_monthly"))
 
 
 _COUNTRY_LABEL = {"canada": "Canadá", "chile": "Chile"}
@@ -408,6 +437,8 @@ def postfilter_remote(job: dict, f: dict) -> str | None:
     s = get_settings()
     if not _b(f.get("is_job", True)):
         return "no_es_oferta"
+    if _i(f.get("fit"), 0, 4) < s.digest_min_fit:
+        return "encaje_bajo"
     if _modality(f) in ("hybrid", "onsite"):
         return "no_es_100_remoto"
     if _s(f.get("eligibility")) == "restricted" or (_s(f.get("eligibility")) == "explicit" and not _eligible_countries(f)):
