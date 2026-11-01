@@ -74,6 +74,35 @@ def _already_sent_urls(db: Session) -> set[str]:
     return {r.job_url for r in db.query(DigestSent.job_url).all()}
 
 
+_COMPANY_NOISE = re.compile(r"\b(spa|s a|sa|ltda|inc|llc|ltd|corp|group|grupo|chile|latam|latin america)\b")
+
+
+def _flat(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", normalize(text))
+
+
+def _company_key(name: str) -> str:
+    return _flat(_COMPANY_NOISE.sub(" ", normalize(name or "")))
+
+
+def _sent_pairs(db: Session) -> list[tuple[str, str]]:
+    """(company key, title key) of every offer already emailed, for cross-portal duplicate detection."""
+    return [(_company_key(r.company or ""), _flat(r.title or "")) for r in db.query(DigestSent.company, DigestSent.title).all()]
+
+
+def _is_duplicate(job: dict, sent: list[tuple[str, str]]) -> bool:
+    """Same role at the same company already emailed through another portal (URLs differ, titles/companies match)."""
+    from difflib import SequenceMatcher
+    company, title = _company_key(job.get("company") or ""), _flat(job.get("title") or "")
+    if not company or not title:          # unknown company (portal listings): never guess
+        return False
+    for s_company, s_title in sent:
+        if s_company and SequenceMatcher(None, company, s_company).ratio() >= 0.8 \
+                and SequenceMatcher(None, title, s_title).ratio() >= 0.9:
+            return True
+    return False
+
+
 def _record_sent(db: Session, jobs: list[dict]) -> None:
     for j in jobs:
         url = j.get("url", "")
@@ -150,6 +179,7 @@ async def run_digest(
     s = get_settings()
     applied = _load_applied()
     sent_urls = _already_sent_urls(db)
+    sent_pairs = _sent_pairs(db)
 
     lists: dict[str, list[dict]] = {}
     stats: dict = {"limits": {"max_per_list": s.digest_max_per_list, "max_llm_jobs_per_list": s.digest_max_llm_jobs_per_list,
@@ -160,7 +190,7 @@ async def run_digest(
         t0 = time.monotonic()
         jobs, source_counts = await fetch_list_jobs(key)
         log.warning("digest %s: fetched %d jobs in %.0fs %s", key, len(jobs), time.monotonic() - t0, source_counts)
-        fresh = [j for j in jobs if j["url"] not in sent_urls and not _is_applied(j, applied)]
+        fresh = [j for j in jobs if j["url"] not in sent_urls and not _is_applied(j, applied) and not _is_duplicate(j, sent_pairs)]
         items, list_stats, _ = await process_list(key, fresh, llm_provider, llm_model)
         list_stats["sources"] = source_counts
         list_stats["excluded_applied_or_sent"] = len(jobs) - len(fresh)
