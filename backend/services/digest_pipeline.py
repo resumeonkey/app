@@ -32,7 +32,9 @@ PROFILE = """CANDIDATE PROFILE (applies to every list)
 _COMMON = """You extract FACTS about job postings. Base every fact ONLY on the text provided; when the text does not say, use the neutral default.
 Never infer a language requirement from the company name or country. Return ONLY JSON: {"results":[{"i":0, ...}, ...]} with one object per job, in order.
 Common keys: "i" (int), "is_job" (bool; false if the text is not a real single job posting), "modality" ("remote"|"hybrid"|"onsite"|"unknown"),
-"city_country" (string), "salary_text" (string or null; copy the published salary as written)."""
+"city_country" (string), "salary_text" (string or null; copy the published salary as written).
+IMPORTANT for every fit score: the candidate works in SOFTWARE / IT systems. Quality, QA or "calidad" roles in manufacturing, food processing, meat/fish plants, mining, construction,
+laboratories, healthcare, retail stores, or ISO/inspection/food-safety quality control are NOT software QA: give them fit 0. Sales, recruiting, accounting and field-technician roles are also fit 0."""
 
 _SCHEMAS = {
     CANADA: """LIST: CANADA. Priority titles, best first: Implementation Specialist/Analyst/Consultant, Onboarding Specialist, Solutions Consultant (junior to mid);

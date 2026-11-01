@@ -202,7 +202,7 @@ _FRENCH_REQUIRED = re.compile(
 # Titles that are the candidate's target roles: the model's fit score can never fall below this floor for them,
 # so one bad extraction cannot drop an obviously relevant offer. The model can still score above it.
 _TARGET_ROLE_TITLE = re.compile(
-    r"(product owner|product manager|\bqa\b|quality (assurance|analyst|engineer)|\btester\b|\buat\b|calidad|"
+    r"(product owner|product manager|\bqa\b|\btester\b|\buat\b|"
     r"implementation|implementaci[oó]n|onboarding|solutions? (consultant|engineer|analyst)|functional analyst|"
     r"analista funcional|business analyst|analista de negocio|systems analyst|analista de sistemas)", re.I)
 TARGET_ROLE_FIT_FLOOR = 3
