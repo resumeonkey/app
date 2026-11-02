@@ -68,6 +68,11 @@ FIXTURES = [
      "job": _job("Bilingual Systems Quality Analyst I (100% Remote)", "TELUS", "Canada", _TELUS_TEXT, "6 days ago")},
     {"label": "BNamericas Account Executive (texto real: ventas puras, remoto USD 4000-5000; debe descartarse por encaje bajo)", "list": CHILE, "expect": {"discard": True},
      "job": _job("Ejecutivo/a de Cuentas / Account Executive – SaaS Solutions", "BNamericas", "Remote", _BNAMERICAS_TEXT, "4 días")},
+    {"label": "Jobbol Consultor Funcional Dynamics 365, Belo Horizonte Brasil en la lista remota (descartada; texto reconstruido, ubicación y empresa reales)", "list": REMOTE, "expect": {"discard": True},
+     "job": {**_job("Consultor Funcional Dynamics 365", "Jobbol", "Belo Horizonte, Brazil",
+                    "Buscamos un consultor funcional con experiencia en Dynamics 365 para proyectos de implementación con clientes. "
+                    "Levantamiento de requisitos, configuración y pruebas funcionales. Trabajo remoto.", "3 días"),
+             "url": "https://br.linkedin.com/jobs/view/consultor-funcional-dynamics-365-at-jobbol-4484976939"}},
     {"label": "DatoviaPlayhouse grabación de voz en español, USD 20 (descartada)", "list": REMOTE, "expect": {"discard": True},
      "job": _job("Spanish voice recording contributor (remote)", "DatoviaPlayhouse", "Remote",
                  "Record your voice in Spanish for an AI dataset. Paid USD 20 per recording session. Work from home, flexible hours. "

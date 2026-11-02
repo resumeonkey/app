@@ -451,10 +451,34 @@ def _eligible_countries(f: dict) -> list[str]:
     return [c for c in dict.fromkeys(_s(x) for x in raw) if c in _COUNTRY_LABEL]
 
 
+# A "remote" posting located in one specific country usually requires living there. It is kept only when the posting text
+# itself says it accepts Chile / Canada / Latin America / anywhere.
+_OTHER_COUNTRY = re.compile(
+    r"\b(colombia|argentina|brazil|brasil|mexico|peru|uruguay|ecuador|bolivia|paraguay|venezuela|costa rica|panama|guatemala|"
+    r"dominican|el salvador|honduras|nicaragua|cuba|puerto rico|united states|usa|u\.s\.|united kingdom|uk|ireland|spain|portugal|"
+    r"germany|france|italy|netherlands|poland|romania|india|philippines|pakistan|nigeria|kenya|south africa|australia|new zealand|"
+    r"singapore|japan|china|turkey|ukraine)\b", re.I)
+_LINKEDIN_COUNTRY_HOST = re.compile(r"^https?://([a-z]{2})\.linkedin\.com", re.I)
+_ACCEPTS_US = re.compile(r"(latam|latin america|latinoam|am[eé]ricas|chile|canad|worldwide|anywhere|global|north america|south america|sudam)", re.I)
+
+
+def located_in_other_country(job: dict) -> bool:
+    """True when the offer sits in a single country that is neither Canada nor Chile and the posting never says it accepts them."""
+    location = normalize(job.get("location", ""))
+    host = _LINKEDIN_COUNTRY_HOST.match(job.get("url", "") or "")
+    foreign_host = bool(host) and host.group(1).lower() not in ("ca", "cl", "www")
+    foreign_loc = bool(_OTHER_COUNTRY.search(location)) and not re.search(r"canad|chile|latam|latin america|worldwide|anywhere|remote", location)
+    if not (foreign_host or foreign_loc):
+        return False
+    return not _ACCEPTS_US.search(f"{job.get('title', '')} {job.get('snippet', '')}")
+
+
 def postfilter_remote(job: dict, f: dict) -> str | None:
     s = get_settings()
     if not _b(f.get("is_job", True)):
         return "no_es_oferta"
+    if located_in_other_country(job):
+        return "ubicada_en_otro_pais"
     if _i(f.get("fit"), 0, 4) < s.digest_min_fit:
         return "encaje_bajo"
     if _modality(f) in ("hybrid", "onsite"):
