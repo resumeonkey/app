@@ -293,7 +293,10 @@ def apply_fit_cap(job: dict, f: dict) -> None:
     """Cap Ajuste at 2/4 (modifies the facts in place and records why in f['_fit_cap'])."""
     title = job.get("title", "")
     reason = None
-    if _FOREIGN_PLATFORM.search(title) or _b(f.get("central_platform_missing")):
+    text = f"{title} {job.get('snippet') or ''}"
+    # The model's flag is only trusted when the posting itself names such a platform at least twice
+    # (a single mention is usually a competitor/integration, e.g. SysAid vs ServiceNow).
+    if _FOREIGN_PLATFORM.search(title) or (_b(f.get("central_platform_missing")) and len(_FOREIGN_PLATFORM.findall(text)) >= 2):
         reason = "plataforma central que no manejas"
     elif _PM_TITLE.search(title) and _PM_GROWTH.search(title):
         reason = "Product Manager de growth/marketing"
