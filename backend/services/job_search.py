@@ -22,13 +22,19 @@ from backend.config import get_settings
 from backend.services.llm_client import call_llm
 
 
+# Once the configured key is rejected (402 no balance / 401 / 403) we stop sending it for the
+# rest of the process: re-sending a dead key wastes a round-trip on every single read and doubles
+# the request count against the keyless reader. Reset on redeploy (fresh process picks the key up again).
+_jina_key_disabled = False
+
+
 def _jina_headers(extra: dict | None = None) -> dict:
     """Standard Jina Reader headers + optional Bearer auth (raises rate limits)."""
     h = {"X-Return-Format": "markdown", "X-Timeout": "20"}
     if extra:
         h.update(extra)
     key = get_settings().jina_api_key
-    if key:
+    if key and not _jina_key_disabled:
         h["Authorization"] = f"Bearer {key}"
     return h
 
@@ -50,7 +56,10 @@ async def _jina_get(target_url: str, extra_headers: dict | None = None, retries:
             # The free no-key reader works fine, so drop the auth header and retry
             # immediately — a bad key must never break scraping.
             if resp.status_code in (401, 402, 403) and "Authorization" in headers:
-                log.warning("jina: key rejected (%s) — falling back to keyless", resp.status_code)
+                global _jina_key_disabled
+                if not _jina_key_disabled:
+                    log.warning("jina: key rejected (%s) — disabling it for this process, falling back to keyless", resp.status_code)
+                _jina_key_disabled = True
                 headers = {k: v for k, v in headers.items() if k != "Authorization"}
                 continue
             if resp.status_code in (429, 500, 502, 503, 504):

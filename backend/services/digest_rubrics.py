@@ -231,12 +231,19 @@ _AGENCY = re.compile(
 _CONSULTANCY = re.compile(
     r"(deloitte|accenture|amaris|pwc|pricewaterhouse|kpmg|ernst|\bey\b|\bibm\b|capgemini|bairesdev|globant|stefanini|\btcs\b|tata consultancy|"
     r"\bhcl|infosys|wipro|cognizant|softserve|endava|epam|thoughtworks|sii group|technology solutions|everis|ntt data|indra|sonda|tcit|"
-    r"bc tecnolog|witi|consulting|consultor[ií]a|consultora|outsourcing|mantu|quadbridge|ateko|agilistik)", re.I)
+    r"consulting|consultor[ií]a|consultora|outsourcing|mantu|quadbridge|ateko|agilistik)", re.I)
+# Recruiting / staffing agencies known by name. This fixed list wins over the model and over
+# _CONSULTANCY, so a company here is always "agencia" however it is described elsewhere.
+_KNOWN_AGENCY = re.compile(
+    r"(\bwiti\b|bc tecnolog|astra[ -]?north|q2\b|it ?talent|kibernum|coders|get ?manfred|ti ?zone|"
+    r"nisum staffing|modern talent|pacifico talent)", re.I)
 
 
 def employer_kind(company: str, llm_kind: Any = None, llm_flag: Any = False) -> str | None:
     """'agencia' only for recruiting/staffing firms; 'consultora' for IT/business consultancies and outsourcing; else None."""
     name = company or ""
+    if _KNOWN_AGENCY.search(name):
+        return "agencia"
     if _AGENCY.search(name) and not _CONSULTANCY.search(name):
         return "agencia"
     if _CONSULTANCY.search(name):
@@ -285,6 +292,9 @@ _FOREIGN_PLATFORM = re.compile(
     r"(oracle|netsuite|net suite|\bSAP\b|workday|servicenow|keela|raisely|peoplesoft|successfactors|guidewire|veeva|kronos|\bUKG\b|coupa|\bariba\b)", re.I)
 _PM_TITLE = re.compile(r"(product manager|gerente de producto|jefe de producto)", re.I)
 _PM_GROWTH = re.compile(r"(growth|marketing)", re.I)
+# QA automation is outside the profile (functional / UAT tester, not SDET). Cap it.
+_AUTOMATION_TITLE = re.compile(r"(automatizador|automation|\bsdet\b|test automation|qa automation)", re.I)
+_AUTOMATION_TOOL = re.compile(r"(selenium|cypress|appium|playwright|\btosca\b|katalon|robot framework|webdriver|karate\b)", re.I)
 FIT_CAP = 2
 FIT_CAP_TOTAL = 5  # a role you do not fit cannot be recommended on location/English alone
 
@@ -298,6 +308,8 @@ def apply_fit_cap(job: dict, f: dict) -> None:
     # (a single mention is usually a competitor/integration, e.g. SysAid vs ServiceNow).
     if _FOREIGN_PLATFORM.search(title) or (_b(f.get("central_platform_missing")) and len(_FOREIGN_PLATFORM.findall(text)) >= 2):
         reason = "plataforma central que no manejas"
+    elif _AUTOMATION_TITLE.search(title) or _AUTOMATION_TOOL.search(text):
+        reason = "automatización (tu perfil es QA funcional/UAT)"
     elif _PM_TITLE.search(title) and _PM_GROWTH.search(title):
         reason = "Product Manager de growth/marketing"
     else:

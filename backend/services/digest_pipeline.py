@@ -325,10 +325,12 @@ async def fetch_posting_text(url: str) -> str:
     from backend.services.job_search import _jina_get
     from backend.services.digest_sources import JINA_SEM
     candidates = [c for c in (_linkedin_guest_url(url), url) if c]
-    for c in candidates:
+    for idx, c in enumerate(candidates):
+        if idx:
+            await asyncio.sleep(1.0)   # brief gap before trying the second URL for the same posting
         async with JINA_SEM:
             try:
-                md = await _jina_get(c, retries=1)
+                md = await _jina_get(c, retries=2)
             except Exception:
                 continue
         text = clean_markdown(md)
@@ -360,17 +362,29 @@ async def fetch_posting(url: str, title: str = "", company: str = "") -> dict:
     return out
 
 
-async def _enrich(jobs: list[dict], limit: int = 45) -> int:
-    """Fetch full text for postings that came without a description (mostly LinkedIn). Blocked pages are ignored."""
+_ENRICH_LIMIT = 30          # read text only for the best ~30 candidates per list after the title prefilter
+_ENRICH_STAGGER = 1.2       # seconds between request starts: the keyless Jina reader throttles bursts hard
+
+
+async def _enrich(jobs: list[dict], limit: int = _ENRICH_LIMIT) -> tuple[int, int]:
+    """
+    Fetch full text for postings that came without a description (mostly LinkedIn).
+    Requests are staggered so the free reader does not rate-limit the burst. Blocked pages are ignored.
+    Returns (attempted, got_text).
+    """
     todo = [j for j in jobs if len(j.get("snippet") or "") < 250][:limit]
+    got = 0
 
-    async def one(j: dict) -> None:
-        got = await fetch_posting(j["url"], j.get("title", ""), j.get("company", ""))
-        if got["description"]:
-            j["snippet"] = got["description"]
+    async def one(i: int, j: dict) -> None:
+        nonlocal got
+        await asyncio.sleep(i * _ENRICH_STAGGER)   # spread the starts instead of one hammering burst
+        res = await fetch_posting(j["url"], j.get("title", ""), j.get("company", ""))
+        if res["description"]:
+            j["snippet"] = res["description"]
+            got += 1
 
-    await asyncio.gather(*(one(j) for j in todo))
-    return len(todo)
+    await asyncio.gather(*(one(i, j) for i, j in enumerate(todo)))
+    return len(todo), got
 
 
 async def complete_descriptions(items: list[dict], min_chars: int = 900, refresh: bool = False) -> int:
@@ -455,7 +469,7 @@ async def process_list(list_key: str, jobs: list[dict], provider: str, model: st
             outcomes[j["url"]] = ("discard", "fuera_del_tope_de_candidatos", None)
         cands = cands[:s.digest_max_llm_jobs_per_list]
     if enrich:
-        stats["enriched"] = await _enrich(cands)
+        stats["enriched"], stats["enriched_got_text"] = await _enrich(cands)
         cands = pre(cands)
     stats["sent_to_llm"] = len(cands)
     t1 = time.monotonic()
@@ -475,7 +489,13 @@ async def process_list(list_key: str, jobs: list[dict], provider: str, model: st
             drops[reason] += 1
             outcomes[job["url"]] = ("discard", reason, f)
             continue
-        item = build_item(list_key, job, f, SCORERS[list_key](job, f))
+        scored = SCORERS[list_key](job, f)
+        # Remote list is only worth the candidate's time at a real fit: drop Ajuste below 3/4.
+        if list_key == REMOTE and (scored.get("components") or {}).get("ajuste", 0) < 3:
+            drops["encaje_bajo_remoto"] += 1
+            outcomes[job["url"]] = ("discard", "encaje_bajo_remoto", f)
+            continue
+        item = build_item(list_key, job, f, scored)
         outcomes[job["url"]] = ("score", item, f)
         scored_items.append(item)
     scored_items.sort(key=lambda x: x["score"], reverse=True)
