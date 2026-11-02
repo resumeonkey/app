@@ -35,7 +35,7 @@ Never skip, merge or drop a job: an irrelevant, duplicated or non-job posting st
 Common keys: "i" (int), "is_job" (bool; false if the text is not a real single job posting), "modality" ("remote"|"hybrid"|"onsite"|"unknown"),
 "city_country" (string), "salary_text" (string or null; copy the published salary as written).
 Extra keys for EVERY list: "central_platform_missing" (bool; true ONLY if the title or the required-experience section makes a specific enterprise platform the core of the job and that platform is NOT one of the candidate's own:
-Salesforce, Dynamics 365, Nokia BSCS, SmartBackOffice, Jira. Examples of platforms the candidate lacks: Oracle, NetSuite, SAP, Workday, ServiceNow, Keela. A platform that appears only as one example among alternatives is false),
+Salesforce, Dynamics 365, Nokia BSCS, SmartBackOffice, Jira. Examples of platforms the candidate lacks: Oracle, NetSuite, SAP, Workday, ServiceNow, Keela. A platform that appears only as one example among alternatives is false. ALSO false when the platform is the employer's OWN product (e.g. an implementation role at the company that sells that software) or when the posting does not require prior hands-on experience with it, since it is taught on the job),
 "min_years_required" (int or null; the minimum years of experience the posting asks for), "employer_kind" ("agency"|"consultancy"|"direct"|"unknown"; agency = recruiting / staffing / headhunting firm; consultancy = IT or business consulting or outsourcing firm that places its own staff at clients;
 direct = the end employer).
 IMPORTANT for every fit score: the candidate works in SOFTWARE / IT systems. Quality, QA or "calidad" roles in manufacturing, food processing, meat/fish plants, mining, construction,

@@ -286,6 +286,7 @@ _FOREIGN_PLATFORM = re.compile(
 _PM_TITLE = re.compile(r"(product manager|gerente de producto|jefe de producto)", re.I)
 _PM_GROWTH = re.compile(r"(growth|marketing)", re.I)
 FIT_CAP = 2
+FIT_CAP_TOTAL = 5  # a role you do not fit cannot be recommended on location/English alone
 
 
 def apply_fit_cap(job: dict, f: dict) -> None:
@@ -382,6 +383,9 @@ def score_canada(job: dict, f: dict) -> dict:
     cap_note = f" (tope: {f['_fit_cap']})" if f.get("_fit_cap") else ""
     parts = [f"Ajuste {fit}/4{cap_note}", f"Dif {diff}/2 ({diff_note})", f"Visa {visa}/2 ({visa_note})", f"Prac {prac}/2 ({prac_note})"] + pen_notes
     total, verified = cap_without_text(job, total, parts)
+    if f.get("_fit_cap") and total > FIT_CAP_TOTAL:
+        total = FIT_CAP_TOTAL
+        parts.append(f"tope total {FIT_CAP_TOTAL}/10 por encaje")
     return {"score": total, "components": {"ajuste": fit, "diferenciador": diff, "visa": visa, "practicidad": prac, "penalizacion": pen},
             "reason": " | ".join(parts), "text_verified": verified}
 
@@ -472,6 +476,9 @@ def score_chile(job: dict, f: dict) -> dict:
     fit_note = f.get("_fit_cap") and f"tope: {f['_fit_cap']}" or ("exige experiencia que no tienes" if unmet else ("dominio extra" if bonus else ""))
     parts = [f"Ajuste {fit}/4" + (f" ({fit_note})" if fit_note else ""), f"Inglés {eng}/2 ({eng_note})", f"Sueldo {sal}/2 ({sal_note})", f"Modalidad {mp}/2 ({mn})"]
     total, verified = cap_without_text(job, total, parts)
+    if f.get("_fit_cap") and total > FIT_CAP_TOTAL:
+        total = FIT_CAP_TOTAL
+        parts.append(f"tope total {FIT_CAP_TOTAL}/10 por encaje")
     kind = employer_kind(job.get("company", ""), f.get("employer_kind"), f.get("agency"))
     return {"score": total, "components": {"ajuste": fit, "ingles": eng, "sueldo": sal, "modalidad": mp},
             "reason": " | ".join(parts), "agency": kind == "agencia", "employer_kind": kind, "text_verified": verified}
@@ -610,6 +617,9 @@ def score_remote(job: dict, f: dict) -> dict:
     cap_note = f" (tope: {f['_fit_cap']})" if f.get("_fit_cap") else ""
     parts = [f"Ajuste {fit}/4{cap_note}", f"Elegibilidad {elig}/2 ({elig_note})", f"Pago {pp}/2 ({pn})", f"Dif {diff}/2 ({diff_note})"]
     total, verified = cap_without_text(job, total, parts)
+    if f.get("_fit_cap") and total > FIT_CAP_TOTAL:
+        total = FIT_CAP_TOTAL
+        parts.append(f"tope total {FIT_CAP_TOTAL}/10 por encaje")
     countries = [_COUNTRY_LABEL[c] for c in _eligible_countries(f)]
     applies_to = countries if countries else ["Canadá o Chile (por confirmar)"]
     return {"score": total, "components": {"ajuste": fit, "elegibilidad": elig, "pago": pp, "diferenciador": diff},
