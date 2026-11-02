@@ -101,7 +101,7 @@ def _job_card(job: dict) -> str:
 
 def _section(key: str, jobs: list[dict]) -> str:
     body = "\n".join(_job_card(j) for j in jobs) if jobs else \
-        '<p class="intro">Sin ofertas hoy que pasen los filtros.</p>'
+        '<p class="intro">Sin ofertas que calcen hoy.</p>'
     return f'<h2 style="font-size:17px;margin:22px 0 8px">{_LIST_TITLES.get(key, key)} ({len(jobs)})</h2>\n{body}'
 
 
