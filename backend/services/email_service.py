@@ -70,8 +70,12 @@ def _job_card(job: dict) -> str:
     if job.get("salary"):
         meta.append("💰 " + e(job["salary"]))
     tags = []
-    if job.get("agency"):
+    if job.get("agency") or job.get("employer_kind") == "agencia":
         tags.append("🏢 Agencia de reclutamiento")
+    elif job.get("employer_kind") == "consultora":
+        tags.append("🏛️ Consultora")
+    if job.get("text_verified") is False:
+        tags.append("⚠ Sin texto verificado")
     if job.get("employment_type") and job["employment_type"] != "unknown":
         tags.append({"employee_eor": "Empleado (EOR)", "employee": "Empleado", "contractor": "Contractor"}.get(job["employment_type"], ""))
     if job.get("timezone"):

@@ -21,9 +21,9 @@ from sqlalchemy.orm import Session
 from backend.config import get_settings
 from backend.database import get_db
 from backend.models.digest import DigestJob, DigestSent
-from backend.services.digest_fixtures import FIXTURES, check
+from backend.services.digest_fixtures import APPLIED_FIXTURES, FIXTURES, check
 from backend.services.digest_pipeline import complete_descriptions, fetch_posting, looks_blocked, extract_facts, process_list  # noqa: F401
-from backend.services.digest_rubrics import LIST_KEYS, normalize
+from backend.services.digest_rubrics import CANADA, LIST_KEYS, REMOTE, normalize
 from backend.services.digest_sources import fetch_list_jobs
 from backend.services.email_service import get_email_status, send_digest_email, send_test_email
 
@@ -42,30 +42,42 @@ def _require_digest_key(x_digest_key: str = Header(default="")):
         raise HTTPException(status_code=401, detail="Invalid digest key")
 
 
-def _load_applied() -> list[tuple[str, str]]:
-    """(company, title) pairs from applied.csv, normalised. A blank title excludes the whole company."""
+def _load_applied() -> list[tuple[list[str], str]]:
+    """([company aliases], title) from applied.csv, normalised. 'A / B' means the company is known as A and as B. Blank title = whole company."""
     path = _DATA_DIR / "applied.csv"
     if not path.exists():
         return []
-    rows: list[tuple[str, str]] = []
+    rows: list[tuple[list[str], str]] = []
     try:
         with open(path, newline="") as f:
             for row in csv.DictReader(f):
-                company = normalize(re.sub(r"\(.*?\)", "", row.get("company") or ""))
-                if company:
-                    rows.append((company, normalize(row.get("title") or "")))
+                raw = re.sub(r"\(.*?\)", "", row.get("company") or "")
+                aliases = [k for k in (_company_key(part) for part in raw.split("/")) if k]
+                if aliases:
+                    rows.append((aliases, _flat(row.get("title") or "")))
     except Exception as exc:
         log.warning("digest: could not read applied.csv: %s", exc)
     return rows
 
 
-def _is_applied(job: dict, applied: list[tuple[str, str]]) -> bool:
-    company, title = normalize(job.get("company") or ""), normalize(job.get("title") or "")
+def _same_company(a: str, b: str) -> bool:
+    from difflib import SequenceMatcher
+    if not a or not b:
+        return False
+    if a == b or (min(len(a), len(b)) >= 4 and (a in b or b in a)):
+        return True
+    return SequenceMatcher(None, a, b).ratio() >= 0.85
+
+
+def _is_applied(job: dict, applied: list[tuple[list[str], str]]) -> bool:
+    """Same company (any alias) and same role, compared on normalised text. The URL is never used: one offer appears on several portals."""
+    from difflib import SequenceMatcher
+    company, title = _company_key(job.get("company") or ""), _flat(job.get("title") or "")
     if not company:
         return False
-    for a_company, a_title in applied:
-        if a_company in company or company in a_company:
-            if not a_title or a_title in title or title in a_title:
+    for aliases, a_title in applied:
+        if any(_same_company(company, alias) for alias in aliases):
+            if not a_title or a_title in title or title in a_title or SequenceMatcher(None, title, a_title).ratio() >= 0.9:
                 return True
     return False
 
@@ -195,9 +207,27 @@ async def run_digest(
         list_stats["sources"] = source_counts
         list_stats["excluded_applied_or_sent"] = len(jobs) - len(fresh)
         list_stats["seconds"] = round(time.monotonic() - t0)
-        return key, len(jobs), items, list_stats
+        return key, len(jobs), items, list_stats, {j["url"]: j for j in fresh}
 
-    for key, n_jobs, items, list_stats in await asyncio.gather(*(one_list(k) for k in LIST_KEYS)):
+    results = await asyncio.gather(*(one_list(k) for k in LIST_KEYS))
+    by_key = {r[0]: r for r in results}
+
+    # Remote offers that only accept people living in Canada belong in the Canada list (scored with the Canada rubric).
+    remote_items = by_key[REMOTE][2]
+    canada_only = [i for i in remote_items if i.get("applies_to") == ["Canadá"] and i["url"] in by_key[REMOTE][4]]
+    moved: list[dict] = []
+    if canada_only:
+        moved, _, _ = await process_list(CANADA, [by_key[REMOTE][4][i["url"]] for i in canada_only], llm_provider, llm_model, enrich=False)
+        for m in moved:
+            m["moved_from_remote"] = True
+        have = {i["url"] for i in by_key[CANADA][2]}
+        by_key[CANADA][2][:] = sorted(by_key[CANADA][2] + [m for m in moved if m["url"] not in have], key=lambda x: x["score"], reverse=True)
+        gone = {i["url"] for i in canada_only}
+        remote_items[:] = [i for i in remote_items if i["url"] not in gone]
+        by_key[CANADA][3]["moved_from_remote"] = len(moved)
+        by_key[REMOTE][3]["moved_to_canada"] = len(canada_only)
+
+    for key, n_jobs, items, list_stats, _jobs in results:
         stats[key] = list_stats
         lists[key] = [i for i in items if i["score"] >= min_score][: s.digest_max_per_list]
         found += n_jobs
@@ -266,6 +296,11 @@ async def calibrate(llm_provider: str = "groq", llm_model: str = "openai/gpt-oss
             row.update(discarded_because=out[1])
         row["facts"] = out[2]
         rows.append(row)
+    applied = _load_applied()
+    for label, job in APPLIED_FIXTURES:
+        hit = _is_applied(job, applied)
+        rows.append({"label": label, "expected": {"excluded_applied": True}, "passed": hit, "outcome": "discard",
+                     "discarded_because": "ya_postulada" if hit else "NO_EXCLUIDA_(deberia_estar_en_applied.csv)", "facts": None})
     return {"all_passed": all(r["passed"] for r in rows), "results": rows}
 
 

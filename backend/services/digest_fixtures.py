@@ -61,7 +61,8 @@ FIXTURES = [
      "job": _job("Product Owner", "WiTi", "Las Condes, Santiago",
                  "Para importante cliente buscamos Product Owner para liderar el backlog de un producto digital en un equipo Scrum. "
                  "Modalidad híbrida en Las Condes. Levantamiento de requisitos, historias de usuario y priorización. Inglés deseable. "
-                 "Renta a convenir.", "5 días")},
+                 "Renta a convenir. Trabajarás junto al equipo de desarrollo y QA, participando en ceremonias de planificación, refinamiento y revisión, "
+                 "y coordinando con el cliente la validación de entregables.", "5 días")},
     {"label": "Cumplo Product Manager presencial, Santiago, exige industria financiera (4 a 6)", "list": CHILE, "expect": {"range": [4, 6]},
      "job": _job("Product Manager – Chile", "Cumplo", "Santiago, Chile", _CUMPLO_TEXT, "4 días")},
     {"label": "TELUS Bilingual Systems Quality Analyst (texto real: exige francés e inglés; descartada)", "list": REMOTE, "expect": {"discard": True},
@@ -77,6 +78,21 @@ FIXTURES = [
      "job": _job("Spanish voice recording contributor (remote)", "DatoviaPlayhouse", "Remote",
                  "Record your voice in Spanish for an AI dataset. Paid USD 20 per recording session. Work from home, flexible hours. "
                  "Contact us on Telegram to start.", "2 days ago")},
+    {"label": "Oracle NetSuite Senior Functional Consultant, Chile (5 o menos; texto reconstruido)", "list": CHILE, "expect": {"max": 5},
+     "job": _job("Senior Functional Consultant – Oracle NetSuite", "Oracle", "Santiago, Chile",
+                 "Seleccionamos Consultor Funcional Senior con experiencia comprobable implementando Oracle NetSuite (módulos financieros, "
+                 "facturación y contabilidad). Se requieren 6+ años en implementaciones ERP, certificación NetSuite y conocimiento de procesos "
+                 "contables. Modalidad híbrida en Santiago. Inglés avanzado para trabajar con equipos regionales.", "3 días")},
+    {"label": "Amaris Product Owner Sr sin texto (6 o menos)", "list": CHILE, "expect": {"max": 6},
+     "job": _job("Product Owner Sr", "Amaris Consulting", "Santiago, Chile", "Product Owner Sr at Amaris Consulting | Part of Mantu", "2 días")},
+]
+
+# Offers already applied to: must be excluded by company + normalised title (never by URL).
+APPLIED_FIXTURES = [
+    ("Harris / MediSolution Human Resources Implementation & Support Consultant (ya postulada, otro portal)",
+     _job("Human Resources Implementation & Support Consultant", "Harris Computer", "Canada", "x", "1 day ago")),
+    ("MediSolution HR Implementation & Support Consultant (misma oferta, otra empresa alias)",
+     _job("Human Resources Implementation and Support Consultant", "MediSolution", "Montreal, QC", "x", "1 day ago")),
 ]
 
 
