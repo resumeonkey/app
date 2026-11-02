@@ -69,12 +69,16 @@ def _job_card(job: dict) -> str:
             "fecha desconocida" if days is None else ("hoy" if days == 0 else f"hace {days} día{'s' if days != 1 else ''}")]
     if job.get("salary"):
         meta.append("💰 " + e(job["salary"]))
+    url = str(job.get("url") or "")
+    linkedin_only = "linkedin.com" in url and job.get("text_verified") is False
     tags = []
     if job.get("agency") or job.get("employer_kind") == "agencia":
         tags.append("🏢 Agencia de reclutamiento")
     elif job.get("employer_kind") == "consultora":
         tags.append("🏛️ Consultora")
-    if job.get("text_verified") is False:
+    if linkedin_only:
+        tags.append("🔗 Ábrela en LinkedIn para ver el detalle")
+    elif job.get("text_verified") is False:
         tags.append("⚠ Sin texto verificado")
     if job.get("employment_type") and job["employment_type"] != "unknown":
         tags.append({"employee_eor": "Empleado (EOR)", "employee": "Empleado", "contractor": "Contractor"}.get(job["employment_type"], ""))
@@ -95,7 +99,7 @@ def _job_card(job: dict) -> str:
   <p class="card-loc">📍 {" · ".join(m for m in meta if m)}</p>
   {tags_html}
   <p class="card-why">{e(job.get("reason"))}</p>
-  <a class="btn" href="{html.escape(str(job.get("url") or "#"), quote=True)}" target="_blank">Postular →</a>
+  <a class="btn" href="{html.escape(url or "#", quote=True)}" target="_blank">{"Abrir en LinkedIn →" if linkedin_only else "Postular →"}</a>
 </div>"""
 
 
@@ -105,12 +109,31 @@ def _section(key: str, jobs: list[dict]) -> str:
     return f'<h2 style="font-size:17px;margin:22px 0 8px">{_LIST_TITLES.get(key, key)} ({len(jobs)})</h2>\n{body}'
 
 
-def build_digest_html(lists: dict[str, list[dict]], unscored: int = 0) -> str:
+def _stats_block(list_stats: dict | None) -> str:
+    """One line per list: offers found, with verified text, without text — so the reader knows how much to trust it."""
+    if not list_stats:
+        return ""
+    rows = ""
+    for k in ("canada", "chile", "remote"):
+        st = list_stats.get(k) or {}
+        rows += (f'<tr><td style="padding:2px 10px 2px 0">{_LIST_TITLES.get(k, k)}</td>'
+                 f'<td style="padding:2px 10px;text-align:right">{st.get("found", 0)}</td>'
+                 f'<td style="padding:2px 10px;text-align:right;color:#15803d">{st.get("with_text", 0)}</td>'
+                 f'<td style="padding:2px 0 2px 10px;text-align:right;color:#b45309">{st.get("without_text", 0)}</td></tr>')
+    return (f'<h2 style="font-size:14px;margin:26px 0 6px;color:#6b7280">Transparencia del envío</h2>'
+            f'<table style="font-size:12px;color:#6b7280;border-collapse:collapse">'
+            f'<tr style="color:#9ca3af"><td></td><td style="padding:2px 10px;text-align:right">encontradas</td>'
+            f'<td style="padding:2px 10px;text-align:right">con texto</td>'
+            f'<td style="padding:2px 0 2px 10px;text-align:right">sin texto</td></tr>{rows}</table>')
+
+
+def build_digest_html(lists: dict[str, list[dict]], unscored: int = 0, list_stats: dict | None = None) -> str:
     today = date.today().strftime("%d %b %Y")
     count = sum(len(v) for v in lists.values())
     subject_line = f"{count} ofertas en 3 listas"
     sections = "\n".join(_section(k, lists.get(k, [])) for k in ("canada", "chile", "remote"))
     note = f'<p class="intro">⚠️ {unscored} oferta{"s" if unscored != 1 else ""} no pudo{"ieron" if unscored != 1 else ""} puntuarse hoy por fallos del servicio de IA.</p>' if unscored else ""
+    sections = sections + "\n" + _stats_block(list_stats)
     return f"""<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -163,7 +186,7 @@ async def _post_email(payload: dict) -> dict:
         return {"sent": False, "id": None, "error": str(exc)[:300]}
 
 
-async def send_digest_email(lists: dict[str, list[dict]], unscored: int = 0) -> dict:
+async def send_digest_email(lists: dict[str, list[dict]], unscored: int = 0, list_stats: dict | None = None) -> dict:
     """Send the digest via Resend. Returns {"sent", "id", "error"}."""
     settings = get_settings()
     c = {k: len(lists.get(k, [])) for k in ("canada", "chile", "remote")}
@@ -173,7 +196,7 @@ async def send_digest_email(lists: dict[str, list[dict]], unscored: int = 0) -> 
         "from": settings.digest_from_email,
         "to": [settings.digest_recipient_email],
         "subject": subject,
-        "html": build_digest_html(lists, unscored),
+        "html": build_digest_html(lists, unscored, list_stats),
     })
 
 

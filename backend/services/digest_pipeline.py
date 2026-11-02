@@ -342,6 +342,10 @@ async def fetch_posting_text(url: str) -> str:
 async def fetch_posting(url: str, title: str = "", company: str = "") -> dict:
     """{"description": clean text or "", "questions": list|None} using the best source for this URL."""
     out: dict = {"description": "", "questions": None}
+    if "linkedin.com" in (url or ""):
+        # LinkedIn hides the text behind a login/bot wall; reading it burns the Jina quota for nothing.
+        # We keep LinkedIn offers as link-only (capped at 6/10) instead of scraping them.
+        return out
     if "greenhouse.io" in (url or ""):
         desc, questions = await fetch_greenhouse(url)
         if desc:
@@ -372,7 +376,8 @@ async def _enrich(jobs: list[dict], limit: int = _ENRICH_LIMIT) -> tuple[int, in
     Requests are staggered so the free reader does not rate-limit the burst. Blocked pages are ignored.
     Returns (attempted, got_text).
     """
-    todo = [j for j in jobs if len(j.get("snippet") or "") < 250][:limit]
+    # Skip LinkedIn: its text is not readable without burning quota, so we never try (link-only, capped at 6).
+    todo = [j for j in jobs if len(j.get("snippet") or "") < 250 and "linkedin.com" not in (j.get("url") or "")][:limit]
     got = 0
 
     async def one(i: int, j: dict) -> None:
@@ -462,7 +467,11 @@ async def process_list(list_key: str, jobs: list[dict], provider: str, model: st
 
     t0 = time.monotonic()
     cands = pre(jobs)
-    cands.sort(key=lambda j: (-title_keyword_hits(j.get("title", "")), j.get("days_posted") if j.get("days_posted") is not None else 999))
+    # Prefer offers that already carry real text (API sources: Greenhouse/Lever/Ashby/Get on Board/Himalayas) over
+    # link-only LinkedIn ones, then by title relevance and recency. Text-bearing offers get the LLM budget and top slots.
+    cands.sort(key=lambda j: (0 if len(j.get("snippet") or "") >= 250 else 1,
+                              -title_keyword_hits(j.get("title", "")),
+                              j.get("days_posted") if j.get("days_posted") is not None else 999))
     if len(cands) > s.digest_max_llm_jobs_per_list:
         stats["capped_out"] = len(cands) - s.digest_max_llm_jobs_per_list
         for j in cands[s.digest_max_llm_jobs_per_list:]:
