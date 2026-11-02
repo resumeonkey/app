@@ -237,11 +237,16 @@ async def run_digest(
     stats["unscored_llm_failed_total"] = unscored
     emailed = [i for v in lists.values() for i in v]
     await complete_descriptions(emailed)
+    # Per-list transparency line for the email: found / with verified text / without.
+    email_stats = {k: {"found": stats.get(k, {}).get("fetched", 0),
+                       "with_text": sum(1 for i in lists.get(k, []) if i.get("text_verified")),
+                       "without_text": sum(1 for i in lists.get(k, []) if not i.get("text_verified"))}
+                   for k in ("canada", "chile", "remote")}
     if emailed and not dry_run:
         _save_jobs(db, emailed)
     email_sent, email_id, email_error, delivery = False, None, None, None
     if emailed and not dry_run:
-        result = await send_digest_email(lists, unscored)
+        result = await send_digest_email(lists, unscored, email_stats)
         email_sent, email_id, email_error = result["sent"], result["id"], result["error"]
         if email_sent:
             _record_sent(db, emailed)
