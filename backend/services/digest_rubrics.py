@@ -223,13 +223,92 @@ _NOT_TECH = re.compile(
     r"transcri|micro-?task|paid per task|per task|captcha|mystery shopper|clickworker)", re.I)
 _SCAM = re.compile(r"(telegram|whatsapp|western union|wire transfer|registration fee|processing fee|pay (a |the )?fee|"
                    r"bank (account|details)|send (us )?(your )?(bank|ssn|passport)|purchase (your )?(own )?equipment)", re.I)
+# Only recruiting / staffing firms are "agencia". IT consultancies and outsourcing firms are "consultora".
 _AGENCY = re.compile(
-    r"(witi|bc tecnolog|randstad|manpower|adecco|hays|michael page|robert half|page personnel|experis|kelly services|"
-    r"talent|reclutamiento|selecci[oó]n|headhunter|consultora de rrhh|staffing|recruit|people ?connect|gestión de talento)", re.I)
+    r"(randstad|manpower|adecco|hays|michael page|robert half|page personnel|experis|kelly services|"
+    r"talent|reclutamiento|selecci[oó]n|headhunter|consultora de rrhh|staffing|recruit|people ?connect|gesti[oó]n de talento|"
+    r"head ?hunting|cazatalentos|placement)", re.I)
+_CONSULTANCY = re.compile(
+    r"(deloitte|accenture|amaris|pwc|pricewaterhouse|kpmg|ernst|\bey\b|\bibm\b|capgemini|bairesdev|globant|stefanini|\btcs\b|tata consultancy|"
+    r"\bhcl|infosys|wipro|cognizant|softserve|endava|epam|thoughtworks|sii group|technology solutions|everis|ntt data|indra|sonda|tcit|"
+    r"bc tecnolog|witi|consulting|consultor[ií]a|consultora|outsourcing|mantu|quadbridge|ateko|agilistik)", re.I)
+
+
+def employer_kind(company: str, llm_kind: Any = None, llm_flag: Any = False) -> str | None:
+    """'agencia' only for recruiting/staffing firms; 'consultora' for IT/business consultancies and outsourcing; else None."""
+    name = company or ""
+    if _AGENCY.search(name) and not _CONSULTANCY.search(name):
+        return "agencia"
+    if _CONSULTANCY.search(name):
+        return "consultora"
+    kind = _s(llm_kind)
+    if kind in ("agency", "agencia"):
+        return "agencia"
+    if kind in ("consultancy", "consultora"):
+        return "consultora"
+    return "agencia" if _b(llm_flag) and not kind else None
 
 
 def is_agency(company: str, flag: Any = False) -> bool:
-    return _b(flag) or bool(_AGENCY.search(company or ""))
+    return employer_kind(company, None, flag) == "agencia"
+
+
+# ── text verification and the 6/10 cap ─────────────────────────────────────────
+
+_NO_TEXT_MARKERS = ("just a moment", "performing security verification", "captcha", "enable javascript", "access denied",
+                    "sign in to view", "join now to see", "authwall", "skip to main content", "verify you are human")
+MIN_VERIFIED_TEXT_CHARS = 300
+NO_TEXT_MAX_SCORE = 6
+
+
+def has_verified_text(job: dict) -> bool:
+    """True when we hold real posting text (not just a listing line, a login wall or a bot check)."""
+    text = re.sub(r"\s+", " ", job.get("snippet") or "").strip()
+    if len(text) < MIN_VERIFIED_TEXT_CHARS:
+        return False
+    return not any(m in text[:1500].lower() for m in _NO_TEXT_MARKERS)
+
+
+def cap_without_text(job: dict, total: int, parts: list[str]) -> tuple[int, bool]:
+    """Without verified text the score cannot exceed 6/10; the reason says so."""
+    ok = has_verified_text(job)
+    if not ok:
+        parts.append("⚠ sin texto verificado (máx. 6)")
+        total = min(total, NO_TEXT_MAX_SCORE)
+    return total, ok
+
+
+# ── stricter "Ajuste": platforms outside the profile, growth/marketing PM, 7+ years PM ──
+
+PROFILE_PLATFORMS = "Salesforce, Dynamics 365, Nokia BSCS, SmartBackOffice, Jira"
+_FOREIGN_PLATFORM = re.compile(
+    r"(oracle|netsuite|net suite|\bSAP\b|workday|servicenow|keela|raisely|peoplesoft|successfactors|guidewire|veeva|kronos|\bUKG\b|coupa|\bariba\b)", re.I)
+_PM_TITLE = re.compile(r"(product manager|gerente de producto|jefe de producto)", re.I)
+_PM_GROWTH = re.compile(r"(growth|marketing)", re.I)
+FIT_CAP = 2
+
+
+def apply_fit_cap(job: dict, f: dict) -> None:
+    """Cap Ajuste at 2/4 (modifies the facts in place and records why in f['_fit_cap'])."""
+    title = job.get("title", "")
+    reason = None
+    if _FOREIGN_PLATFORM.search(title) or _b(f.get("central_platform_missing")):
+        reason = "plataforma central que no manejas"
+    elif _PM_TITLE.search(title) and _PM_GROWTH.search(title):
+        reason = "Product Manager de growth/marketing"
+    else:
+        try:
+            years = int(f.get("min_years_required"))
+        except (TypeError, ValueError):
+            years = 0
+        if _PM_TITLE.search(title) and years >= 7:
+            reason = f"Product Manager con {years}+ años"
+    if not reason:
+        return
+    for key in ("fit", "fit_base"):
+        if key in f:
+            f[key] = min(_i(f.get(key), 0, 4), FIT_CAP)
+    f["_fit_cap"] = reason
 
 
 # ── facts the LLM must return, per list (documented for the prompt) ───────────
@@ -300,9 +379,11 @@ def score_canada(job: dict, f: dict) -> dict:
         pen -= 2
         pen_notes.append("Quebec −2")
     total = max(0, min(10, fit + diff + visa + prac + pen))
-    parts = [f"Ajuste {fit}/4", f"Dif {diff}/2 ({diff_note})", f"Visa {visa}/2 ({visa_note})", f"Prac {prac}/2 ({prac_note})"] + pen_notes
+    cap_note = f" (tope: {f['_fit_cap']})" if f.get("_fit_cap") else ""
+    parts = [f"Ajuste {fit}/4{cap_note}", f"Dif {diff}/2 ({diff_note})", f"Visa {visa}/2 ({visa_note})", f"Prac {prac}/2 ({prac_note})"] + pen_notes
+    total, verified = cap_without_text(job, total, parts)
     return {"score": total, "components": {"ajuste": fit, "diferenciador": diff, "visa": visa, "practicidad": prac, "penalizacion": pen},
-            "reason": " | ".join(parts)}
+            "reason": " | ".join(parts), "text_verified": verified}
 
 
 # ── CHILE ─────────────────────────────────────────────────────────────────────
@@ -352,6 +433,10 @@ def postfilter_chile(job: dict, f: dict) -> str | None:
     return None
 
 
+_ENGLISH_EXPLICIT = re.compile(
+    r"\b(english|ingl[eé]s|biling\w+|international\w*|internacional\w*|extranjer\w*|foreign clients|clientes (globales|regionales|del exterior))\b", re.I)
+
+
 def score_chile(job: dict, f: dict) -> dict:
     s = get_settings()
     base = _i(f.get("fit_base"), 0, 4)
@@ -360,7 +445,11 @@ def score_chile(job: dict, f: dict) -> dict:
     unmet = _b(f.get("requires_unmet_experience"))
     if unmet:
         fit = min(fit, 2)
-    eng = {"strong": 2, "mild": 1}.get(_s(f.get("english_signal")), 0)
+    verified = has_verified_text(job)
+    if verified and _ENGLISH_EXPLICIT.search(f"{job.get('title', '')} {job.get('snippet', '')}"):
+        eng, eng_note = 2, "el aviso lo menciona"
+    else:
+        eng, eng_note = 0, ("sin mención en el aviso" if verified else "sin texto")
     net = _chile_salary_net_clp(f)
     if net is None:
         sal, sal_note = 1, "no publicado"
@@ -380,10 +469,12 @@ def score_chile(job: dict, f: dict) -> dict:
     else:
         mp, mn = 1, "modalidad no indicada"
     total = max(0, min(10, fit + eng + sal + mp))
-    fit_note = "exige experiencia que no tienes" if unmet else ("dominio extra" if bonus else "")
-    parts = [f"Ajuste {fit}/4" + (f" ({fit_note})" if fit_note else ""), f"Inglés {eng}/2", f"Sueldo {sal}/2 ({sal_note})", f"Modalidad {mp}/2 ({mn})"]
+    fit_note = f.get("_fit_cap") and f"tope: {f['_fit_cap']}" or ("exige experiencia que no tienes" if unmet else ("dominio extra" if bonus else ""))
+    parts = [f"Ajuste {fit}/4" + (f" ({fit_note})" if fit_note else ""), f"Inglés {eng}/2 ({eng_note})", f"Sueldo {sal}/2 ({sal_note})", f"Modalidad {mp}/2 ({mn})"]
+    total, verified = cap_without_text(job, total, parts)
+    kind = employer_kind(job.get("company", ""), f.get("employer_kind"), f.get("agency"))
     return {"score": total, "components": {"ajuste": fit, "ingles": eng, "sueldo": sal, "modalidad": mp},
-            "reason": " | ".join(parts), "agency": is_agency(job.get("company", ""), f.get("agency"))}
+            "reason": " | ".join(parts), "agency": kind == "agencia", "employer_kind": kind, "text_verified": verified}
 
 
 # ── REMOTE INTERNATIONAL ──────────────────────────────────────────────────────
@@ -479,6 +570,8 @@ def postfilter_remote(job: dict, f: dict) -> str | None:
         return "no_es_oferta"
     if located_in_other_country(job):
         return "ubicada_en_otro_pais"
+    if _s(f.get("eligibility")) == "ambiguous" and not has_verified_text(job):
+        return "sin_texto_y_elegibilidad_ambigua"
     if _i(f.get("fit"), 0, 4) < s.digest_min_fit:
         return "encaje_bajo"
     if _modality(f) in ("hybrid", "onsite"):
@@ -514,11 +607,13 @@ def score_remote(job: dict, f: dict) -> dict:
     diff = 2 if langs == "en_es" else (1 if domain else 0)
     diff_note = "inglés y español requeridos" if langs == "en_es" else ("dominio afín" if domain else "sin diferenciador")
     total = max(0, min(10, fit + elig + pp + diff))
-    parts = [f"Ajuste {fit}/4", f"Elegibilidad {elig}/2 ({elig_note})", f"Pago {pp}/2 ({pn})", f"Dif {diff}/2 ({diff_note})"]
+    cap_note = f" (tope: {f['_fit_cap']})" if f.get("_fit_cap") else ""
+    parts = [f"Ajuste {fit}/4{cap_note}", f"Elegibilidad {elig}/2 ({elig_note})", f"Pago {pp}/2 ({pn})", f"Dif {diff}/2 ({diff_note})"]
+    total, verified = cap_without_text(job, total, parts)
     countries = [_COUNTRY_LABEL[c] for c in _eligible_countries(f)]
     applies_to = countries if countries else ["Canadá o Chile (por confirmar)"]
     return {"score": total, "components": {"ajuste": fit, "elegibilidad": elig, "pago": pp, "diferenciador": diff},
-            "reason": " | ".join(parts), "applies_to": applies_to}
+            "reason": " | ".join(parts), "applies_to": applies_to, "text_verified": verified}
 
 
 # ── dispatch ──────────────────────────────────────────────────────────────────

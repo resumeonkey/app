@@ -15,7 +15,7 @@ from collections import Counter
 from backend.config import get_settings
 from backend.services.digest_rubrics import (
     CANADA, CHILE, POSTFILTERS, PREFILTERS, REMOTE, SCORERS, _chile_salary_net_clp,
-    _remote_pay_monthly_usd, _s, apply_fit_floor, title_keyword_hits,
+    _remote_pay_monthly_usd, _s, apply_fit_cap, apply_fit_floor, title_keyword_hits,
 )
 from backend.services.llm_client import call_llm
 
@@ -34,6 +34,10 @@ Never infer a language requirement from the company name or country. Return ONLY
 Never skip, merge or drop a job: an irrelevant, duplicated or non-job posting still gets its own object (set "is_job" to false and use neutral defaults).
 Common keys: "i" (int), "is_job" (bool; false if the text is not a real single job posting), "modality" ("remote"|"hybrid"|"onsite"|"unknown"),
 "city_country" (string), "salary_text" (string or null; copy the published salary as written).
+Extra keys for EVERY list: "central_platform_missing" (bool; true ONLY if the title or the required-experience section makes a specific enterprise platform the core of the job and that platform is NOT one of the candidate's own:
+Salesforce, Dynamics 365, Nokia BSCS, SmartBackOffice, Jira. Examples of platforms the candidate lacks: Oracle, NetSuite, SAP, Workday, ServiceNow, Keela. A platform that appears only as one example among alternatives is false),
+"min_years_required" (int or null; the minimum years of experience the posting asks for), "employer_kind" ("agency"|"consultancy"|"direct"|"unknown"; agency = recruiting / staffing / headhunting firm; consultancy = IT or business consulting or outsourcing firm that places its own staff at clients;
+direct = the end employer).
 IMPORTANT for every fit score: the candidate works in SOFTWARE / IT systems. Quality, QA or "calidad" roles in manufacturing, food processing, meat/fish plants, mining, construction,
 laboratories, healthcare, retail stores, or ISO/inspection/food-safety quality control are NOT software QA: give them fit 0. Sales, recruiting, accounting and field-technician roles are also fit 0."""
 
@@ -356,7 +360,7 @@ async def fetch_posting(url: str, title: str = "", company: str = "") -> dict:
     return out
 
 
-async def _enrich(jobs: list[dict], limit: int = 25) -> int:
+async def _enrich(jobs: list[dict], limit: int = 45) -> int:
     """Fetch full text for postings that came without a description (mostly LinkedIn). Blocked pages are ignored."""
     todo = [j for j in jobs if len(j.get("snippet") or "") < 250][:limit]
 
@@ -413,8 +417,10 @@ def build_item(list_key: str, job: dict, f: dict, scored: dict) -> dict:
         "url": job.get("url"), "reason": scored["reason"], "components": scored["components"], "source": job.get("source"),
         "description": (job.get("snippet") or "")[:FULL_TEXT_LIMIT],
     }
+    item["text_verified"] = bool(scored.get("text_verified", True))
     if list_key == CHILE:
         item["agency"] = bool(scored.get("agency"))
+        item["employer_kind"] = scored.get("employer_kind")
     if list_key == REMOTE:
         item["applies_to"] = scored.get("applies_to")
         item["employment_type"] = _s(f.get("employment_type")) or "unknown"
@@ -463,6 +469,7 @@ async def process_list(list_key: str, jobs: list[dict], provider: str, model: st
             outcomes[job["url"]] = ("discard", "llm_sin_respuesta", None)
             continue
         apply_fit_floor(job, f)
+        apply_fit_cap(job, f)
         reason = POSTFILTERS[list_key](job, f)
         if reason:
             drops[reason] += 1
@@ -473,6 +480,7 @@ async def process_list(list_key: str, jobs: list[dict], provider: str, model: st
         scored_items.append(item)
     scored_items.sort(key=lambda x: x["score"], reverse=True)
     stats["scored"] = len(scored_items)
+    stats["without_verified_text"] = sum(1 for i in scored_items if not i.get("text_verified", True))
     stats["dropped"] = dict(drops)
     stats["unscored_llm_failed"] = drops.get("llm_sin_respuesta", 0)
     return scored_items, stats, outcomes
