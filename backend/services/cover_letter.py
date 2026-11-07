@@ -36,9 +36,15 @@ async def generate_cover_letter(resume_text: str, job_description: str,
         f"Open with the role, show 2-3 concrete matches between the resume and the job, "
         f"and close with a brief call to action. Sign as the candidate's name from the resume."
     )
-    try:
-        text = await call_llm(s.kit_llm_provider, s.kit_llm_model, _SYSTEM, user, temperature=0.4)
-        return (text or "").strip()
-    except Exception as exc:
-        log.warning("cover_letter: generation failed: %s", str(exc)[:200])
-        raise
+    # gpt-oss-20b occasionally returns an empty completion; retry a couple of times before giving up.
+    last = ""
+    for attempt in range(3):
+        try:
+            text = (await call_llm(s.kit_llm_provider, s.kit_llm_model, _SYSTEM, user, temperature=0.4) or "").strip()
+        except Exception as exc:
+            log.warning("cover_letter: attempt %d failed: %s", attempt + 1, str(exc)[:200])
+            text = ""
+        if len(text) >= 120:
+            return text
+        last = text
+    raise RuntimeError("La carta volvió vacía del modelo tras varios intentos.")
