@@ -1,0 +1,72 @@
+{
+  "_comment": "Banco de respuestas aprobado por Francisco Aleuy Young. El Kit de Postulación (Fase 1) reutiliza estas respuestas y NUNCA las inventa. Items con valor 'FALTA' los debe completar el usuario antes de usarse en un formulario.",
+  "updated_at": "2026-11-07",
+  "rules": [
+    "Nunca enviar un formulario sin aprobación explícita del usuario.",
+    "Nunca inventar años, certificaciones ni herramientas.",
+    "No listar certificaciones en curso.",
+    "Toda pregunta de autorización para trabajar o patrocinio se DEJA MARCADA para revisión manual del usuario en cada postulación; no se responde en automático.",
+    "Nunca poner autorización, NOC ni CPTPP en el CV.",
+    "Si falta base para responder una pregunta, escribir 'FALTA: responder tú', no adivinar.",
+    "El CV se basa en el Master canónico (QA/Product). El banco solo alimenta campos de formulario."
+  ],
+  "basics": {
+    "full_name": "Francisco Aleuy Young",
+    "location": "Vancouver, BC, Canada",
+    "phone": "+1 709 220 8100",
+    "email": "faleuy@gmail.com",
+    "linkedin": "linkedin.com/in/faleuy",
+    "portfolio": "franciscoaleuy.ca",
+    "current_employment": "Sin empleo actual (Watermark Beach Resort terminó en septiembre de 2026)."
+  },
+  "work_authorization": {
+    "canada": {
+      "status": "Permiso de trabajo cerrado vigente + solicitud de permiso de trabajo abierto en trámite.",
+      "always_manual_review": true,
+      "defaults_while_pending": {
+        "authorized_to_work_in_canada": "No (pendiente; confirmar caso a caso)",
+        "requires_sponsorship": "No",
+        "free_text": "Open work permit application in process; I will not require employer sponsorship."
+      }
+    },
+    "chile": {
+      "status": "Ciudadano chileno, autorizado para trabajar en Chile, sin patrocinio.",
+      "relocation_note": "Puedo estar en Santiago en una semana."
+    }
+  },
+  "salary_expectations": {
+    "canada_implementation_onboarding_po": "CA$70,000 - 85,000",
+    "canada_support_or_qa": "CA$60,000 - 70,000",
+    "chile": "CLP 3.000.000 - 3.800.000 brutos/mes (cargos senior de PO e implementación)",
+    "remote_international": "USD 4,500 - 5,500 / mes"
+  },
+  "availability": "Inmediata",
+  "tools_years": {
+    "SQL": "15+",
+    "Nokia BSCS": "5 (2013-2018)",
+    "Jira": "7 (2018-2025)",
+    "SmartBackOffice": "3-4 (Entel)",
+    "Power BI": "3-4 (Entel)",
+    "Agile/Scrum (as PO)": "4 (2021-2025)",
+    "Selenium IDE": "2",
+    "Salesforce": "1 (configuración, carga de datos y pruebas; no administrador)",
+    "Dynamics 365 Customer Service": "1 (proyecto en Entel con Chilexpress)",
+    "SAP SuccessFactors": "NO DECLARAR (no confirmado)"
+  },
+  "languages": {
+    "spanish": "Nativo",
+    "english": "Professional working proficiency (no declarar C1/B2 hasta tener resultado EF SET)",
+    "french": "No"
+  },
+  "modality_relocation": {
+    "modality": "Remoto, híbrido o presencial",
+    "relocation": "Dispuesto a reubicarse en cualquier parte de Canadá, y a Santiago para cargos híbridos."
+  },
+  "self_identification": {
+    "pronouns": "(dejar en blanco)",
+    "voluntary_gender_ethnicity_disability": "Prefer not to answer",
+    "veteran": "No"
+  },
+  "references": "Cartas de Accenture Chile, Entel y ODAC (Roberta Nott, presidenta), disponibles a pedido.",
+  "gaps_to_complete": []
+}

@@ -5,6 +5,7 @@ Free tier: 3 000 emails/month, 100/day.
 import html
 import logging
 from datetime import date
+from urllib.parse import quote
 
 import httpx
 
@@ -100,7 +101,17 @@ def _job_card(job: dict) -> str:
   {tags_html}
   <p class="card-why">{e(job.get("reason"))}</p>
   <a class="btn" href="{html.escape(url or "#", quote=True)}" target="_blank">{"Abrir en LinkedIn →" if linkedin_only else "Postular →"}</a>
+  {_kit_button(url)}
 </div>"""
+
+
+def _kit_button(url: str) -> str:
+    if not url:
+        return ""
+    base = get_settings().public_base_url.rstrip("/")
+    kit_url = f"{base}/api/kits/new?job_url={quote(url, safe='')}"
+    return (f'<a class="btn" style="background:#eef2f7;color:#1e3a5f;margin-left:6px" '
+            f'href="{html.escape(kit_url, quote=True)}" target="_blank">🧰 Preparar kit</a>')
 
 
 def _section(key: str, jobs: list[dict]) -> str:

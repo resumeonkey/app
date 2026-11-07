@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     # LLM defaults
     default_llm_provider: str = "openai"
     default_llm_model: str = "gpt-4o"
+    # Free pool used by the digest and the application kit (cover letter, CV, answers)
+    kit_llm_provider: str = "groq"
+    kit_llm_model: str = "openai/gpt-oss-20b"
+    # Public base URL of this backend, used to build links in the digest email (e.g. "Preparar kit")
+    public_base_url: str = "https://resume-adapter-api.onrender.com"
     max_retries: int = 3
     retry_delay_seconds: float = 2.0
 

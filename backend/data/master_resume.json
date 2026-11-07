@@ -1,0 +1,141 @@
+{
+  "_comment": "Master resume REAL (superset), construido del contenido verdadero de los CVs del usuario (Product Owner EQWI, TELUS System Quality Analyst, LTIMindtree Soporte) + banco de respuestas, confirmados 2026-11-07. El PDF 'Master (Masha)' se usa SOLO como formato/plantilla, no como contenido. El adaptador recorta/encuadra por oferta. Email y teléfono = valores autoritativos del usuario (faleuy@gmail.com, +1 709 220 8100). Nota: franciscoaleuy.ca aparece en los CVs como portafolio pero el usuario advirtió que el dominio es de otra persona y vence en enero (a confirmar antes de usarlo).",
+  "profile_id": "master_real",
+  "name": "Francisco Aleuy Young",
+  "title": "Product Owner · QA & Systems Analyst",
+  "tagline": ["Internal Tools & Workflow Systems", "UAT & Release Sign-off", "Application Support", "English / Spanish"],
+  "contact": {
+    "location": "Vancouver, BC, Canada",
+    "phone": "+1 709 220 8100",
+    "email": "faleuy@gmail.com",
+    "linkedin": "linkedin.com/in/faleuy",
+    "website": "franciscoaleuy.ca"
+  },
+  "summary": [
+    "Product Owner and systems/QA professional with 16 years in enterprise systems across telecom and banking, including 4 years owning the backlog for internal service tools at Entel, one of Chile's largest telecoms.",
+    "Sits between business stakeholders and developers: turns business requests into Jira user stories with acceptance criteria, runs backlog refinement, coordinates UAT with business users, traces defects to closure and takes releases to production.",
+    "Hands-on with Microsoft Dynamics 365 Customer Service, Salesforce, SmartBackOffice, Nokia BSCS, Jira and SQL. Uses AI daily to refine stories, analyze requirements and run test sessions. Bilingual (Spanish native, English professional working proficiency)."
+  ],
+  "competencies": {
+    "Product Ownership": ["Backlog management", "User stories with acceptance criteria", "Refinement & sprint planning", "Dependency tracking", "Stakeholder & change management"],
+    "Delivery & QA": ["UAT planning & coordination", "Regression testing", "Test case design", "Defect reproduction & triage to closure", "Release sign-off", "ISTQB CTFL v4.0"],
+    "Business Applications": ["Microsoft Dynamics 365 Customer Service", "Salesforce", "SmartBackOffice", "Nokia BSCS", "Microsoft 365", "Genesys"],
+    "Tools": ["Jira", "Confluence", "Miro", "Postman", "Playwright", "Selenium IDE", "Power BI", "Supabase"],
+    "Data": ["SQL (Oracle, SQL Server, PostgreSQL, MySQL)", "Unix shell", "AWK", "Data validation & reconciliation"],
+    "Support": ["Ticket-based incident management", "Root-cause analysis", "Escalation to development", "User onboarding & training", "System documentation"],
+    "Automation & AI": ["RPA", "Workflow platforms", "REST APIs, OAuth & API keys", "Claude & Claude Code", "AI agents for testing", "LLM APIs"]
+  },
+  "experience": [
+    {
+      "title": "Product Owner (volunteer)",
+      "company": "Octagon Services",
+      "location": "Vancouver, BC, Canada",
+      "dates": "Oct 2026 – Nov 2026",
+      "bullets": [
+        "Operations digitization for a field-service business: parts inventory app (MVP) and the design of a digital technician report and approval flow.",
+        "Mapped the job flow from dispatch to invoice across six tools and a WhatsApp group, ranked 7 pain points by impact on cash collection, and turned the first into the MVP backlog.",
+        "Delivered MVP v0.1 (403-part catalogue, stock by warehouse and truck, low-stock alerts, CSV export), built with AI-assisted development; paused by the owner in Nov 2026."
+      ]
+    },
+    {
+      "title": "Board Director & Product Owner (volunteer)",
+      "company": "Osoyoos & District Arts Council",
+      "location": "Osoyoos, BC, Canada",
+      "dates": "Jun 2026 – Present",
+      "bullets": [
+        "Owned Content Loop, an internal content intake and publishing tool for an arts council with 18 member groups.",
+        "Ran discovery, wrote requirements, prioritized 3 validated pain points, built and tested the portal, trained a non-technical administrator and handed it off; runs at zero cost on free tiers.",
+        "Chose assisted publishing over a direct social-media API integration so the tool keeps working without technical maintenance after handoff."
+      ]
+    },
+    {
+      "title": "Co-founder, Product Owner & QA Lead",
+      "company": "Craft beer discovery web platform (startup, pre-launch)",
+      "location": "Chile (remote)",
+      "dates": "2026 – Present",
+      "bullets": [
+        "Web platform to discover craft beers, bars and breweries on an interactive map; product and quality owner alongside two developer co-founders.",
+        "Planned and ran two risk-based test cycles: 144 test cases, 24 defects reported (1 high, 10 medium, 13 low), re-tested to closure in ISTQB-style reports.",
+        "Set up end-to-end automation with Playwright and AI agents; selected 281 scenarios for automation."
+      ]
+    },
+    {
+      "title": "Product Owner, Enterprise Systems & Contact Centre",
+      "company": "Entel",
+      "location": "Santiago, Chile",
+      "dates": "May 2021 – Jan 2025",
+      "bullets": [
+        "Owned the backlog (epics to user stories in Jira with acceptance criteria) for internal service tools, running refinement, sprint planning and prioritization for two Scrum teams in Chile and Peru.",
+        "Led end-to-end rollout of an HR service management model on the SmartBackOffice workflow platform, integrated with a ticketing tool (IRIS), a conversational bot (Botmaker) and a training platform (Salesia); UAT with business users and a three-week parallel run until 100% migrated.",
+        "Defined an RPA to extract purchase-order and ticket data from Microsoft Dynamics 365 Customer Service for a logistics partner, choosing RPA over a slower API integration.",
+        "Tested REST APIs in Postman for a contact-centre automation; coordinated defects with developers and vendors to closure and confirmed release outcomes in production with SQL and Power BI.",
+        "Used AI to organize and refine user stories and acceptance criteria."
+      ]
+    },
+    {
+      "title": "Application Support Specialist",
+      "company": "MB Solutions Latam",
+      "location": "Santiago, Chile",
+      "dates": "Sep 2020 – Apr 2021",
+      "bullets": [
+        "Reproduced and diagnosed production incidents reported by corporate client users, traced root causes with SQL, documented each case and kept users informed until closure."
+      ]
+    },
+    {
+      "title": "Application Development Analyst",
+      "company": "Accenture Chile",
+      "location": "Santiago, Chile",
+      "dates": "Jan 2018 – Aug 2020",
+      "bullets": [
+        "Configured, loaded and validated new plan and bundle offers in Salesforce for a telecom client (Entel); analysed billing incidents in production and verified fixes with development.",
+        "Supported investment agents at a banking client (Security Inversiones): turned requests into PHP (Laravel) and .NET application changes, wrote SQL stored procedures, validated backend data and ran production deployments.",
+        "Tracked defects in Jira and validated releases before production."
+      ]
+    },
+    {
+      "title": "Enterprise Systems Specialist (Entel account)",
+      "company": "Allware SpA",
+      "location": "Santiago, Chile",
+      "dates": "2009 – 2018",
+      "bullets": [
+        "Billing Configuration Specialist (2013–2018): configured plans, tariffs and charging rules in Nokia BSCS; prepared test usage files and reconciled billing outputs before every cycle; investigated discrepancies to root cause with SQL, Unix shell and AWK, and ran regression tests with Selenium IDE.",
+        "Provisioning Analyst (2010–2013): validated service provisioning flows between commercial systems and the network, isolating failures at the integration point.",
+        "Device Testing Technician (2009–2010): executed functional certification and compatibility testing of mobile devices before commercial launch."
+      ]
+    },
+    {
+      "title": "Guest Services Associate",
+      "company": "Watermark Beach Resort",
+      "location": "Osoyoos, BC, Canada",
+      "dates": "Jun 2025 – Sep 2026",
+      "bullets": [
+        "Bilingual front-line guest service in a high-volume resort on rotating shifts (evenings and weekends), after relocating to Canada. Included for timeline completeness; usually omitted for senior systems roles."
+      ]
+    }
+  ],
+  "education": [
+    {"degree": "Bachelor of Industrial Engineering (in progress, expected 2027)", "institution": "Universidad Andrés Bello, Chile"},
+    {"degree": "Diploma in Industrial Control (WES: three-year Canadian diploma equivalent)", "institution": "Instituto Profesional IACC, Chile, 2025"},
+    {"degree": "Diploma in Network and Connectivity Technology (WES: two-year Canadian diploma equivalent)", "institution": "UCINF, Chile, 2012"}
+  ],
+  "_certifications_comment": "Superset completo de certificaciones reales. El adaptador elige cuáles mostrar según la oferta (un CV por postulación).",
+  "certifications": [
+    {"name": "ISTQB Certified Tester Foundation Level (CTFL) v4.0", "issuer": "ISTQB", "year": ""},
+    {"name": "Scrum Product Owner Professional (SPOPC)", "issuer": "CertiProf", "year": "2025"},
+    {"name": "Product Owner Specialist", "issuer": "Pablolledo.com", "year": "2024"},
+    {"name": "Google Data Analytics Professional Certificate", "issuer": "Google", "year": ""},
+    {"name": "AI Fluency and Claude Code in Action", "issuer": "Anthropic", "year": "2026"},
+    {"name": "Cisco CCNA curriculum", "issuer": "Cisco Networking Academy (UCINF)", "year": ""},
+    {"name": "Agile Project Management with JIRA (SCRUM-focused)", "issuer": "Udemy", "year": "2024"},
+    {"name": "Prompt Engineering", "issuer": "Coursera", "year": "2024"},
+    {"name": "Introduction to Programming with JavaScript", "issuer": "Alura", "year": "2025"},
+    {"name": "Data Science Analyst with Python", "issuer": "Desafío Latam", "year": "2021"},
+    {"name": "Security Awareness Training (30 minute)", "issuer": "KnowBe4", "year": "2023"}
+  ],
+  "languages": "Spanish (native), English (professional working proficiency)",
+  "volunteer": [
+    {"title": "Board Director (Volunteer)", "org": "Osoyoos & District Arts Council", "year": "2026 – Present",
+     "bullets": ["Reference: Roberta Nott, President, ODAC (letter of recommendation available)."]}
+  ],
+  "references": "Available on request: Accenture Chile, Entel, and Roberta Nott (President, ODAC)."
+}
