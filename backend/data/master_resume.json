@@ -8,7 +8,8 @@
     "location": "Vancouver, BC, Canada",
     "phone": "+1 709 220 8100",
     "email": "faleuy@gmail.com",
-    "linkedin": "linkedin.com/in/faleuy"
+    "linkedin": "linkedin.com/in/faleuy",
+    "website": "franciscoaleuy.ca"
   },
   "summary": [
     "Product Owner and systems/QA professional with 16 years in enterprise systems across telecom and banking, including 4 years owning the backlog for internal service tools at Entel, one of Chile's largest telecoms.",
@@ -117,12 +118,19 @@
     {"degree": "Diploma in Industrial Control (WES: three-year Canadian diploma equivalent)", "institution": "Instituto Profesional IACC, Chile, 2025"},
     {"degree": "Diploma in Network and Connectivity Technology (WES: two-year Canadian diploma equivalent)", "institution": "UCINF, Chile, 2012"}
   ],
+  "_certifications_comment": "Superset completo de certificaciones reales. El adaptador elige cuáles mostrar según la oferta (un CV por postulación).",
   "certifications": [
     {"name": "ISTQB Certified Tester Foundation Level (CTFL) v4.0", "issuer": "ISTQB", "year": ""},
-    {"name": "Scrum Product Owner Professional", "issuer": "CertiProf", "year": "2025"},
+    {"name": "Scrum Product Owner Professional (SPOPC)", "issuer": "CertiProf", "year": "2025"},
+    {"name": "Product Owner Specialist", "issuer": "Pablolledo.com", "year": "2024"},
     {"name": "Google Data Analytics Professional Certificate", "issuer": "Google", "year": ""},
     {"name": "AI Fluency and Claude Code in Action", "issuer": "Anthropic", "year": "2026"},
-    {"name": "Cisco CCNA curriculum", "issuer": "Cisco Networking Academy (UCINF)", "year": ""}
+    {"name": "Cisco CCNA curriculum", "issuer": "Cisco Networking Academy (UCINF)", "year": ""},
+    {"name": "Agile Project Management with JIRA (SCRUM-focused)", "issuer": "Udemy", "year": "2024"},
+    {"name": "Prompt Engineering", "issuer": "Coursera", "year": "2024"},
+    {"name": "Introduction to Programming with JavaScript", "issuer": "Alura", "year": "2025"},
+    {"name": "Data Science Analyst with Python", "issuer": "Desafío Latam", "year": "2021"},
+    {"name": "Security Awareness Training (30 minute)", "issuer": "KnowBe4", "year": "2023"}
   ],
   "languages": "Spanish (native), English (professional working proficiency)",
   "volunteer": [
