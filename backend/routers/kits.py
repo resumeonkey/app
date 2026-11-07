@@ -170,25 +170,6 @@ def mark_applied(kit_id: str, db: Session = Depends(get_db)):
     return {"ok": True, "applied_at": kit.applied_at.isoformat()}
 
 
-@router.post("/{kit_id}/regenerate")
-def regenerate_kit(kit_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    kit = db.query(ApplicationKit).filter(ApplicationKit.id == kit_id).first()
-    if not kit:
-        raise HTTPException(404, "Kit no encontrado")
-    kit.status = "pending"
-    kit.error_msg = None
-    db.commit()
-    # Re-run the CV adaptation only if it is missing or failed.
-    if kit.adaptation_id:
-        adap = db.query(Adaptation).filter(Adaptation.id == kit.adaptation_id).first()
-        if adap and adap.status in ("error", "pending"):
-            adap.status = "pending"
-            db.commit()
-            background_tasks.add_task(_run_adaptation_task, adap.id)
-    background_tasks.add_task(_run_kit_task, kit.id)
-    return _detail(db, kit)
-
-
 @router.get("/{kit_id}/view", response_class=HTMLResponse)
 def view_kit(kit_id: str, db: Session = Depends(get_db)):
     kit = db.query(ApplicationKit).filter(ApplicationKit.id == kit_id).first()
@@ -226,7 +207,6 @@ _VIEW_HTML = """<!DOCTYPE html>
   <div class="card"><h2>Respuestas estándar</h2><table id="std"></table></div>
   <div class="card" id="pqcard" style="display:none"><h2>Preguntas del aviso</h2><div id="pq"></div></div>
   <div class="card"><div class="row"><button class="btn" onclick="applied()">Marcar como postulada</button>
-    <button class="btn ghost" onclick="regen()">Regenerar kit</button>
     <span id="appmsg" class="muted"></span></div></div>
  </div>
 <script>
@@ -235,7 +215,6 @@ function esc(s){const d=document.createElement('div');d.textContent=s==null?'':S
 function cp(id){const t=document.getElementById(id).innerText;navigator.clipboard.writeText(t)}
 function warnify(v){v=v==null?'':String(v);return v.includes('REVISAR')||v.startsWith('FALTA')?'<span class="warn">'+esc(v)+'</span>':esc(v)}
 async function applied(){await fetch('/api/kits/'+KIT+'/applied',{method:'PATCH'});document.getElementById('appmsg').textContent='Marcada como postulada ✓'}
-async function regen(){document.getElementById('appmsg').textContent='Regenerando…';await fetch('/api/kits/'+KIT+'/regenerate',{method:'POST'});document.getElementById('content').style.display='none';document.getElementById('status').style.display='block';document.getElementById('status').textContent='Regenerando el kit…';poll()}
 async function poll(){
  const r=await fetch('/api/kits/'+KIT);const d=await r.json();
  const st=document.getElementById('status');
