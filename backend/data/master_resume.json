@@ -1,0 +1,96 @@
+{
+  "_comment": "Master resume CANÓNICO (QA & Product), transcrito del PDF que el usuario marca como el de referencia ('el que usamos con Masha'), con las correcciones de nombre/ubicación/email confirmadas el 2026-11-07. Supersede a master_hr_technology.json (enfoque HR-tech, desactualizado). El teléfono se tomó del banco de respuestas confirmado por el usuario (+1 709 220 8100); el PDF tenía 709-424-8180 (conflicto a confirmar).",
+  "profile_id": "qa_product",
+  "name": "Francisco Aleuy Young",
+  "title": "QA & Product Professional",
+  "tagline": ["Software Testing", "Data Analysis", "Digital Product Development"],
+  "contact": {
+    "location": "Vancouver, BC, Canada",
+    "phone": "+1 709 220 8100",
+    "email": "faleuy@gmail.com",
+    "linkedin": "linkedin.com/in/faleuy"
+  },
+  "summary": [
+    "Experienced QA and Product Professional with a strong background in software testing, data analysis, and digital product development.",
+    "Proven success in the telecom and banking sectors leading Agile teams, optimizing processes, and improving system reliability through automation and analytics.",
+    "Skilled in quality assurance, data integrity, and cross-functional collaboration. Committed to delivering scalable, user-centric solutions that drive operational efficiency."
+  ],
+  "competencies": {
+    "Quality Assurance": ["Test Case Design", "Test Planning", "API Testing", "Script Automation", "Regression Testing", "Bug Tracking", "Functional Testing", "Agile QA"],
+    "Strengths": ["Analytical Thinking", "Detail-Oriented", "Clear Communication", "Problem Solving"],
+    "Tools & Technologies": ["JIRA", "Postman", "PowerShell", "SQL Server", "Linux", "KnowBe4", "Azure", "JavaScript", "Trello", "Confluence", "Scrum", "Python"]
+  },
+  "experience": [
+    {
+      "title": "Product Owner",
+      "company": "Entel",
+      "location": "Chile",
+      "dates": "May 2021 – Jan 2025",
+      "bullets": [
+        "Oversaw the full lifecycle of digital product development in the telecommunications sector, translating business needs into scalable solutions and leading cross-functional Agile teams to deliver high-impact results.",
+        "Translated business requirements into scalable solutions, aligning development with strategic goals.",
+        "Automated HR workflows, resulting in a 40% improvement in process efficiency.",
+        "Integrated generative AI for needs analysis, reducing response time by 30%."
+      ]
+    },
+    {
+      "title": "Senior Technical Support Engineer",
+      "company": "MB Solutions Latam",
+      "location": "Chile",
+      "dates": "May 2020 – Apr 2021",
+      "bullets": [
+        "Provided advanced remote technical support, resolving incidents, executing system validations, and ensuring operational continuity across Linux and SQL-based platforms.",
+        "Delivered high-level remote support and troubleshooting for telecom clients across multiple platforms.",
+        "Conducted root cause analysis and incident resolution on Linux-based systems.",
+        "Executed SQL queries for diagnostics and system validation.",
+        "Developed internal documentation to streamline incident resolution and onboarding.",
+        "Reduced recurring support tickets by 25% through procedural automation and knowledge base optimization."
+      ]
+    },
+    {
+      "title": "Application Development Analyst",
+      "company": "Accenture",
+      "location": "Chile",
+      "dates": "Dec 2018 – Feb 2020",
+      "bullets": [
+        "Developed digital solutions for the banking sector, supporting client-specific system integrations.",
+        "Executed and maintained automated scripts using SQL and Postman for data validation and process monitoring.",
+        "Participated in core banking system migrations and collaborated with multidisciplinary teams to ensure compliance with security and performance requirements.",
+        "Optimized reporting processes using PowerShell, decreasing delivery time by 35%."
+      ]
+    },
+    {
+      "title": "QA Manual Tester / QA Automation Tester / Data Quality Analyst",
+      "company": "Allware",
+      "location": "Chile",
+      "dates": "Sep 2009 – Dec 2017",
+      "bullets": [
+        "Conducted end-to-end software testing and data validation, ensuring product quality, system reliability, and data accuracy through manual, automated, and analytical QA processes.",
+        "Performed functional and regression testing for telecom applications, identifying and reporting bugs to ensure product reliability.",
+        "Designed automated load tests, enhancing system scalability validation and reducing critical errors by 20%.",
+        "Developed structured QA documentation and shared protocols to support team efficiency and process consistency.",
+        "Conducted data validation and cleansing across multiple systems, improving data integrity.",
+        "Improved traceability of telecom network errors at the cell level, increasing reporting accuracy by 20%.",
+        "Reduced production defects by 15% through rigorous manual testing and validation processes."
+      ]
+    }
+  ],
+  "education": [
+    {"degree": "Bachelor’s Degree in Industrial Engineering (in progress – 2027)", "institution": "Universidad Andrés Bello, Chile"},
+    {"degree": "Diploma in Industrial Processes Technology", "institution": "Instituto Profesional IACC, Chile"},
+    {"degree": "Diploma in Network and Connectivity Technology", "institution": "Universidad de Ciencias de la Informática, Chile"}
+  ],
+  "certifications": [
+    {"name": "Scrum Product Owner Professional Certificate (SPOPC)", "issuer": "CertiProf", "year": "2025"},
+    {"name": "Introduction to Programming with JavaScript", "issuer": "Alura", "year": "2025"},
+    {"name": "Product Owner Specialist", "issuer": "Pablolledo.com", "year": "2024"},
+    {"name": "Prompt Engineering", "issuer": "Coursera", "year": "2024"},
+    {"name": "Agile Project Management with JIRA (SCRUM-focused)", "issuer": "Udemy", "year": "2024"},
+    {"name": "Security Awareness Training (30 minute)", "issuer": "KnowBe4", "year": "2023"},
+    {"name": "Data Science Analyst with Python", "issuer": "Desafío Latam", "year": "2021"}
+  ],
+  "volunteer": [
+    {"title": "Volunteer Chatbot Developer", "org": "Rural Restaurant Initiative, Chile", "year": "2024",
+     "bullets": ["Designed and implemented a chatbot system for order management in a rural restaurant, improving service efficiency and digital accessibility for underserved communities."]}
+  ]
+}
