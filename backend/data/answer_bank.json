@@ -37,7 +37,7 @@
   "salary_expectations": {
     "canada_implementation_onboarding_po": "CA$70,000 - 85,000",
     "canada_support_or_qa": "CA$60,000 - 70,000",
-    "chile": "FALTA: completar",
+    "chile": "CLP 3.000.000 - 3.800.000 brutos/mes (cargos senior de PO e implementación)",
     "remote_international": "USD 4,500 - 5,500 / mes"
   },
   "availability": "Inmediata",
@@ -50,7 +50,7 @@
     "Agile/Scrum (as PO)": "4 (2021-2025)",
     "Selenium IDE": "2",
     "Salesforce": "1 (configuración, carga de datos y pruebas; no administrador)",
-    "Dynamics 365 Customer Service": "FALTA: completar (fue un proyecto en Entel)",
+    "Dynamics 365 Customer Service": "1 (proyecto en Entel con Chilexpress)",
     "SAP SuccessFactors": "NO DECLARAR (no confirmado)"
   },
   "languages": {
@@ -63,14 +63,10 @@
     "relocation": "Dispuesto a reubicarse en cualquier parte de Canadá, y a Santiago para cargos híbridos."
   },
   "self_identification": {
-    "pronouns": "FALTA: elegir",
-    "voluntary_gender_ethnicity_disability_veteran": "FALTA: elegir ('Prefer not to answer' en todos, o respuestas propias)"
+    "pronouns": "(dejar en blanco)",
+    "voluntary_gender_ethnicity_disability": "Prefer not to answer",
+    "veteran": "No"
   },
   "references": "Cartas de Accenture Chile, Entel y ODAC (Roberta Nott, presidenta), disponibles a pedido.",
-  "gaps_to_complete": [
-    "salary_expectations.chile",
-    "tools_years.Dynamics 365 Customer Service",
-    "self_identification.pronouns",
-    "self_identification.voluntary_gender_ethnicity_disability_veteran"
-  ]
+  "gaps_to_complete": []
 }

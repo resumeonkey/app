@@ -255,6 +255,55 @@ class FromTemplateRequest(BaseModel):
     profile_name: Optional[str] = None
 
 
+@router.post("/seed-canonical", response_model=MasterDetail, status_code=201)
+async def seed_canonical_master(db: Session = Depends(get_db)):
+    """Create and activate the canonical master resume from backend/data/master_resume.json."""
+    path = _DATA_DIR / "master_resume.json"
+    if not path.exists():
+        raise HTTPException(404, "master_resume.json not found")
+    data = json.loads(path.read_text(encoding="utf-8"))
+
+    master_id = uuid.uuid4().hex
+    docx_tmp = os.path.join(tempfile.gettempdir(), f"canon_{master_id}.docx")
+    try:
+        generate_resume_docx(data, docx_tmp, template="classic")
+        parsed = parse_docx(docx_tmp)
+        with open(docx_tmp, "rb") as fh:
+            contents = fh.read()
+    except Exception as e:
+        raise HTTPException(422, f"No se pudo generar el master canónico: {e}")
+    finally:
+        if os.path.exists(docx_tmp):
+            os.remove(docx_tmp)
+
+    storage_path = f"uploads/master_{master_id}.docx"
+    ct = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    file_path = storage.upload_file(contents, storage_path, ct)
+
+    db.query(MasterResume).filter(MasterResume.is_active == True).update({"is_active": False})
+    master = MasterResume(
+        id=master_id,
+        original_filename="Francisco_Aleuy_Young_Master.docx",
+        file_path=file_path,
+        file_type="docx",
+        full_text=parsed.get("full_text"),
+        sections=parsed.get("sections"),
+        candidate_name=data.get("name"),
+        notes="Master canónico (QA/Product) desde master_resume.json",
+        is_active=True,
+        profile_name="QA / Product",
+        english_level="professional",
+        citizenship="Chile",
+        education_level="technical",
+        industry_experience="Telecommunications, Banking, Contact Center, Software Testing",
+        target_roles="Product Owner, Implementation Specialist, QA Analyst, Application Support, Business Systems Analyst",
+    )
+    db.add(master)
+    db.commit()
+    db.refresh(master)
+    return _to_detail(master)
+
+
 @router.post("/from-template", response_model=MasterDetail, status_code=201)
 async def create_master_from_template(
     body: FromTemplateRequest,
