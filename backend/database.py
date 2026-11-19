@@ -4,10 +4,16 @@ from backend.config import get_settings
 
 settings = get_settings()
 
+import logging
+log = logging.getLogger(__name__)
+
 _url = settings.database_url
 # SQLite requires check_same_thread=False; PostgreSQL does not accept that arg
 _connect_args = {"check_same_thread": False} if _url.startswith("sqlite") else {}
-engine = create_engine(_url, connect_args=_connect_args)
+# pool_pre_ping recycles dead connections instead of erroring — important because Supabase
+# (free tier) drops connections when it pauses/resumes. pool_recycle avoids stale sockets.
+_engine_kwargs = {} if _url.startswith("sqlite") else {"pool_pre_ping": True, "pool_recycle": 300}
+engine = create_engine(_url, connect_args=_connect_args, **_engine_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -24,9 +30,21 @@ def get_db():
 
 
 def init_db():
+    """Best-effort schema setup. If the DB is briefly unreachable (e.g. Supabase just resumed),
+    log and continue so the API still starts; tables already exist and reconnect happens per-request."""
+    import time
     from backend.models import master, adaptation, context, saved_job, digest, application_kit  # noqa — registers all models
-    Base.metadata.create_all(bind=engine)
-    _migrate_add_columns()
+    last = None
+    for attempt in range(3):
+        try:
+            Base.metadata.create_all(bind=engine)
+            _migrate_add_columns()
+            return
+        except Exception as exc:
+            last = exc
+            log.warning("init_db attempt %d failed: %s", attempt + 1, str(exc)[:200])
+            time.sleep(3 * (attempt + 1))
+    log.error("init_db: database unreachable at startup; starting anyway. Last error: %s", str(last)[:300])
 
 
 def _migrate_add_columns():
